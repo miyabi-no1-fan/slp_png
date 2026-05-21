@@ -332,7 +332,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                 in = (uint8_t*)malloc(CHUNK);
                 if (out == NULL || in == NULL) {
                     slp_png_stream->bit_depth = 255;
-                    zng_deflateEnd(&strm);
+                    zng_inflateEnd(&strm);
                     goto cleanup;
                 }
 
@@ -342,7 +342,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                     scanline[1] = (uint8_t*)malloc(bpr);
                     if (scanline[0] == NULL || scanline[1] == NULL) {
                         slp_png_stream->bit_depth = 255;
-                        zng_deflateEnd(&strm);
+                        zng_inflateEnd(&strm);
                         goto cleanup;
                     }
                 }
@@ -357,7 +357,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                     data_len = big_edian_u32(worker);
                     if (file_size - (size_t)ftell(file) - 16 < data_len) {
                         slp_png_stream->bit_depth = 2;// data len > remaining file size is invalid
-                        zng_deflateEnd(&strm);
+                        zng_inflateEnd(&strm);
                         goto cleanup;
                     }
 
@@ -367,7 +367,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                     if (data_len < ai) {
                         if (fread(in + intrker, 1, data_len, file) != data_len) {
                             slp_png_stream->bit_depth = 1;
-                            zng_deflateEnd(&strm);
+                            zng_inflateEnd(&strm);
                             goto cleanup;
                         }
                         ai -= data_len;
@@ -377,7 +377,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                     else {
                         if (fread(in + intrker, 1, ai, file) != ai) {
                             slp_png_stream->bit_depth = 1;
-                            zng_deflateEnd(&strm);
+                            zng_inflateEnd(&strm);
                             goto cleanup;
                         }
                         crc = zng_crc32(crc, in + intrker, ai);
@@ -394,7 +394,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                                 have = CHUNK - strm.avail_out;
                                 if (ret != Z_OK && ret != Z_STREAM_END) {
                                     slp_png_stream->bit_depth = 3;
-                                    zng_deflateEnd(&strm);
+                                    zng_inflateEnd(&strm);
                                     goto cleanup;
                                 }
                                 row_produced = have / (bpr + 1);
@@ -404,7 +404,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                                     // defilter to scanline[1] from buffer as raw and scanline[0] as up
                                     if (slp_png_defilter(out + i * (bpr + 1), scanline, bpp, bpr, imtrker) != 0) {
                                         slp_png_stream->bit_depth = 2;
-                                        zng_deflateEnd(&strm);
+                                        zng_inflateEnd(&strm);
                                         goto cleanup;
                                     }
 
@@ -431,7 +431,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                             if (ftrker > ai) {
                                 if (fread(in + intrker, 1, ai, file) != ai) {
                                     slp_png_stream->bit_depth = 1;
-                                    zng_deflateEnd(&strm);
+                                    zng_inflateEnd(&strm);
                                     goto cleanup;
                                 }
                                 crc = zng_crc32(crc, in + intrker, ai);
@@ -444,7 +444,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                             else {
                                 if (fread(in + intrker, 1, ftrker, file) != ftrker) {
                                     slp_png_stream->bit_depth = 1;
-                                    zng_deflateEnd(&strm);
+                                    zng_inflateEnd(&strm);
                                     goto cleanup;
                                 }
                                 crc = zng_crc32(crc, in + intrker, ftrker);
@@ -457,19 +457,19 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
 
                     if (fread(worker + 8, 1, 4, file) != 4) {
                         slp_png_stream->bit_depth = 1;
-                        zng_deflateEnd(&strm);
+                        zng_inflateEnd(&strm);
                         goto cleanup;
                     }
 
                     if (big_edian_u32(worker + 8) != crc) {
                         slp_png_stream->bit_depth = 2;
-                        zng_deflateEnd(&strm);
+                        zng_inflateEnd(&strm);
                         goto cleanup;
                     }
 
                     if (fread(worker, 1, 8, file) != 8) {
                         slp_png_stream->bit_depth = 1;
-                        zng_deflateEnd(&strm);
+                        zng_inflateEnd(&strm);
                         goto cleanup;
                     }
                 } while (big_edian_u32(worker + 4) == IDAT);
@@ -482,7 +482,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                     have = CHUNK - strm.avail_out;
                     if (ret != Z_OK && ret != Z_STREAM_END) {
                         slp_png_stream->bit_depth = 3;
-                        zng_deflateEnd(&strm);
+                        zng_inflateEnd(&strm);
                         goto cleanup;
                     }
                     row_produced = have / (bpr + 1);
@@ -492,7 +492,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                         // defilter to scanline[1] from buffer and scanline[0]
                         if (slp_png_defilter(out + i * (bpr + 1), scanline, bpp, bpr, imtrker) != 0) {
                             slp_png_stream->bit_depth = 2;
-                            zng_deflateEnd(&strm);
+                            zng_inflateEnd(&strm);
                             goto cleanup;
                         }
 
@@ -518,7 +518,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                 zng_inflateEnd(&strm);
                 if (fseek(file, -8, SEEK_CUR) != 0) {
                     slp_png_stream->bit_depth = 1;
-                    zng_deflateEnd(&strm);
+                    zng_inflateEnd(&strm);
                     goto cleanup;
                 }
 
