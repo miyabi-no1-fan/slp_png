@@ -86,7 +86,7 @@ int main()
 
 - Test code located at: tests/perf/
 
-- Compare with libspng:x64-linux@0.7.4
+- Compare with https://github.com/randy408/libspng.git
 
 - Commands:
 ```bash
