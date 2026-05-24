@@ -59,7 +59,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         pacman -Syyu --noconfirm
-        pacman -S --noconfirm base base-devel zlib-ng-compat libspng
+        pacman -Syu --noconfirm base base-devel zlib-ng-compat libspng cmake gcc clang ninja
 
 
     - name: macOS install dep
@@ -108,7 +108,7 @@ jobs:
 
     - name: Install Valgrind (gcc)
       if: matrix.c_compiler == 'gcc'
-      run: sudo apt-get install -y valgrind
+      run: pacman -Syu valgrind
 
     - name: Run CI test with valgrind (gcc)
       if: matrix.c_compiler == 'gcc'
