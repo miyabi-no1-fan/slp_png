@@ -21,7 +21,7 @@ RUN clang-tidy -p build \
     -extra-arg=-Wno-unknown-warning-option --warnings-as-errors='*' \
     src/slp_image_transform/slp_image_transform.c src/slp_png_read/slp_png_read_from_file.c src/slp_png_write/slp_png_write_to_file.c
 
-RUN rm build
+RUN rm -r build
 
 RUN _scripts/archlinux/build_lib.sh
 RUN _scripts/archlinux/build_exe.sh dynamic tests/CI_TEST.c build/test -Ofast
