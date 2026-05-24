@@ -23,7 +23,10 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
     endif()
 endif()
 
-
+if(APPLE)
+    list(APPEND CMAKE_PREFIX_PATH "/opt/homebrew")
+    set(ENV{PKG_CONFIG_PATH} "/opt/homebrew/lib/pkgconfig")
+endif()
 
 if(WIN32)
     find_package(ZLIB REQUIRED)
@@ -45,7 +48,7 @@ endif()
 
 # tests executable
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(SPNG REQUIRED IMPORTED_TARGET libspng)
+pkg_check_modules(SPNG REQUIRED IMPORTED_TARGET spng)
 
 add_executable("slp_png_perf_test" tests/perf/slp_png_perf_test.c)
 add_executable("spng_perf_test"    tests/perf/spng_perf_test.c)
