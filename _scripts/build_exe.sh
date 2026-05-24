@@ -3,7 +3,7 @@ set -e
 
 if [[ "$1" == "--help" ]]; then
 
-    echo "./build_exe.sh [linking type] [.c file] [output file] [extra compile flags]
+    echo "build_exe.sh [linking type] [.c file] [output file] [extra compile flags]
     
     linking type:
         static
@@ -11,7 +11,7 @@ if [[ "$1" == "--help" ]]; then
     
     extra compile flags: all passes directly to gcc ( default flags are -O3 -march=native -mtune=native -lz -pthread -flto )
 
-    example: ./build_exe.sh static test.c test -lz -lm"
+    example: build_exe.sh static test.c test -lz -lm"
 
     exit 0;
 
