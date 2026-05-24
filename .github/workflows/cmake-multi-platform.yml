@@ -59,7 +59,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         pacman -Syyu --noconfirm
-        pacman -Syu --noconfirm base base-devel zlib-ng-compat libspng cmake gcc clang ninja
+        pacman -Syu --noconfirm --ask=4 base base-devel zlib-ng-compat libspng cmake gcc clang ninja
 
 
     - name: macOS install dep
