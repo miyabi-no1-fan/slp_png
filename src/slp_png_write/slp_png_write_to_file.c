@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <slp_png.h>
+#include <slpz.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -133,9 +134,8 @@ int slp_png_write(struct slp_image image, const char* path) {
         return 2;
     }
 
-    uint32_t crc_ = zng_crc32(0, Z_NULL, 0);
-    crc_ = zng_crc32(crc_, IHDRsig, 4);
-    crc_ = zng_crc32(crc_, (uint8_t*)(&header), 13);
+    uint32_t crc_ = slpz_crc32(0, IHDRsig, 4);
+    crc_ = slpz_crc32(crc_, (uint8_t*)(&header), 13);
     crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
 
     uint32_t data_len = big_edian_u32_in_mem(13, is_little_edian);
@@ -452,9 +452,8 @@ static inline int slp_png_encode(struct slp_image *image, FILE* file) {
                 data_len = (uint32_t)(have);
                 data_len = big_edian_u32_in_mem(data_len, is_little_edian);
                 memcpy(out, &data_len, 4);
-                uint32_t crc_ = zng_crc32(0, Z_NULL, 0);
-                crc_ = zng_crc32(crc_, out + 4, 4);
-                crc_ = zng_crc32(crc_, out + 8, have);
+                uint32_t crc_ = slpz_crc32(0, out + 4, 4);
+                crc_ = slpz_crc32(crc_, out + 8, have);
                 crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
                 memcpy(out + 8 + have, &crc_, 4);
 
@@ -487,8 +486,7 @@ static inline int slp_png_encode(struct slp_image *image, FILE* file) {
             data_len = (uint32_t)(have);
             data_len = big_edian_u32_in_mem(data_len, is_little_edian);
             memcpy(out, &data_len, 4);
-            uint32_t crc_ = zng_crc32(0, Z_NULL, 0);
-            crc_ = zng_crc32(crc_, out + 4, 4 + have);
+            uint32_t crc_ = slpz_crc32(0, out + 4, 4 + have);
             crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
             memcpy(out + 8 + have, &crc_, 4);
             if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4) {
@@ -504,8 +502,7 @@ static inline int slp_png_encode(struct slp_image *image, FILE* file) {
     data_len = (uint32_t)(have);
     data_len = big_edian_u32_in_mem(data_len, is_little_edian);
     memcpy(out, &data_len, 4);
-    uint32_t crc_ = zng_crc32(0, Z_NULL, 0);
-    crc_ = zng_crc32(crc_, out + 4, 4 + have);
+    uint32_t crc_ = slpz_crc32(0, out + 4, 4 + have);
     crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
     memcpy(out + 8 + have, &crc_, 4);
     if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4) {
