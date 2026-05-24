@@ -23,17 +23,18 @@ RUN clang-tidy -p build \
 
 RUN rm -r build
 
-RUN _scripts/archlinux/build_lib.sh
-RUN _scripts/archlinux/build_exe.sh dynamic tests/CI_TEST.c build/test -Ofast
-RUN build/test
-
+RUN _scripts/archlinux/build_lib.sh -Ofast -mno-avx512f
 RUN _scripts/archlinux/build_exe.sh dynamic tests/CI_TEST.c build/test -Ofast -mno-avx512f
 RUN valgrind --leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=all --track-origins=yes --error-exitcode=1 \
     build/test --valgrind
 
+RUN rm -r build
 
+RUN _scripts/archlinux/build_lib.sh -Ofast
+RUN _scripts/archlinux/build_exe.sh dynamic tests/CI_TEST.c build/test -Ofast
 RUN _scripts/archlinux/build_exe.sh dynamic tests/perf/slp_png_perf_test.c build/slp -Ofast
 RUN _scripts/archlinux/build_exe.sh dynamic tests/perf/spng_perf_test.c build/spng -lspng -Ofast
+RUN build/test
 RUN build/slp
 RUN build/spng
 
