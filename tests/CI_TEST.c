@@ -27,7 +27,7 @@ int thread_safety_test(void);
 
 
 
-int main(void) {
+int main(int argc, char* argv[]) {
     slp_image a = slp_png_read(path);
     if (a.buffer == NULL) {printf("\nread failed: %d\n", a.bit_depth);return 1;}
 
@@ -35,8 +35,13 @@ int main(void) {
 
 
     // ADD FUNCTION FOR TEST HERE //
-    thread_safety_test();
-
+    bool threading = true;
+    if (argc > 1) {
+        for (int i = 1; i < argc; i++) {
+            threading = (strcmp(argv[i], "--valgrind") == 0) ? false : threading;
+        }
+    }
+    if (threading) thread_safety_test();
 
 
 
@@ -84,8 +89,7 @@ void* thread_safety_test_task(void* arg) {
         struct thread_safety_test_arg data = *(struct thread_safety_test_arg*)arg;
         slp_image a = slp_png_read(data.in_path);
         if (a.buffer == NULL) {
-            *data.status = false;
-            return NULL;
+            abort();
         }
 
 
@@ -98,23 +102,18 @@ void* thread_safety_test_task(void* arg) {
 
         int ret = slp_png_write(a, data.out_path);
         if (ret != 0) {
-            *data.status = false;
-            return NULL;
+            abort();
         }
 
         // validate new saved image
         slp_image b = slp_png_read(data.out_path);
         if (b.buffer == NULL) {
-            free(a.buffer);
-            *data.status = false;
-            return NULL;
+            abort();
         }
         const size_t size = (size_t)a.width * a.height * a.channels * (1 + (a.bit_depth == 16));
         for (size_t i = 0; i < size; i++) {
             if (a.buffer[i] != b.buffer[i]) {
-                free(a.buffer);free(b.buffer);
-                *data.status = false;
-                return NULL;
+                abort();
             }
         }
 
