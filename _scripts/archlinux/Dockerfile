@@ -1,7 +1,7 @@
 FROM archlinux:latest
 
 
-RUN pacman -Syu --noconfirm --ask=4 --needed base base-devel zlib-ng-compat libspng gcc clang valgrind llvm git debuginfod ca-certificates
+RUN pacman -Syu --noconfirm --ask=4 --needed base base-devel zlib-ng-compat libspng gcc clang valgrind llvm git debuginfod ca-certificates cmake make
 ENV DEBUGINFOD_URLS="https://debuginfod.archlinux.org"
 WORKDIR /workspace
 RUN git clone https://github.com/slp-c/slp_png.git
