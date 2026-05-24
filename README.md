@@ -13,7 +13,7 @@
         - src/slp_png_read/*
         - src/slp_png_write/*
     - dependencies:
-        - zlib ( recomend using zib-ng-compat )
+        - zlib
 
 - slp_image_transform: extra image transformation tools
     - include:
@@ -22,7 +22,7 @@
     - src:
         - src/slp_image_transform/*
     - dependencies:
-        - pthreads ( or pthread4W for windows )
+        - pthreads
 
 
 ## Basic usage
@@ -101,9 +101,9 @@ set -euo pipefail
 git clone https://github.com/slp-c/slp_png.git
 cd slp_png
 
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
-cmake --build build
+cmake --build build --config Release
 
 ./build/slp_png_perf_test
 ./build/spng_perf_test
@@ -134,63 +134,16 @@ cmake --build build
 
 ```bash
 #! /bin/bash
-set -euo pipefail
-shopt -s nullglob
+set -e
 
 # clone the repo
 git clone https://github.com/slp-c/slp_png.git
 cd slp_png
-project_root=$PWD
 
-# manual build
-mkdir build
-cd build
-gcc -c $project_root/src/*/*.c \
-    -I $project_root/include \
-    -march=native -mtune=native -O3
+_scripts/archlinux/build_lib.sh -Ofast
+_scripts/archlinux/build_exe.sh dynamic tests/perf/slp_png_perf_test.c build/slp_png_perf_test -Ofast
+_scripts/archlinux/build_exe.sh dynamic tests/perf/spng_perf_test.c build/spng_perf_test -Ofast -lspng
 
-ar rcs libslp_png.a *.o
-rm *.o
-
-gcc -c $project_root/tests/perf/*.c $project_root/tests/*.c \
-    -I $project_root/include \
-    -march=native -mtune=native -O3
-
-# run executables
-for file in $project_root/build/*.o; do
-    executable=${file%.o}
-
-    cd $project_root/build
-    gcc $file \
-        -L $project_root/build \
-        -o $executable \
-        -lz-ng -lspng -pthread -Wl,-Bstatic -lslp_png -Wl,-Bdynamic
-    
-    cd $project_root
-#uncomment if you want to test with valgrind
-#valgrind --leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=all --track-origins=yes --error-exitcode=1 $executable valgrind > /dev/null
-    $executable
-    rm $executable
-    rm $file
-done
-
-# test output
-set +e
-cd $project_root
-for file in $project_root/CI_TEST-*.png; do
-    cmp $file $project_root/CI_TEST.png
-    if [ $? -ne 0 ]; then
-        echo "fail at: cmp $file $project_root/CI_TEST.png"
-        exit 1
-    fi
-done
-set -e
-
-# clean up
-echo "
-test success"
-cd $project_root/..
-rm -rf $project_root
-
-shopt -u nullglob
+build/slp_png_perf_test
+build/spng_perf_test
 ```
