@@ -5,6 +5,12 @@ project("slp_png" C)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+if(APPLE)
+    include_directories("/opt/homebrew/include")
+    link_directories("/opt/homebrew/lib")
+endif()
+
+
 add_library("slp_png"
     src/slp_png_read/slp_png_read_from_file.c
     src/slp_png_write/slp_png_write_to_file.c
@@ -18,31 +24,15 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
         target_compile_options("slp_png" PUBLIC -mavx2 -msse2 -flto -Wall -Wextra -Werror -pedantic -Wformat -Wno-c98-compat)
     elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
         target_compile_options("slp_png" PUBLIC -mavx2 -msse2 -flto)
-    elseif(MSVC)
-        target_compile_options("slp_png" PUBLIC /arch:AVX2 /arch:SSE2)
     endif()
 endif()
 
-if(APPLE)
-    include_directories("/opt/homebrew/include")
-    link_directories("/opt/homebrew/lib")
-endif()
-
-if(WIN32)
-    find_package(ZLIB REQUIRED)
-    find_package(PThreads4W REQUIRED)
-    target_link_libraries("slp_png"
-        PUBLIC z
-        PUBLIC PThreads4W::PThreads4W
-    )
-else()
-    find_package(ZLIB REQUIRED)
-    find_package(Threads REQUIRED)
-    target_link_libraries("slp_png"
-        PUBLIC z
-        PUBLIC pthread
-    )
-endif()
+find_package(ZLIB REQUIRED)
+find_package(Threads REQUIRED)
+target_link_libraries("slp_png"
+    PUBLIC z
+    PUBLIC pthread
+)
 
 
 
@@ -56,24 +46,12 @@ add_executable("spng_perf_test"    tests/perf/spng_perf_test.c)
 target_link_libraries("slp_png_perf_test" PRIVATE slp_png)
 target_link_libraries("spng_perf_test"    PRIVATE spng)
 
-if (MSVC)
-    target_compile_options("slp_png_perf_test" PUBLIC /arch:AVX2 /arch:SSE2)
-    target_compile_options("spng_perf_test"    PUBLIC /arch:AVX2 /arch:SSE2)
-else()
-    target_compile_options("slp_png_perf_test" PUBLIC -march=native -mtune=native -O3)
-    target_compile_options("spng_perf_test"    PUBLIC -march=native -mtune=native -O3)
-endif()
+target_compile_options("slp_png_perf_test" PUBLIC -march=native -mtune=native -O3)
+target_compile_options("spng_perf_test"    PUBLIC -march=native -mtune=native -O3)
 
 
 add_executable("test" tests/CI_TEST.c)
-if(WIN32)
-    target_link_libraries("test"
-        PRIVATE slp_png
-        PRIVATE PThreads4W::PThreads4W
-    )
-else()
-    target_link_libraries("test"
-        PRIVATE slp_png
-        PRIVATE pthread
-    )
-endif()
+target_link_libraries("test"
+    PRIVATE slp_png
+    PRIVATE pthread
+)

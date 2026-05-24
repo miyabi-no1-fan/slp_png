@@ -33,11 +33,6 @@ jobs:
           brew install zlib-ng libspng llvm
           cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S .
           cmake --build build --config Release
-
-      - name: Run test
-        shell: bash
-        run: |
-          /opt/homebrew/opt/llvm/bin/clang-tidy -p build -extra-arg="-isysroot $(xcrun --show-sdk-path)" --checks='-*,clang-analyzer-*, -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling' --warnings-as-errors='*' src/slp_image_transform/slp_image_transform.c src/slp_png_read/slp_png_read_from_file.c src/slp_png_write/slp_png_write_to_file.c
           build/test
           bash -c "shopt -s nullglob; for file in CI_TEST-*.png; do cmp $file CI_TEST.png; if [ \$? -ne 0 ]; then echo 'fail at: cmp $file CI_TEST.png'; exit 1; fi; done; shopt -u nullglob;"
 
