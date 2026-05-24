@@ -30,11 +30,13 @@ jobs:
       - name: Build and test
         shell: bash
         run: |
+          set -e
           brew install zlib-ng libspng llvm
           cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S .
           cmake --build build --config Release
           build/test
           shopt -s nullglob
+          set +e
           for file in CI_TEST-*.png; do
             cmp $file CI_TEST.png
             if [ $? -ne 0 ]; then
