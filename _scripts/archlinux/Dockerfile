@@ -7,9 +7,9 @@ WORKDIR /workspace
 RUN git clone https://github.com/slp-c/slp_png.git
 WORKDIR /workspace/slp_png
 RUN _scripts/run.sh dynamic tests/CI_TEST.c build/test -Ofast -mno-avx512f
-RUN valgrind --leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=all --track-origins=yes --error-exitcode=1 build/test
+RUN valgrind --leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=all --track-origins=yes --error-exitcode=1 build/test --valgrind
 RUN _scripts/run.sh dynamic tests/perf/slp_png_perf_test.c build/slp -Ofast
-RUN _scripts/run.sh dynamic tests/perf/spng_perf_test.c build/spng -Ofast
+RUN _scripts/run.sh dynamic tests/perf/spng_perf_test.c build/spng -lspng -Ofast
 RUN build/slp
 RUN build/spng
 
