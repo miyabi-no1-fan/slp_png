@@ -30,7 +30,7 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          brew install zlib-ng libspng clang-build-analyzer llvm lldb
+          brew install zlib-ng libspng clang-build-analyzer llvm lld
           export PATH="$(brew --prefix llvm)/bin:$PATH"
           cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S .
           cmake --build build --config Release
