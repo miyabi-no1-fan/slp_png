@@ -9,7 +9,7 @@ if [[ "$1" == "--help" ]]; then
         static
         dynamic
     
-    extra compile flags: all passes directly to gcc ( default flags are -O3 -march=native -mtune=native -lz -pthread -flto )
+    extra compile flags: all passes directly to gcc ( default flags are -O3 -march=native -mtune=native -DNDEBUG -flto -lz -pthread )
 
     example: build_exe.sh static test.c test -lz -lm"
 
@@ -34,7 +34,7 @@ flags: $@"
         -I include \
         -L build \
         -o "$OUT" \
-        -O3 -march=native -mtune=native -flto \
+        -O3 -march=native -mtune=native -flto -DNDEBUG \
         -lz -pthread \
         -Wl,-Bstatic -lslp_png -Wl,-Bdynamic \
         "$@"
@@ -55,7 +55,7 @@ flags: $@"
         -I include \
         -L build \
         -o "$OUT" \
-        -O3 -march=native -mtune=native -flto \
+        -O3 -march=native -mtune=native -flto -DNDEBUG \
         -lz -pthread -lslp_png \
         -Wl,-rpath,build \
         "$@"
