@@ -3,6 +3,5 @@ exe/
 .vscode/
 .cache/
 compile_commands.json
-manual_compile_script.sh
 include/slpz.h
-src/slpz
+src/slpz/

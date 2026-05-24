@@ -15,42 +15,46 @@ target_include_directories("slp_png" PUBLIC include)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
     if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
-        target_compile_options("slp_png" PUBLIC -mavx2 -msse2 -Wall -Wextra -Werror -pedantic -Wformat -Wno-c98-compat)
+        target_compile_options("slp_png" PUBLIC -mavx2 -msse2 -flto -Wall -Wextra -Werror -pedantic -Wformat -Wno-c98-compat)
     elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
-        target_compile_options("slp_png" PUBLIC -mavx2 -msse2)
+        target_compile_options("slp_png" PUBLIC -mavx2 -msse2 -flto)
     elseif(MSVC)
         target_compile_options("slp_png" PUBLIC /arch:AVX2 /arch:SSE2)
     endif()
 endif()
 
-
+if(APPLE)
+    include_directories("/opt/homebrew/include")
+    link_directories("/opt/homebrew/lib")
+endif()
 
 if(WIN32)
-    find_package(zlib-ng CONFIG REQUIRED)
+    find_package(ZLIB REQUIRED)
     find_package(PThreads4W REQUIRED)
     target_link_libraries("slp_png"
-        PUBLIC zlib-ng::zlib
+        PUBLIC z
         PUBLIC PThreads4W::PThreads4W
     )
 else()
-    find_package(zlib-ng CONFIG REQUIRED)
+    find_package(ZLIB REQUIRED)
     find_package(Threads REQUIRED)
     target_link_libraries("slp_png"
-        PUBLIC zlib-ng::zlib
-        PUBLIC Threads::Threads
+        PUBLIC z
+        PUBLIC pthread
     )
 endif()
 
 
 
 # tests executable
-find_package(SPNG CONFIG REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(SPNG REQUIRED IMPORTED_TARGET spng)
 
 add_executable("slp_png_perf_test" tests/perf/slp_png_perf_test.c)
 add_executable("spng_perf_test"    tests/perf/spng_perf_test.c)
 
 target_link_libraries("slp_png_perf_test" PRIVATE slp_png)
-target_link_libraries("spng_perf_test"    PRIVATE $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static>)
+target_link_libraries("spng_perf_test"    PRIVATE spng)
 
 if (MSVC)
     target_compile_options("slp_png_perf_test" PUBLIC /arch:AVX2 /arch:SSE2)
@@ -70,6 +74,6 @@ if(WIN32)
 else()
     target_link_libraries("test"
         PRIVATE slp_png
-        PRIVATE Threads::Threads
+        PRIVATE pthread
     )
 endif()

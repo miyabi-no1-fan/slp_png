@@ -20,7 +20,7 @@ limitations under the License.
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
-#include <zlib-ng.h>
+#include <zlib.h>
 
 #ifdef __AVX2__
 #include <immintrin.h>
@@ -123,8 +123,8 @@ struct slp_image slp_png_read(const char path[]) {
         return slp_png_stream;
     }
 
-    uint32_t crc_ = zng_crc32(0, worker + 12, 4);
-    crc_ = zng_crc32(crc_, worker + 16, 13);
+    uint32_t crc_ = crc32(0, worker + 12, 4);
+    crc_ = crc32(crc_, worker + 16, 13);
 
     if (big_edian_u32(worker + 29) != crc_) {
         fclose(file);
@@ -306,13 +306,13 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                 }
 
 
-                zng_stream strm = {0};
+                z_stream strm = {0};
                 strm.zalloc = Z_NULL;
                 strm.zfree = Z_NULL;
                 strm.opaque = Z_NULL;
                 strm.avail_in = 0;
                 strm.next_in = Z_NULL;
-                int ret = zng_inflateInit(&strm);
+                int ret = inflateInit(&strm);
                 if (ret != Z_OK) {
                     slp_png_stream->bit_depth = 3;
                     goto cleanup;
@@ -331,7 +331,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                 in = (uint8_t*)malloc(CHUNK);
                 if (out == NULL || in == NULL) {
                     slp_png_stream->bit_depth = 255;
-                    zng_inflateEnd(&strm);
+                    inflateEnd(&strm);
                     goto cleanup;
                 }
 
@@ -341,7 +341,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                     scanline[1] = (uint8_t*)malloc(bpr);
                     if (scanline[0] == NULL || scanline[1] == NULL) {
                         slp_png_stream->bit_depth = 255;
-                        zng_inflateEnd(&strm);
+                        inflateEnd(&strm);
                         goto cleanup;
                     }
                 }
@@ -356,29 +356,29 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                     data_len = big_edian_u32(worker);
                     if (file_size - (size_t)ftell(file) - 16 < data_len) {
                         slp_png_stream->bit_depth = 2;// data len > remaining file size is invalid
-                        zng_inflateEnd(&strm);
+                        inflateEnd(&strm);
                         goto cleanup;
                     }
 
-                    crc = zng_crc32(0, worker + 4, 4);
+                    crc = crc32(0, worker + 4, 4);
 
                     if (data_len < ai) {
                         if (fread(in + intrker, 1, data_len, file) != data_len) {
                             slp_png_stream->bit_depth = 1;
-                            zng_inflateEnd(&strm);
+                            inflateEnd(&strm);
                             goto cleanup;
                         }
                         ai -= data_len;
-                        crc = zng_crc32(crc, in + intrker, data_len);
+                        crc = crc32(crc, in + intrker, data_len);
                         intrker += data_len;
                     }
                     else {
                         if (fread(in + intrker, 1, ai, file) != ai) {
                             slp_png_stream->bit_depth = 1;
-                            zng_inflateEnd(&strm);
+                            inflateEnd(&strm);
                             goto cleanup;
                         }
-                        crc = zng_crc32(crc, in + intrker, ai);
+                        crc = crc32(crc, in + intrker, ai);
                         ftrker = data_len - ai;
                         intrker += ai;
                         //ai = 0;
@@ -388,11 +388,11 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                             do {
                                 strm.avail_out = CHUNK - offset;
                                 strm.next_out = out + offset;
-                                ret = zng_inflate(&strm, Z_NO_FLUSH);
+                                ret = inflate(&strm, Z_NO_FLUSH);
                                 have = CHUNK - strm.avail_out;
                                 if (ret != Z_OK && ret != Z_STREAM_END) {
                                     slp_png_stream->bit_depth = 3;
-                                    zng_inflateEnd(&strm);
+                                    inflateEnd(&strm);
                                     goto cleanup;
                                 }
                                 row_produced = have / (bpr + 1);
@@ -402,7 +402,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                                     // defilter to scanline[1] from buffer as raw and scanline[0] as up
                                     if (slp_png_defilter(out + i * (bpr + 1), scanline, bpp, bpr, imtrker) != 0) {
                                         slp_png_stream->bit_depth = 2;
-                                        zng_inflateEnd(&strm);
+                                        inflateEnd(&strm);
                                         goto cleanup;
                                     }
 
@@ -429,10 +429,10 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                             if (ftrker > ai) {
                                 if (fread(in + intrker, 1, ai, file) != ai) {
                                     slp_png_stream->bit_depth = 1;
-                                    zng_inflateEnd(&strm);
+                                    inflateEnd(&strm);
                                     goto cleanup;
                                 }
-                                crc = zng_crc32(crc, in + intrker, ai);
+                                crc = crc32(crc, in + intrker, ai);
                                 ftrker -= ai;
                                 intrker += ai;
                                 strm.avail_in = intrker;
@@ -442,10 +442,10 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                             else {
                                 if (fread(in + intrker, 1, ftrker, file) != ftrker) {
                                     slp_png_stream->bit_depth = 1;
-                                    zng_inflateEnd(&strm);
+                                    inflateEnd(&strm);
                                     goto cleanup;
                                 }
-                                crc = zng_crc32(crc, in + intrker, ftrker);
+                                crc = crc32(crc, in + intrker, ftrker);
                                 intrker += ftrker;
                                 ai -= (ftrker);
                                 ftrker = 0;
@@ -455,19 +455,19 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
 
                     if (fread(worker + 8, 1, 4, file) != 4) {
                         slp_png_stream->bit_depth = 1;
-                        zng_inflateEnd(&strm);
+                        inflateEnd(&strm);
                         goto cleanup;
                     }
 
                     if (big_edian_u32(worker + 8) != crc) {
                         slp_png_stream->bit_depth = 2;
-                        zng_inflateEnd(&strm);
+                        inflateEnd(&strm);
                         goto cleanup;
                     }
 
                     if (fread(worker, 1, 8, file) != 8) {
                         slp_png_stream->bit_depth = 1;
-                        zng_inflateEnd(&strm);
+                        inflateEnd(&strm);
                         goto cleanup;
                     }
                 } while (big_edian_u32(worker + 4) == IDAT);
@@ -476,11 +476,11 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                 do {
                     strm.avail_out = CHUNK - offset;
                     strm.next_out = out + offset;
-                    ret = zng_inflate(&strm, Z_NO_FLUSH);
+                    ret = inflate(&strm, Z_NO_FLUSH);
                     have = CHUNK - strm.avail_out;
                     if (ret != Z_OK && ret != Z_STREAM_END) {
                         slp_png_stream->bit_depth = 3;
-                        zng_inflateEnd(&strm);
+                        inflateEnd(&strm);
                         goto cleanup;
                     }
                     row_produced = have / (bpr + 1);
@@ -490,7 +490,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                         // defilter to scanline[1] from buffer and scanline[0]
                         if (slp_png_defilter(out + i * (bpr + 1), scanline, bpp, bpr, imtrker) != 0) {
                             slp_png_stream->bit_depth = 2;
-                            zng_inflateEnd(&strm);
+                            inflateEnd(&strm);
                             goto cleanup;
                         }
 
@@ -513,10 +513,10 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                     memmove(out, out + have - offset, offset);
                 } while (ret != Z_STREAM_END);
                 // if (offset != 0) throw std::runtime_error("data loss");
-                zng_inflateEnd(&strm);
+                inflateEnd(&strm);
                 if (fseek(file, -8, SEEK_CUR) != 0) {
                     slp_png_stream->bit_depth = 1;
-                    zng_inflateEnd(&strm);
+                    inflateEnd(&strm);
                     goto cleanup;
                 }
 
@@ -551,8 +551,8 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                     goto cleanup;
                 }
 
-                uint32_t crc_ = zng_crc32(0, worker + 4, 4);
-                crc_ = zng_crc32(crc_, plte, data_len);
+                uint32_t crc_ = crc32(0, worker + 4, 4);
+                crc_ = crc32(crc_, plte, data_len);
 
 
                 if (fread(worker + 8, 1, 4, file) != 4) {
@@ -615,8 +615,8 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                     goto cleanup;
                 }
 
-                uint32_t crc_ = zng_crc32(0, worker + 4, 4);
-                crc_ = zng_crc32(crc_, trns, data_len);
+                uint32_t crc_ = crc32(0, worker + 4, 4);
+                crc_ = crc32(crc_, trns, data_len);
 
                 if (fread(worker + 8, 1, 4, file) != 4) {
                     free(trns);
