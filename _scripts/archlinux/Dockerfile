@@ -1,7 +1,7 @@
 FROM archlinux:latest
 
 
-RUN pacman -Syu --noconfirm --ask=4 --needed base base-devel zlib-ng-compat libspng cmake gcc clang ninja valgrind llvm git
+RUN pacman -Syu --noconfirm --ask=4 --needed base base-devel zlib-ng-compat libspng gcc clang valgrind llvm git debuginfod
 WORKDIR /workspace
 RUN git clone https://github.com/slp-c/slp_png.git
 WORKDIR /workspace/slp_png
