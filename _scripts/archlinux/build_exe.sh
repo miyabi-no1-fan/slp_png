@@ -25,7 +25,7 @@ if [[ "$1" == "static" ]]; then
     OUT="$3"
     shift 3
 
-    echo "=> use static linking for slp_png
+    echo "link: static (libslp_png only)
 compile: $FILE
 out: $OUT
 flags: $@"
@@ -46,7 +46,7 @@ elif [[ "$1" == "dynamic" ]]; then
     OUT="$3"
     shift 3
 
-    echo "=> use dynamic linking for slp_png
+    echo "link: dynamic (libslp_png only)
 compile: $FILE
 out: $OUT
 flags: $@"

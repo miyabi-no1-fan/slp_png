@@ -17,6 +17,7 @@ echo "=> genrating build/libslp_png.a..."
 # STATIC LINKING:
 ar rcs build/libslp_png.a build/slp_image_transform.o build/slp_png_read_from_file.o build/slp_png_write_to_file.o
 
-echo "cleaning up .o"
 # CLEANUP:
 rm build/slp_image_transform.o build/slp_png_read_from_file.o build/slp_png_write_to_file.o
+
+echo ":: Build library success, build files are located at $PWD/build"
