@@ -4,5 +4,5 @@ exe/
 .cache/
 compile_commands.json
 manual_compile_script.sh
-src/slp_png_read/custom_inflate
-src/slp_png_write/custom_deflate
+include/slpz.h
+src/slpz
