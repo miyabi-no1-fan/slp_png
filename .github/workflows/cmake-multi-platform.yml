@@ -28,12 +28,15 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Build
+        shell: bash
         run: |
-          brew install zlib-ng libspng clang-build-analyzer clang-tidy llvm lldb
+          brew install zlib-ng libspng clang-build-analyzer llvm lldb
+          export PATH="$(brew --prefix llvm)/bin:$PATH"
           cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S .
           cmake --build build --config Release
 
       - name: Run test
+        shell: bash
         run: |
           clang-tidy -p build --checks='-*,clang-analyzer-*, -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling' --warnings-as-errors='*' src/slp_image_transform/slp_image_transform.c src/slp_png_read/slp_png_read_from_file.c src/slp_png_write/slp_png_write_to_file.c
           build/test
