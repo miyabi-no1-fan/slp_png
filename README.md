@@ -129,7 +129,7 @@ cmake --build build --config Release
 
 ## Quick test on minimal setup
 - Platform: Linux
-- Pakages: glibc gcc zlib-ng
+- Pakages: glibc gcc zlib
 - Optional pakages: valgrind
 
 ```bash
