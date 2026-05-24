@@ -31,15 +31,17 @@ jobs:
         include:
           - os: ubuntu-latest
             c_compiler: gcc
+            container: archlinux:latest
+
           - os: ubuntu-latest
             c_compiler: clang
+            container: archlinux:latest
 
           - os: macos-latest
             c_compiler: clang
         exclude:
           - os: macos-latest
             c_compiler: gcc
-
     steps:
     - uses: actions/checkout@v4
 
@@ -52,7 +54,10 @@ jobs:
     
     - name: Ubuntu install dep
       if: matrix.os == 'ubuntu-latest'
-      run: sudo apt-get install -y zlib-ng-compat libspng base
+      run: |
+        sudo pacman -Syyu --noconfirm
+        sudo pacman -S --noconfirm base base-devel zlib-ng-compat libspng
+
 
     - name: macOS install dep
       if: matrix.os == 'macos-latest'
