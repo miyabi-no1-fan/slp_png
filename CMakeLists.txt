@@ -54,7 +54,7 @@ add_executable("slp_png_perf_test" tests/perf/slp_png_perf_test.c)
 add_executable("spng_perf_test"    tests/perf/spng_perf_test.c)
 
 target_link_libraries("slp_png_perf_test" PRIVATE slp_png)
-target_link_libraries("spng_perf_test"    PRIVATE Pkg::SPNG)
+target_link_libraries("spng_perf_test"    PRIVATE spng)
 
 if (MSVC)
     target_compile_options("slp_png_perf_test" PUBLIC /arch:AVX2 /arch:SSE2)
