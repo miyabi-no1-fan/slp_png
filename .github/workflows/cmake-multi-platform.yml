@@ -31,17 +31,20 @@ jobs:
         include:
           - os: ubuntu-latest
             c_compiler: gcc
-            container: archlinux:latest
-
+            image: archlinux:latest
           - os: ubuntu-latest
             c_compiler: clang
-            container: archlinux:latest
+            image: archlinux:latest
 
           - os: macos-latest
             c_compiler: clang
+            image: ''
         exclude:
           - os: macos-latest
             c_compiler: gcc
+    container:
+      image: ${{ matrix.image }}
+      options: --privileged
     steps:
     - uses: actions/checkout@v4
 
