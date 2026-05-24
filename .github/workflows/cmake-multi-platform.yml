@@ -37,7 +37,7 @@ jobs:
           shopt -s nullglob
           for file in CI_TEST-*.png; do
             cmp $file CI_TEST.png
-            if [ \$? -ne 0 ]; then
+            if [ $? -ne 0 ]; then
               echo 'fail at: cmp $file CI_TEST.png'
               exit 1
             fi
