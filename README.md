@@ -1,5 +1,10 @@
 # PNG codec library written in C
 
+## Support platforms
+- Linux
+- macOS
+
+
 ## Project structure
 - slp_png: PNG codec
     - include:
@@ -8,7 +13,7 @@
         - src/slp_png_read/*
         - src/slp_png_write/*
     - dependencies:
-        - zlib-ng ( do not use zib-ng-compat )
+        - zlib ( recomend using zib-ng-compat )
 
 - slp_image_transform: extra image transformation tools
     - include:
@@ -17,7 +22,7 @@
     - src:
         - src/slp_image_transform/*
     - dependencies:
-        - pthreads ( or pthread4W on windows )
+        - pthreads ( or pthread4W for windows )
 
 
 ## Basic usage
