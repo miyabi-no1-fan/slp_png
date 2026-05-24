@@ -49,6 +49,14 @@ jobs:
       shell: bash
       run: |
         echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+    
+    - name: Ubuntu install dep
+      if: matrix.os == 'ubuntu-latest'
+      run: sudo apt-get install -y zlib-ng-compat libspng base
+
+    - name: macOS install dep
+      if: matrix.os == 'macos-latest'
+      run: brew install zlib-ng libspng
 
     - name: Configure CMake (clang)
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
