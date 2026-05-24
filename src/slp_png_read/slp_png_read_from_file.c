@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <slp_png.h>
+#include <slpz.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -123,8 +124,7 @@ struct slp_image slp_png_read(const char path[]) {
         return slp_png_stream;
     }
 
-    uint32_t crc_ = zng_crc32(0U, Z_NULL, 0);
-    crc_ = zng_crc32(crc_, worker + 12, 4);
+    uint32_t crc_ = zng_crc32(0, worker + 12, 4);
     crc_ = zng_crc32(crc_, worker + 16, 13);
 
     if (big_edian_u32(worker + 29) != crc_) {
@@ -361,8 +361,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                         goto cleanup;
                     }
 
-                    crc = zng_crc32(0U, Z_NULL, 0);
-                    crc = zng_crc32(crc, worker + 4, 4);
+                    crc = zng_crc32(0, worker + 4, 4);
 
                     if (data_len < ai) {
                         if (fread(in + intrker, 1, data_len, file) != data_len) {
@@ -553,8 +552,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                     goto cleanup;
                 }
 
-                uint32_t crc_ = zng_crc32(0U, Z_NULL, 0);
-                crc_ = zng_crc32(crc_, worker + 4, 4);
+                uint32_t crc_ = zng_crc32(0, worker + 4, 4);
                 crc_ = zng_crc32(crc_, plte, data_len);
 
 
@@ -618,8 +616,7 @@ static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, 
                     goto cleanup;
                 }
 
-                uint32_t crc_ = zng_crc32(0U, Z_NULL, 0);
-                crc_ = zng_crc32(crc_, worker + 4, 4);
+                uint32_t crc_ = zng_crc32(0, worker + 4, 4);
                 crc_ = zng_crc32(crc_, trns, data_len);
 
                 if (fread(worker + 8, 1, 4, file) != 4) {
@@ -743,12 +740,13 @@ static inline int slp_png_defilter(uint8_t *buffer, uint8_t* scanline[2], const 
                 size_t i = 0;
                 for (; i < bpp; i++) scanline[1][i] = buffer[i] + scanline[0][i];
                 for (; i < bpr; i++) {
-                    int p = scanline[1][i - bpp] + scanline[0][i] - scanline[0][i - bpp];
-                    int pa = abs(p - scanline[1][i - bpp]);
-                    int pb = abs(p - scanline[0][i]);
-                    int pc = abs(p - scanline[0][i - bpp]);
+                    const int p = scanline[1][i - bpp] + scanline[0][i] - scanline[0][i - bpp];
+                    const int pa = abs(p - scanline[1][i - bpp]);
+                    const int pb = abs(p - scanline[0][i]);
+                    const int pc = abs(p - scanline[0][i - bpp]);
 
-                    uint8_t d = (pa <= pb && pa <= pc) ? (scanline[1][i - bpp]) : ((pb <= pc) ? (scanline[0][i]) : (scanline[0][i - bpp]));
+                    uint8_t d = (pb <= pc) ? (scanline[0][i]) : (scanline[0][i - bpp]);
+                    d = (pa <= pb && pa <= pc) ? (scanline[1][i - bpp]) : (d);
 
                     scanline[1][i] = buffer[i] + d;
                 }
