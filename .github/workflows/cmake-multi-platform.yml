@@ -34,7 +34,6 @@ jobs:
             image: archlinux:latest
           - os: ubuntu-latest
             c_compiler: clang
-            image: archlinux:latest
 
           - os: macos-latest
             c_compiler: clang
@@ -45,6 +44,8 @@ jobs:
     container:
       image: ${{ matrix.image }}
       options: --privileged --cap-add=SYS_PTRACE
+      volumes:
+        - ${{ github.workspace }}
     steps:
     - uses: actions/checkout@v4
 
