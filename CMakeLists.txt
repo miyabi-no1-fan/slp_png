@@ -33,7 +33,6 @@ if(WIN32)
         PUBLIC PThreads4W::PThreads4W
     )
 else()
-    find_package(zlib CONFIG REQUIRED)
     find_package(Threads REQUIRED)
     target_link_libraries("slp_png"
         PUBLIC z
@@ -44,14 +43,11 @@ endif()
 
 
 # tests executable
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(SPNG REQUIRED IMPORTED_TARGET spng)
-
 add_executable("slp_png_perf_test" tests/perf/slp_png_perf_test.c)
 add_executable("spng_perf_test"    tests/perf/spng_perf_test.c)
 
 target_link_libraries("slp_png_perf_test" PRIVATE slp_png)
-target_link_libraries("spng_perf_test"    PRIVATE PkgConfig::SPNG)
+target_link_libraries("spng_perf_test"    PRIVATE spng)
 
 if (MSVC)
     target_compile_options("slp_png_perf_test" PUBLIC /arch:AVX2 /arch:SSE2)
