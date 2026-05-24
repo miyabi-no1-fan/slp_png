@@ -86,7 +86,7 @@ int main()
 
 - Test code located at: tests/perf/
 
-- Compare with https://github.com/randy408/libspng.git
+- Compare with libspng-git from the AUR
 
 - Commands:
 ```bash
@@ -106,16 +106,16 @@ cmake --build build
 
 
 - Read time:
-    - libspng: 0.136755s
-    - slp_png: 0.099330s
+    - slp_png: 0.104468s
+    - libspng: 0.105065s
 
 - Write time:
-    - libspng: 3.049917s
     - slp_png: 0.717744s
+    - libspng: 1.056884s
 
 - Output file size:
-    - libspng: 10.4 MiB
-    - slp_png: 10.7 MiB
+    - slp_png: 10.6 MiB ( 11,161,849 bytes )
+    - libspng: 10.7 MiB ( 11,176,211 bytes )
 
 - Peak RAM usage:
     - libspng: 33 MiB
