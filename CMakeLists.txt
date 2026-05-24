@@ -24,8 +24,8 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
 endif()
 
 if(APPLE)
-    list(APPEND CMAKE_PREFIX_PATH "/opt/homebrew")
-    set(ENV{PKG_CONFIG_PATH} "/opt/homebrew/lib/pkgconfig")
+    include_directories("/opt/homebrew/include")
+    link_directories("/opt/homebrew/lib")
 endif()
 
 if(WIN32)
