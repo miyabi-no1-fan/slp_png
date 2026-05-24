@@ -6,14 +6,13 @@ ENV DEBUGINFOD_URLS="https://debuginfod.archlinux.org"
 WORKDIR /workspace
 RUN git clone https://github.com/slp-c/slp_png.git
 WORKDIR /workspace/slp_png
-RUN _scripts/run.sh dynamic tests/CI_TEST.c build/test -Ofast
-RUN _scripts/build_exe.sh dynamic tests/CI_TEST.c build/test -Ofast -mno-avx512f
+RUN _scripts/archlinux/run.sh dynamic tests/CI_TEST.c build/test -Ofast
+RUN _scripts/archlinux/build_exe.sh dynamic tests/CI_TEST.c build/test -Ofast -mno-avx512f
 RUN valgrind --leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=all --track-origins=yes --error-exitcode=1 build/test --valgrind
-RUN _scripts/run.sh dynamic tests/perf/slp_png_perf_test.c build/slp -Ofast
-RUN _scripts/run.sh dynamic tests/perf/spng_perf_test.c build/spng -lspng -Ofast
+RUN _scripts/archlinux/run.sh dynamic tests/perf/slp_png_perf_test.c build/slp -Ofast
+RUN _scripts/archlinux/run.sh dynamic tests/perf/spng_perf_test.c build/spng -lspng -Ofast
 RUN build/slp
 RUN build/spng
 
 
 # sudo docker build -t slp_png-linux _scripts/archlinux
-# sudo docker run --rm -it slp_png-linux

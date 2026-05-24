@@ -9,16 +9,33 @@ on:
     paths-ignore: ['README.md', '.gitignore', 'LICENSE']
 
 jobs:
-  run_test:
+  test_linux:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: run docker
+      - name: run docker to run test on archlinux
         run: |
           docker build --no-cache -t slp_png-linux _scripts/archlinux
-          docker build --no-cache -t slp_png-macOS _scripts/macOS
 
+  test_macOS:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Build
+        run: |
+          brew install zlib-ng libspng clang clang-tidy llvm
+          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S .
+          cmake --build build --config Release
+
+      - name: Run test
+        run: |
+          clang-tidy -p build --checks='-*,clang-analyzer-*, -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling' --warnings-as-errors='*' src/slp_image_transform/slp_image_transform.c src/slp_png_read/slp_png_read_from_file.c src/slp_png_write/slp_png_write_to_file.c
+          build/test
+          bash -c "shopt -s nullglob; for file in CI_TEST-*.png; do cmp $file CI_TEST.png; if [ \$? -ne 0 ]; then echo 'fail at: cmp $file CI_TEST.png'; exit 1; fi; done; shopt -u nullglob;"
 
