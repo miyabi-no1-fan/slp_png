@@ -21,7 +21,7 @@ limitations under the License.
 #include <stdint.h>
 #include <stdalign.h>
 #include <string.h>
-#include <zlib-ng.h>
+#include <zlib.h>
 
 #ifdef __AVX2__
 #include <immintrin.h>
@@ -133,8 +133,8 @@ int slp_png_write(struct slp_image image, const char* path) {
         return 2;
     }
 
-    uint32_t crc_ = zng_crc32(0, IHDRsig, 4);
-    crc_ = zng_crc32(crc_, (uint8_t*)(&header), 13);
+    uint32_t crc_ = crc32(0, IHDRsig, 4);
+    crc_ = crc32(crc_, (uint8_t*)(&header), 13);
     crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
 
     uint32_t data_len = big_edian_u32_in_mem(13, is_little_edian);
@@ -264,11 +264,11 @@ static inline int slp_png_encode(struct slp_image *image, FILE* file) {
 
 
     // writting IDAT
-    zng_stream strm = {0};
+    z_stream strm = {0};
     strm.zalloc = Z_NULL;
     strm.zfree = Z_NULL;
     strm.opaque = Z_NULL;
-    int ret = zng_deflateInit2(&strm, level, Z_DEFLATED, 15, 8, Z_FILTERED);
+    int ret = deflateInit2(&strm, level, Z_DEFLATED, 15, 8, Z_FILTERED);
     if (ret != Z_OK) {
         return_code = 3;
         goto cleanup;
@@ -438,12 +438,12 @@ static inline int slp_png_encode(struct slp_image *image, FILE* file) {
             strm.next_out = out + 8 + have;
             //clock_t start, end;
             //start = clock();
-            ret = zng_deflate(&strm, Z_NO_FLUSH);
+            ret = deflate(&strm, Z_NO_FLUSH);
             //end = clock();
             //deflate_runtime += (double)(end - start) / CLOCKS_PER_SEC;
             if (ret != Z_OK) {
                 return_code = 3;
-                zng_deflateEnd(&strm);
+                deflateEnd(&strm);
                 goto cleanup;
             }
             have = CHUNK - strm.avail_out;
@@ -451,14 +451,14 @@ static inline int slp_png_encode(struct slp_image *image, FILE* file) {
                 data_len = (uint32_t)(have);
                 data_len = big_edian_u32_in_mem(data_len, is_little_edian);
                 memcpy(out, &data_len, 4);
-                uint32_t crc_ = zng_crc32(0, out + 4, 4);
-                crc_ = zng_crc32(crc_, out + 8, have);
+                uint32_t crc_ = crc32(0, out + 4, 4);
+                crc_ = crc32(crc_, out + 8, have);
                 crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
                 memcpy(out + 8 + have, &crc_, 4);
 
                 if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4) {
                     return_code = 1;
-                    zng_deflateEnd(&strm);
+                    deflateEnd(&strm);
                     goto cleanup;
                 }
 
@@ -472,12 +472,12 @@ static inline int slp_png_encode(struct slp_image *image, FILE* file) {
         strm.next_out = out + 8 + have;
         //clock_t start, end;
         //start = clock();
-        ret = zng_deflate(&strm, Z_FINISH);
+        ret = deflate(&strm, Z_FINISH);
         //end = clock();
         //deflate_runtime += (double)(end - start) / CLOCKS_PER_SEC;
         if (ret != Z_OK && ret != Z_STREAM_END) {
             return_code = 3;
-            zng_deflateEnd(&strm);
+            deflateEnd(&strm);
             goto cleanup;
         }
         have = CHUNK - strm.avail_out;
@@ -485,12 +485,12 @@ static inline int slp_png_encode(struct slp_image *image, FILE* file) {
             data_len = (uint32_t)(have);
             data_len = big_edian_u32_in_mem(data_len, is_little_edian);
             memcpy(out, &data_len, 4);
-            uint32_t crc_ = zng_crc32(0, out + 4, 4 + have);
+            uint32_t crc_ = crc32(0, out + 4, 4 + have);
             crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
             memcpy(out + 8 + have, &crc_, 4);
             if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4) {
                 return_code = 1;
-                zng_deflateEnd(&strm);
+                deflateEnd(&strm);
                 goto cleanup;
             }
             strm.avail_out = CHUNK;
@@ -501,15 +501,15 @@ static inline int slp_png_encode(struct slp_image *image, FILE* file) {
     data_len = (uint32_t)(have);
     data_len = big_edian_u32_in_mem(data_len, is_little_edian);
     memcpy(out, &data_len, 4);
-    uint32_t crc_ = zng_crc32(0, out + 4, 4 + have);
+    uint32_t crc_ = crc32(0, out + 4, 4 + have);
     crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
     memcpy(out + 8 + have, &crc_, 4);
     if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4) {
         return_code = 1;
-        zng_deflateEnd(&strm);
+        deflateEnd(&strm);
         goto cleanup;
     }
-    zng_deflateEnd(&strm);
+    deflateEnd(&strm);
     // finish writting IDAT
 
 
