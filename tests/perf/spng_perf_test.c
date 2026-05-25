@@ -58,7 +58,6 @@ int encode_image(void *image, size_t length, uint32_t width, uint32_t height, en
     s[1] = (double)(end - start) / CLOCKS_PER_SEC;
     printf("write time: %.6fs\n", s[1]);
 
-    size_t png_size;
 
 encode_error:
 
@@ -127,7 +126,6 @@ int main()
         goto error;
     }
 
-    const char *color_name = color_type_str(ihdr.color_type);
     /*
     printf("width: %u\n"
            "height: %u\n"
