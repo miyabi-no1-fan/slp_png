@@ -39,6 +39,7 @@ out: $OUT"
         -O3 -march=native -mtune=native -flto -DNDEBUG \
         -lz -pthread \
         -Wl,-Bstatic -lslp_png -Wl,-Bdynamic \
+        -Wall -Wextra -Werror -pedantic -Wformat -Wno-c98-compat \
         "$@"
     
 
@@ -55,6 +56,7 @@ out: $OUT"
         -O3 -march=native -mtune=native -flto -DNDEBUG \
         -lz -pthread -lslp_png \
         -Wl,-rpath,build \
+        -Wall -Wextra -Werror -pedantic -Wformat -Wno-c98-compat \
         "$@"
 
 else
@@ -65,5 +67,6 @@ out: $OUT"
         -L build \
         -o "$OUT" \
         -O3 -march=native -mtune=native -flto -DNDEBUG \
+        -Wall -Wextra -Werror -pedantic -Wformat -Wno-c98-compat \
         "$@"
 fi
