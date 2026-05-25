@@ -72,7 +72,7 @@ limitations under the License.
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
-typedef intptr_t ssize_t;//MSVC don't have ssize_t
+
 
 #define div_round_up(a, b) (((a) / (b)) + (((a) % (b)) != 0))
 
@@ -81,63 +81,86 @@ typedef intptr_t ssize_t;//MSVC don't have ssize_t
 #define ceil__(x) ((ssize_t)((x) + BIGGEST_DOUBLE_LESS_THAN_1))
 
 
-// only take miliseconds to run
-// mem: O(1)
-bool slp_image_convert_to_8bit(struct slp_image *image) {
+
+
+
+bool slp_image_convert_to_8bit(struct slp_image* image) {
 
     uint8_t* src = image->buffer;
     uint8_t* dest = image->buffer;
 
     const size_t size = image->width * image->height * image->channels; // dest size
 
+    size_t i = 0;
     switch (image->bit_depth) {
         case 1: {
-            size_t i = 0;
             #ifdef __AVX2__
-            __m256i all1 = _mm256_set1_epi8(-1);
-            __m256i zero = _mm256_setzero_si256();
-
             for (; i + 32 <= size; i += 32) {
-                __m256i in = _mm256_loadu_si256((const __m256i*)src);
-                in = _mm256_blendv_epi8(zero, all1, in);
-                _mm256_storeu_si256((__m256i*)dest, in);
-                src+=32;dest+=32;
+                __m256i in = _mm256_loadu_si256((const __m256i*)(src + i));
+                in = _mm256_blendv_epi8(_mm256_setzero_si256(), _mm256_set1_epi8(-1), in);
+                _mm256_storeu_si256((__m256i*)(dest + i), in);
             }
             #endif
-            for (; i < size; i++) *dest++ = *src++ * 255;
+            #ifdef __SSE2__
+            for (; i + 16 <= size; i += 16) {
+                __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
+                #ifdef __SSE4_1__
+                in = _mm_blendv_epi8(_mm_setzero_si128(), _mm_set1_epi8(-1), in);
+                #else
+                __m128i in_lo = _mm_unpacklo_epi8(in, _mm_setzero_si128());
+                __m128i in_hi = _mm_unpackhi_epi8(in, _mm_setzero_si128());
+                in_lo = _mm_mullo_epi16(in_lo, _mm_set1_epi8(-1));
+                in_hi = _mm_mullo_epi16(in_hi, _mm_set1_epi8(-1));
+                in = _mm_packus_epi16(in_lo, in_hi);
+                #endif
+                _mm_storeu_si128((__m128i*)(dest + i), in);
+            }
+            #endif
+            for (; i < size; i++) dest[i] = src[i] * 0xFF;
             break;
         }
         case 2: {
-            size_t i = 0;
             #ifdef __AVX2__
-            __m256i scalar = _mm256_set1_epi8(85);
-            __m256i zero = _mm256_setzero_si256();
-
-            for (; i += 32 <= size; i+= 32) {
-                __m256i in = _mm256_loadu_si256((const __m256i*)src);
-                __m256i in_lo = _mm256_unpacklo_epi8(in, zero);
-                __m256i in_hi = _mm256_unpackhi_epi8(in, zero);
-                in_lo = _mm256_mullo_epi16(in_lo, scalar);
-                in_hi = _mm256_mullo_epi16(in_hi, scalar);
+            for (; i += 32 <= size; i += 32) {
+                __m256i in = _mm256_loadu_si256((const __m256i*)(src + i));
+                __m256i in_lo = _mm256_unpacklo_epi8(in, _mm256_setzero_si256());
+                __m256i in_hi = _mm256_unpackhi_epi8(in, _mm256_setzero_si256());
+                in_lo = _mm256_mullo_epi16(in_lo, _mm256_set1_epi8(85));
+                in_hi = _mm256_mullo_epi16(in_hi, _mm256_set1_epi8(85));
                 in = _mm256_packus_epi16(in_lo, in_hi);
-                _mm256_storeu_si256((__m256i*)dest, in);
-                src+=32;dest+=32;
+                _mm256_storeu_si256((__m256i*)(dest + i), in);
             }
             #endif
-            for (; i < size; i++) *dest++ = *src++ * 85;
+            #ifdef __SSE2__
+            for (; i += 16 <= size; i += 16) {
+                __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
+                __m128i in_lo = _mm_unpacklo_epi8(in, _mm_setzero_si128());
+                __m128i in_hi = _mm_unpackhi_epi8(in, _mm_setzero_si128());
+                in_lo = _mm_mullo_epi16(in_lo, _mm_set1_epi8(85));
+                in_hi = _mm_mullo_epi16(in_hi, _mm_set1_epi8(85));
+                in = _mm_packus_epi16(in_lo, in_hi);
+                _mm_storeu_si128((__m128i*)(dest + i), in);
+            }
+            #endif
+            for (; i < size; i++) dest[i] = src[i] * 85;
             break;
         }
         case 4: {
-            size_t i = 0;
             #ifdef __AVX2__
             for (; i + 32 <= size; i += 32) {
-                __m256i in = _mm256_loadu_si256((const __m256i*)src);
+                __m256i in = _mm256_loadu_si256((const __m256i*)(src + i));
                 in = _mm256_or_si256(in, _mm256_slli_epi64(in, 4));
-                _mm256_storeu_si256((__m256i*)dest, in);
-                src+=32;dest+=32;
+                _mm256_storeu_si256((__m256i*)(dest + i), in);
             }
             #endif
-            for (; i < size; i++) *dest++ = *src++ * 17;
+            #ifdef __SSE2__
+            for (; i + 16 <= size; i += 16) {
+                __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
+                in = _mm_or_si128(in, _mm_slli_epi64(in, 4));
+                _mm_storeu_si128((__m128i*)(dest + i), in);
+            }
+            #endif
+            for (; i < size; i++) dest[i] = src[i] * 17;
             break;
         }
         case 8: return true;
@@ -145,18 +168,36 @@ bool slp_image_convert_to_8bit(struct slp_image *image) {
             uint16_t random_value_for_edian_test = 1;
             const bool is_little_edian = *(uint8_t*)(&random_value_for_edian_test);
 
-            size_t i = 0;
             #ifdef __AVX2__
-            __m256i zero = _mm256_setzero_si256();
             for (; i + 16 <= size; i += 16) {
                 __m256i in = _mm256_loadu_si256((const __m256i*)(src + i*2));
                 in = _mm256_srli_epi16(in, 8);
-                in = _mm256_packus_epi16(in, zero);
+                in = _mm256_packus_epi16(in, _mm256_setzero_si256());
+                #ifdef __i386__
+                *(uint32_t*)(dest + i + 0*4) = _mm_extract_epi32(in, 0);
+                *(uint32_t*)(dest + i + 1*4) = _mm_extract_epi32(in, 1);
+                *(uint32_t*)(dest + i + 2*4) = _mm_extract_epi32(in, 4);
+                *(uint32_t*)(dest + i + 3*4) = _mm_extract_epi32(in, 5);
+                #else
                 *(uint64_t*)(dest + i + 8 * 0) = _mm256_extract_epi64(in, 0);
                 *(uint64_t*)(dest + i + 8 * 1) = _mm256_extract_epi64(in, 2);
+                #endif
             }
             #endif
-            
+            #ifdef __SSE2__
+            for (; i + 8 <= size; i += 8) {
+                __m128i in = _mm_loadu_si128((const __m128i*)(src + i*2));
+                in = _mm_srli_epi16(in, 8);
+                in = _mm_packus_epi16(in, _mm_setzero_si128());
+
+                #ifdef __i386__
+                *(uint32_t*)(dest + i + 0*4) = _mm_extract_epi32(in, 0);
+                *(uint32_t*)(dest + i + 1*4) = _mm_extract_epi32(in, 1);
+                #else
+                *(uint64_t*)(dest + i) = _mm_cvtsi128_si64(in);
+                #endif
+            }
+            #endif
             for (; i < size; i++) dest[i] = src[i*2 + is_little_edian];
             break;
         }
@@ -172,10 +213,10 @@ bool slp_image_convert_to_8bit(struct slp_image *image) {
 
 
 
-// only take miliseconds to run
-// mem: O(N)
+
+
 // return false = SLP_MALLOC fail or input wrong
-bool slp_image_convert_to_16bit(struct slp_image *image) {
+bool slp_image_convert_to_16bit(struct slp_image* image) {
 
     const size_t size = image->height * image->width * image->channels; // source size
 
@@ -186,92 +227,139 @@ bool slp_image_convert_to_16bit(struct slp_image *image) {
     }
 
     uint8_t* src = image->buffer;
-    uint16_t* dest = (uint16_t*)new_buffer;
+    uint8_t* dest = new_buffer;
 
     size_t i = 0;
     switch (image->bit_depth) {
         case 1: {
             #ifdef __AVX2__
-            __m256i zero = _mm256_setzero_si256();
-            __m256i all1 = _mm256_set1_epi16(-1);
             for (; i + 32 <= size; i += 32) {
-                __m256i in = _mm256_loadu_si256((const __m256i*)src);
+                const __m256i in = _mm256_loadu_si256((const __m256i*)(src + i));
+
                 __m256i in_lo = _mm256_unpacklo_epi8(in, in);
                 __m256i in_hi = _mm256_unpackhi_epi8(in, in);
-                in_lo = _mm256_blendv_epi8(zero, all1, in_lo);
-                in_hi = _mm256_blendv_epi8(zero, all1, in_hi);
-                _mm_storeu_si128((__m128i*)dest, _mm256_castsi256_si128(in_lo));
-                dest+=16;
-                _mm_storeu_si128((__m128i*)dest, _mm256_castsi256_si128(in_hi));
-                dest+=16;
-                _mm_storeu_si128((__m128i*)dest, _mm256_extracti128_si256(in_lo, 1));
-                dest+=16;
-                _mm_storeu_si128((__m128i*)dest, _mm256_extracti128_si256(in_hi, 1));
-                dest+=16;
-                src+=32;
+
+                in_lo = _mm256_blendv_epi8(_mm256_setzero_si256(), _mm256_set1_epi8(-1), in_lo);
+                in_hi = _mm256_blendv_epi8(_mm256_setzero_si256(), _mm256_set1_epi8(-1), in_hi);
+
+                _mm_storeu_si128((__m128i*)(dest + i*2 + 0*16), _mm256_castsi256_si128(in_lo));
+                _mm_storeu_si128((__m128i*)(dest + i*2 + 1*16), _mm256_castsi256_si128(in_hi));
+                _mm_storeu_si128((__m128i*)(dest + i*2 + 2*16), _mm256_extracti128_si256(in_lo, 1));
+                _mm_storeu_si128((__m128i*)(dest + i*2 + 3*16), _mm256_extracti128_si256(in_hi, 1));
             }
             #endif
-            uint16_t* d = (uint16_t*)(dest);
-            for (; i < size; i++) *d++ = *src++ * 65535;
+            #ifdef __SSE2__
+            for (; i + 16 <= size; i += 16) {
+                const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
+
+                #ifdef __SSE4_1__
+                __m128i in_lo = _mm_unpacklo_epi8(in, in);
+                __m128i in_hi = _mm_unpackhi_epi8(in, in);
+                in_lo = _mm_blendv_epi8(_mm_setzero_si128(), _mm_set1_epi8(-1), in_lo);
+                in_hi = _mm_blendv_epi8(_mm_setzero_si128(), _mm_set1_epi8(-1), in_hi);
+                #else
+                __m128i in_lo = _mm_unpacklo_epi8(in, _mm_setzero_si128());
+                __m128i in_hi = _mm_unpackhi_epi8(in, _mm_setzero_si128());
+                in_lo = _mm_mullo_epi16(in_lo, _mm_set1_epi16(-1));
+                in_hi = _mm_mullo_epi16(in_hi, _mm_set1_epi16(-1));
+                #endif
+
+                _mm_storeu_si128((__m128i*)(dest + i*2 + 0*16), in_lo);
+                _mm_storeu_si128((__m128i*)(dest + i*2 + 1*16), in_hi);
+            }
+            #endif
+            for (; i < size; i++) ((uint16_t*)dest)[i] = src[i] * 0xFFFF;
             break;
         }
         case 2: {
             #ifdef __AVX2__
-            __m256i zero = _mm256_setzero_si256();
-            __m256i scalar = _mm256_set1_epi16(21845);
-            for (; i + 32 <= size; i += 32) {
-                __m256i in = _mm256_loadu_si256((const __m256i*)src);
-                __m256i in_lo = _mm256_unpacklo_epi8(in, zero);
-                __m256i in_hi = _mm256_unpackhi_epi8(in, zero);
-                in_lo = _mm256_mullo_epi16(in_lo, scalar);
-                in_hi = _mm256_mullo_epi16(in_hi, scalar);
-                _mm_storeu_si128((__m128i*)dest, _mm256_castsi256_si128(in_lo));
-                dest+=16;
-                _mm_storeu_si128((__m128i*)dest, _mm256_castsi256_si128(in_hi));
-                dest+=16;
-                _mm_storeu_si128((__m128i*)dest, _mm256_extracti128_si256(in_lo, 1));
-                dest+=16;
-                _mm_storeu_si128((__m128i*)dest, _mm256_extracti128_si256(in_hi, 1));
-                dest+=16;
-                src+=32;
+            {
+                const __m256i scalar = _mm256_set1_epi16(21845);// = 65535/3
+                for (; i + 32 <= size; i += 32) {
+                    const __m256i in = _mm256_loadu_si256((const __m256i*)(src + i));
+
+                    __m256i in_lo = _mm256_unpacklo_epi8(in, _mm256_setzero_si256());
+                    __m256i in_hi = _mm256_unpackhi_epi8(in, _mm256_setzero_si256());
+
+                    in_lo = _mm256_mullo_epi16(in_lo, scalar);
+                    in_hi = _mm256_mullo_epi16(in_hi, scalar);
+
+                    _mm_storeu_si128((__m128i*)(dest + i*2 + 0*16), _mm256_castsi256_si128(in_lo));
+                    _mm_storeu_si128((__m128i*)(dest + i*2 + 1*16), _mm256_castsi256_si128(in_hi));
+                    _mm_storeu_si128((__m128i*)(dest + i*2 + 2*16), _mm256_extracti128_si256(in_lo, 1));
+                    _mm_storeu_si128((__m128i*)(dest + i*2 + 3*16), _mm256_extracti128_si256(in_hi, 1));
+                }
             }
             #endif
-            uint16_t* d = (uint16_t*)(dest);
-            for (; i < size; i++) *d++ = *src++ * 21845;
+            #ifdef __SSE2__
+            {
+                const __m128i scalar = _mm_set1_epi16(21845);// = 65535/3
+                for (; i + 16 <= size; i += 16) {
+                    const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
+
+                    __m128i in_lo = _mm_unpacklo_epi8(in, _mm_setzero_si128());
+                    __m128i in_hi = _mm_unpackhi_epi8(in, _mm_setzero_si128());
+
+                    in_lo = _mm_mullo_epi16(in_lo, scalar);
+                    in_hi = _mm_mullo_epi16(in_hi, scalar);
+
+                    _mm_storeu_si128((__m128i*)(dest + i*2 + 0*16), in_lo);
+                    _mm_storeu_si128((__m128i*)(dest + i*2 + 1*16), in_hi);
+                }
+            }
+            #endif
+            for (; i < size; i++) ((uint16_t*)dest)[i] = src[i] * 21845;
             break;
         }
         case 4: {
             #ifdef __AVX2__
             for (; i + 32 <= size; i += 32) {
-                __m256i in = _mm256_loadu_si256((const __m256i*)src);
+                __m256i in = _mm256_loadu_si256((const __m256i*)(src + i));
                 in = _mm256_or_si256(in, _mm256_slli_epi64(in, 4));
-                __m256i in_lo = _mm256_unpacklo_epi8(in, in);
-                __m256i in_hi = _mm256_unpackhi_epi8(in, in);
-                _mm_storeu_si128((__m128i*)dest, _mm256_castsi256_si128(in_lo));
-                dest+=16;
-                _mm_storeu_si128((__m128i*)dest, _mm256_castsi256_si128(in_hi));
-                dest+=16;
-                _mm_storeu_si128((__m128i*)dest, _mm256_extracti128_si256(in_lo, 1));
-                dest+=16;
-                _mm_storeu_si128((__m128i*)dest, _mm256_extracti128_si256(in_hi, 1));
-                dest+=16;
-                src+=32;
+
+                const __m256i in_lo = _mm256_unpacklo_epi8(in, in);
+                const __m256i in_hi = _mm256_unpackhi_epi8(in, in);
+
+                _mm_storeu_si128((__m128i*)(dest + i*2 + 0*16), _mm256_castsi256_si128(in_lo));
+                _mm_storeu_si128((__m128i*)(dest + i*2 + 1*16), _mm256_castsi256_si128(in_hi));
+                _mm_storeu_si128((__m128i*)(dest + i*2 + 2*16), _mm256_extracti128_si256(in_lo, 1));
+                _mm_storeu_si128((__m128i*)(dest + i*2 + 3*16), _mm256_extracti128_si256(in_hi, 1));
             }
             #endif
-            uint16_t* d = (uint16_t*)(dest);
-            for (; i < size; i++) *d++ = *src++ * 4369;
+            #ifdef __SSE2__
+            for (; i + 16 <= size; i += 16) {
+                __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
+                in = _mm_or_si128(in, _mm_slli_epi64(in, 4));
+
+                const __m128i in_lo = _mm_unpacklo_epi8(in, in);
+                const __m128i in_hi = _mm_unpackhi_epi8(in, in);
+
+                _mm_storeu_si128((__m128i*)(dest + i*2 + 0*16), in_lo);
+                _mm_storeu_si128((__m128i*)(dest + i*2 + 1*16), in_hi);
+            }
+            #endif
+            for (; i < size; i++) ((uint16_t*)dest)[i] = src[i] * 4369;
             break;
         }
         case 8: {
             #ifdef __AVX2__
             for (; i + 32 <= size; i += 32) {
-                __m256i in = _mm256_loadu_si256((const __m256i*)(src + i));
-                __m256i in_lo = _mm256_unpacklo_epi8(in, in);
-                __m256i in_hi = _mm256_unpackhi_epi8(in, in);
+                const __m256i in = _mm256_loadu_si256((const __m256i*)(src + i));
+                const __m256i in_lo = _mm256_unpacklo_epi8(in, in);
+                const __m256i in_hi = _mm256_unpackhi_epi8(in, in);
                 _mm_storeu_si128((__m128i*)(dest + i + 0 * 8), _mm256_castsi256_si128(in_lo));
                 _mm_storeu_si128((__m128i*)(dest + i + 1 * 8), _mm256_castsi256_si128(in_hi));
                 _mm_storeu_si128((__m128i*)(dest + i + 2 * 8), _mm256_extracti128_si256(in_lo, 1));
                 _mm_storeu_si128((__m128i*)(dest + i + 3 * 8), _mm256_extracti128_si256(in_hi, 1));
+            }
+            #endif
+            #ifdef __SSE2__
+            for (; i + 16 <= size; i += 16) {
+                const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
+                const __m128i in_lo = _mm_unpacklo_epi8(in, in);
+                const __m128i in_hi = _mm_unpackhi_epi8(in, in);
+                _mm_storeu_si128((__m128i*)(dest + i + 0 * 8), in_lo);
+                _mm_storeu_si128((__m128i*)(dest + i + 1 * 8), in_hi);
             }
             #endif
             for (; i < size; i++) dest[i] = src[i] * 257;
@@ -319,7 +407,7 @@ struct slp_image_crop_thread_data {
     int P;
 };
 
-static void* slp_image_crop_thread_task(void *arg) {
+static void* slp_image_crop_thread_task(void* arg) {
     struct slp_image_crop_thread_data data = *(struct slp_image_crop_thread_data*)arg;
     uint8_t* src = data.image->buffer + (size_t)(data.offset_height + data.s * data.block) * data.src_stride + (size_t)data.offset_width * data.c;
     uint8_t* dest = data.new_buffer + data.s * data.block * data.dest_stride;
@@ -327,8 +415,8 @@ static void* slp_image_crop_thread_task(void *arg) {
     return NULL;
 }
 
-// mem: O(N)
-bool image_crop(struct slp_image *image, const uint32_t new_width, const uint32_t new_height, const uint32_t offset_width, const uint32_t offset_height) {
+
+bool image_crop(struct slp_image* image, const uint32_t new_width, const uint32_t new_height, const uint32_t offset_width, const uint32_t offset_height) {
     if (offset_width + new_width > image->width || offset_height + new_height > image->height) return false;
 
     const size_t c = (size_t)image->channels * (1 + (image->bit_depth == 16)); // sizeof 1 pixel
@@ -444,7 +532,7 @@ bool image_crop(struct slp_image *image, const uint32_t new_width, const uint32_
 
 
 
-static void slp_image_fill(uint8_t* buffer, size_t buffer_size, const uint8_t* pixel, const uint8_t pixel_size) {
+static void slp_image_fill(uint8_t* restrict buffer, size_t buffer_size, const uint8_t* restrict pixel, const uint8_t pixel_size) {
 
     SLP_MEMCPY(buffer, pixel, pixel_size);
 
@@ -589,7 +677,7 @@ static void* slp_image_linear_transform_thread_task(void* arg) {
 
 
 
-bool slp_image_linear_transform(struct slp_image *image, const double* A, const uint8_t* background) {
+bool slp_image_linear_transform(struct slp_image* restrict image, const double* restrict A, const uint8_t* restrict background) {
     // DO NOT USE FLOAT
     const double detA = A[0] * A[3] - A[1] * A[2];
     if (detA == 0) {
@@ -760,8 +848,7 @@ bool slp_image_linear_transform(struct slp_image *image, const double* A, const 
 
 
 
-// only take microseconds to run
-bool slp_image_format(struct slp_image *image) {
+bool slp_image_format(struct slp_image* image) {
 
     const size_t size = (size_t)image->width * image->height * image->channels * (1 + (image->bit_depth == 16));
 
@@ -774,95 +861,64 @@ bool slp_image_format(struct slp_image *image) {
     uint8_t *src = image->buffer;
     uint8_t *dest = new_buffer;
 
-
+    size_t i = 0;
     switch (image->bit_depth) {
         case 1: {
-            uint64_t i = 0;
             #ifdef __SSE2__
-            __m128i ones = _mm_set1_epi16(1);
-            __m128i zeroes = _mm_setzero_si128();
-
             for (; i + 16 <= size; i += 16) {
-                __m128i in = _mm_loadu_si128((const __m128i *)(src + i));
+                const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
 
-                __m128i in_lo = _mm_unpacklo_epi8(in, zeroes);
-                __m128i in_hi = _mm_unpackhi_epi8(in, zeroes);
-
-                __m128i in0_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 0), ones);
-                __m128i in1_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 1), ones);
-                __m128i in2_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 2), ones);
-                __m128i in3_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 3), ones);
-                __m128i in4_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 4), ones);
-                __m128i in5_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 5), ones);
-                __m128i in6_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 6), ones);
-                __m128i in7_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 7), ones);
-
-                __m128i in0_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 0), ones);
-                __m128i in1_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 1), ones);
-                __m128i in2_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 2), ones);
-                __m128i in3_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 3), ones);
-                __m128i in4_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 4), ones);
-                __m128i in5_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 5), ones);
-                __m128i in6_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 6), ones);
-                __m128i in7_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 7), ones);
-
-                __m128i in0 = _mm_packus_epi16(in0_lo, in0_hi);
-                __m128i in1 = _mm_packus_epi16(in1_lo, in1_hi);
-                __m128i in2 = _mm_packus_epi16(in2_lo, in2_hi);
-                __m128i in3 = _mm_packus_epi16(in3_lo, in3_hi);
-                __m128i in4 = _mm_packus_epi16(in4_lo, in4_hi);
-                __m128i in5 = _mm_packus_epi16(in5_lo, in5_hi);
-                __m128i in6 = _mm_packus_epi16(in6_lo, in6_hi);
-                __m128i in7 = _mm_packus_epi16(in7_lo, in7_hi);
-
-                // 16 bit & 8 lanes
-                //  8 lanes will interleave by pair so 16 bit 8 lanes to 32 bit 4 lanes to 64 bit 2 lanes
-                //  lane is a block of bytes like a chunk, after 8 lanes - > 4 lanes we have group some elements in order as
-                //  we want storing elements still working like normal 64-bit does not means an element is now 64 bit it
-                //  means 1 lane/chunk is 64 bit
-
-                __m128i a0 = _mm_unpacklo_epi8(in0, in1); // 0 x 1 lo
-                __m128i a1 = _mm_unpackhi_epi8(in0, in1); // 0 x 1 hi
-                __m128i a2 = _mm_unpacklo_epi8(in2, in3); // 2 x 3 lo
-                __m128i a3 = _mm_unpackhi_epi8(in2, in3); // 2 x 3 hi
-                __m128i a4 = _mm_unpacklo_epi8(in4, in5); // 4 x 5 lo
-                __m128i a5 = _mm_unpackhi_epi8(in4, in5); // 4 x 5 hi
-                __m128i a6 = _mm_unpacklo_epi8(in6, in7); // 6 x 7 lo
-                __m128i a7 = _mm_unpackhi_epi8(in6, in7); // 6 x 7 hi
+                const __m128i in0 = _mm_and_si128(_mm_srli_epi64(in, 0), _mm_set1_epi8(1));
+                const __m128i in1 = _mm_and_si128(_mm_srli_epi64(in, 1), _mm_set1_epi8(1));
+                const __m128i in2 = _mm_and_si128(_mm_srli_epi64(in, 2), _mm_set1_epi8(1));
+                const __m128i in3 = _mm_and_si128(_mm_srli_epi64(in, 3), _mm_set1_epi8(1));
+                const __m128i in4 = _mm_and_si128(_mm_srli_epi64(in, 4), _mm_set1_epi8(1));
+                const __m128i in5 = _mm_and_si128(_mm_srli_epi64(in, 5), _mm_set1_epi8(1));
+                const __m128i in6 = _mm_and_si128(_mm_srli_epi64(in, 6), _mm_set1_epi8(1));
+                const __m128i in7 = _mm_and_si128(_mm_srli_epi64(in, 7), _mm_set1_epi8(1));
 
 
-                __m128i b0 = _mm_unpacklo_epi16(a0, a2); // 01 lo x 23 lo p0
-                __m128i b1 = _mm_unpacklo_epi16(a1, a3); // 01 hi x 23 hi p2
-                __m128i b2 = _mm_unpacklo_epi16(a4, a6); // 45 lo x 67 lo p0
-                __m128i b3 = _mm_unpacklo_epi16(a5, a7); // 45 hi x 67 hi p2
+                const __m128i a01_lo = _mm_unpacklo_epi8(in0, in1);
+                const __m128i a01_hi = _mm_unpackhi_epi8(in0, in1);
+                const __m128i a23_lo = _mm_unpacklo_epi8(in2, in3);
+                const __m128i a23_hi = _mm_unpackhi_epi8(in2, in3);
+                const __m128i a45_lo = _mm_unpacklo_epi8(in4, in5);
+                const __m128i a45_hi = _mm_unpackhi_epi8(in4, in5);
+                const __m128i a67_lo = _mm_unpacklo_epi8(in6, in7);
+                const __m128i a67_hi = _mm_unpackhi_epi8(in6, in7);
 
-                __m128i b4 = _mm_unpackhi_epi16(a0, a2); // 01 lo x 23 lo p1
-                __m128i b5 = _mm_unpackhi_epi16(a1, a3); // 01 hi x 23 hi p3
-                __m128i b6 = _mm_unpackhi_epi16(a4, a6); // 45 lo x 67 lo p1
-                __m128i b7 = _mm_unpackhi_epi16(a5, a7); // 45 hi x 67 hi p3
+
+                const __m128i a0123lo_lo = _mm_unpacklo_epi16(a01_lo, a23_lo);
+                const __m128i a0123lo_hi = _mm_unpackhi_epi16(a01_lo, a23_lo);
+                const __m128i a0123hi_lo = _mm_unpacklo_epi16(a01_hi, a23_hi);
+                const __m128i a0123hi_hi = _mm_unpackhi_epi16(a01_hi, a23_hi);
+                const __m128i a4567lo_lo = _mm_unpacklo_epi16(a45_lo, a67_lo);
+                const __m128i a4567lo_hi = _mm_unpackhi_epi16(a45_lo, a67_lo);
+                const __m128i a4567hi_lo = _mm_unpacklo_epi16(a45_hi, a67_hi);
+                const __m128i a4567hi_hi = _mm_unpackhi_epi16(a45_hi, a67_hi);
 
 
-                __m128i c0 = _mm_unpacklo_epi32(b0, b2); // 0123 p0 x 4567 p0 pp0
-                __m128i c1 = _mm_unpacklo_epi32(b4, b6); // 0123 p1 x 4567 p1 pp2
-                __m128i c2 = _mm_unpacklo_epi32(b1, b3); // 0123 p2 x 4567 p2 pp4
-                __m128i c3 = _mm_unpacklo_epi32(b5, b7); // 0123 p3 x 4567 p3 pp6
+                const __m128i a01234567lo_lo_lo = _mm_unpacklo_epi32(a0123lo_lo, a4567lo_lo);
+                const __m128i a01234567lo_lo_hi = _mm_unpackhi_epi32(a0123lo_lo, a4567lo_lo);
+                const __m128i a01234567lo_hi_lo = _mm_unpacklo_epi32(a0123lo_hi, a4567lo_hi);
+                const __m128i a01234567lo_hi_hi = _mm_unpackhi_epi32(a0123lo_hi, a4567lo_hi);
+                const __m128i a01234567hi_lo_lo = _mm_unpacklo_epi32(a0123hi_lo, a4567hi_lo);
+                const __m128i a01234567hi_lo_hi = _mm_unpackhi_epi32(a0123hi_lo, a4567hi_lo);
+                const __m128i a01234567hi_hi_lo = _mm_unpacklo_epi32(a0123hi_hi, a4567hi_hi);
+                const __m128i a01234567hi_hi_hi = _mm_unpackhi_epi32(a0123hi_hi, a4567hi_hi);
 
-                __m128i c4 = _mm_unpackhi_epi32(b0, b2); // 0123 p0 x 4567 p0 pp1
-                __m128i c5 = _mm_unpackhi_epi32(b4, b6); // 0123 p1 x 4567 p1 pp3
-                __m128i c6 = _mm_unpackhi_epi32(b1, b3); // 0123 p2 x 4567 p2 pp5
-                __m128i c7 = _mm_unpackhi_epi32(b5, b7); // 0123 p3 x 4567 p3 pp7
 
-                _mm_storeu_si128((__m128i *)(dest + i*8 + 0 * 16), c0);
-                _mm_storeu_si128((__m128i *)(dest + i*8 + 1 * 16), c4);
-                _mm_storeu_si128((__m128i *)(dest + i*8 + 2 * 16), c1);
-                _mm_storeu_si128((__m128i *)(dest + i*8 + 3 * 16), c5);
-                _mm_storeu_si128((__m128i *)(dest + i*8 + 4 * 16), c2);
-                _mm_storeu_si128((__m128i *)(dest + i*8 + 5 * 16), c6);
-                _mm_storeu_si128((__m128i *)(dest + i*8 + 6 * 16), c3);
-                _mm_storeu_si128((__m128i *)(dest + i*8 + 7 * 16), c7);
+                _mm_storeu_si128((__m128i*)(dest + i*8 + 0 * 16), a01234567lo_lo_lo);
+                _mm_storeu_si128((__m128i*)(dest + i*8 + 1 * 16), a01234567lo_lo_hi);
+                _mm_storeu_si128((__m128i*)(dest + i*8 + 2 * 16), a01234567lo_hi_lo);
+                _mm_storeu_si128((__m128i*)(dest + i*8 + 3 * 16), a01234567lo_hi_hi);
+                _mm_storeu_si128((__m128i*)(dest + i*8 + 4 * 16), a01234567hi_lo_lo);
+                _mm_storeu_si128((__m128i*)(dest + i*8 + 5 * 16), a01234567hi_lo_hi);
+                _mm_storeu_si128((__m128i*)(dest + i*8 + 6 * 16), a01234567hi_hi_lo);
+                _mm_storeu_si128((__m128i*)(dest + i*8 + 7 * 16), a01234567hi_hi_hi);
             }
             #endif
-            for (; i + 8 <= size; i+=8) {
+            for (; i + 8 <= size; i += 8) {
                 dest[i + 0] = (src[i] >> 7) & 1;
                 dest[i + 1] = (src[i] >> 6) & 1;
                 dest[i + 2] = (src[i] >> 5) & 1;
@@ -875,45 +931,29 @@ bool slp_image_format(struct slp_image *image) {
             break;
         }
         case 2: {
-            uint64_t i = 0;
             #ifdef __SSE2__
-            __m128i ones = _mm_set1_epi16(3);//0b11
-            __m128i zeroes = _mm_setzero_si128();
-
             for (; i + 16 <= size; i += 16) {
-                __m128i in = _mm_loadu_si128((const __m128i *)(src + i));
+                const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
 
-                __m128i in_lo = _mm_unpacklo_epi8(in, zeroes);
-                __m128i in_hi = _mm_unpacklo_epi8(in, zeroes);
+                const __m128i in0 = _mm_and_si128(_mm_srli_epi64(in, 0), _mm_set1_epi8(3));//0b11
+                const __m128i in1 = _mm_and_si128(_mm_srli_epi64(in, 2), _mm_set1_epi8(3));
+                const __m128i in2 = _mm_and_si128(_mm_srli_epi64(in, 4), _mm_set1_epi8(3));
+                const __m128i in3 = _mm_and_si128(_mm_srli_epi64(in, 6), _mm_set1_epi8(3));
 
-                __m128i in0_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 0), ones);
-                __m128i in0_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 0), ones);
-                __m128i in1_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 2), ones);
-                __m128i in1_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 2), ones);
-                __m128i in2_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 4), ones);
-                __m128i in2_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 4), ones);
-                __m128i in3_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 6), ones);
-                __m128i in3_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 6), ones);
+                const __m128i in01_lo = _mm_unpacklo_epi8(in0, in1);
+                const __m128i in01_hi = _mm_unpackhi_epi8(in0, in1);
+                const __m128i in23_lo = _mm_unpacklo_epi8(in2, in3);
+                const __m128i in23_hi = _mm_unpackhi_epi8(in2, in3);
 
-                __m128i in0 = _mm_packus_epi16(in0_lo, in0_hi); // 0
-                __m128i in1 = _mm_packus_epi16(in1_lo, in1_hi); // 1
-                __m128i in2 = _mm_packus_epi16(in2_lo, in2_hi); // 2
-                __m128i in3 = _mm_packus_epi16(in3_lo, in3_hi); // 3
+                const __m128i in0123lo_lo = _mm_unpacklo_epi16(in01_lo, in23_lo);
+                const __m128i in0123lo_hi = _mm_unpackhi_epi16(in01_lo, in23_lo);
+                const __m128i in0123hi_lo = _mm_unpacklo_epi16(in01_hi, in23_hi);
+                const __m128i in0123hi_hi = _mm_unpackhi_epi16(in01_hi, in23_hi);
 
-                __m128i a0 = _mm_unpacklo_epi8(in0, in1); // 0 lo x 1 lo p0
-                __m128i a1 = _mm_unpackhi_epi8(in0, in1); // 0 hi x 1 hi p1
-                __m128i a2 = _mm_unpacklo_epi8(in2, in3); // 2 lo x 3 lo p0
-                __m128i a3 = _mm_unpackhi_epi8(in2, in3); // 2 hi x 3 hi p1
-
-                __m128i b0 = _mm_unpacklo_epi16(a0, a2); // 01 p0 x 23 p0 pp0
-                __m128i b1 = _mm_unpacklo_epi16(a1, a3); // 01 p1 x 23 p1 pp2
-                __m128i b2 = _mm_unpackhi_epi16(a0, a2); // 01 p0 x 23 p0 pp1
-                __m128i b3 = _mm_unpackhi_epi16(a1, a3); // 01 p1 x 23 p1 pp3
-
-                _mm_storeu_si128((__m128i *)(dest + i*4 + 0 * 16), b0);
-                _mm_storeu_si128((__m128i *)(dest + i*4 + 1 * 16), b2);
-                _mm_storeu_si128((__m128i *)(dest + i*4 + 2 * 16), b1);
-                _mm_storeu_si128((__m128i *)(dest + i*4 + 3 * 16), b3);
+                _mm_storeu_si128((__m128i*)(dest + i*4 + 0 * 16), in0123lo_lo);
+                _mm_storeu_si128((__m128i*)(dest + i*4 + 1 * 16), in0123lo_hi);
+                _mm_storeu_si128((__m128i*)(dest + i*4 + 2 * 16), in0123hi_lo);
+                _mm_storeu_si128((__m128i*)(dest + i*4 + 3 * 16), in0123hi_hi);
             }
             #endif
             for (; i + 4 <= size; i+=4) {
@@ -925,32 +965,34 @@ bool slp_image_format(struct slp_image *image) {
             break;
         }
         case 4: {
-            uint64_t i = 0;
             #ifdef __AVX2__
-            __m256i ones = _mm256_set1_epi16(0x0F);
-            __m256i zeroes = _mm256_setzero_si256();
-
             for (; i + 32 <= size; i += 32) {
-                __m256i in = _mm256_loadu_si256((const __m256i *)(src + i));
-
-                __m256i in_lo = _mm256_unpacklo_epi8(in, zeroes);
-                __m256i in_hi = _mm256_unpackhi_epi8(in, zeroes);
+                const __m256i in = _mm256_loadu_si256((const __m256i*)(src + i));
                 
-                __m256i in0_lo = _mm256_and_si256(_mm256_srli_epi16(in_lo, 0), ones);
-                __m256i in0_hi = _mm256_and_si256(_mm256_srli_epi16(in_hi, 0), ones);
-                __m256i in1_lo = _mm256_and_si256(_mm256_srli_epi16(in_lo, 4), ones);
-                __m256i in1_hi = _mm256_and_si256(_mm256_srli_epi16(in_hi, 4), ones);
+                const __m256i in0 = _mm256_and_si256(_mm256_srli_epi64(in, 0), _mm256_set1_epi8(0x0F));
+                const __m256i in1 = _mm256_and_si256(_mm256_srli_epi64(in, 4), _mm256_set1_epi8(0x0F));
                 
-                __m256i in0 = _mm256_packus_epi16(in0_lo, in0_hi);
-                __m256i in1 = _mm256_packus_epi16(in1_lo, in1_hi);
-                
-                __m256i a0 = _mm256_unpacklo_epi8(in0, in1); // 0 x 1 lo
-                __m256i a1 = _mm256_unpackhi_epi8(in0, in1); // 0 x 1 hi
+                const __m256i a0 = _mm256_unpacklo_epi8(in0, in1); // 0 x 1 lo
+                const __m256i a1 = _mm256_unpackhi_epi8(in0, in1); // 0 x 1 hi
 
                 _mm_storeu_si128((__m128i*)(dest + i*2 + 0 * 16), _mm256_castsi256_si128(a0));
                 _mm_storeu_si128((__m128i*)(dest + i*2 + 1 * 16), _mm256_castsi256_si128(a1));
                 _mm_storeu_si128((__m128i*)(dest + i*2 + 2 * 16), _mm256_extracti128_si256(a0, 1));
                 _mm_storeu_si128((__m128i*)(dest + i*2 + 3 * 16), _mm256_extracti128_si256(a1, 1));
+            }
+            #endif
+            #ifdef __SSE2__
+            for (; i + 16 <= size; i += 16) {
+                const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
+                
+                const __m128i in0 = _mm_and_si128(_mm_srli_epi64(in, 0), _mm_set1_epi8(0x0F));
+                const __m128i in1 = _mm_and_si128(_mm_srli_epi64(in, 4), _mm_set1_epi8(0x0F));
+                
+                const __m128i a0 = _mm_unpacklo_epi8(in0, in1); // 0 x 1 lo
+                const __m128i a1 = _mm_unpackhi_epi8(in0, in1); // 0 x 1 hi
+
+                _mm_storeu_si128((__m128i*)(dest + i*2 + 0 * 16), a0);
+                _mm_storeu_si128((__m128i*)(dest + i*2 + 1 * 16), a1);
             }
             #endif
             for (; i + 2 <= size; i+=2) {
@@ -964,18 +1006,24 @@ bool slp_image_format(struct slp_image *image) {
             return true;
         }
         case 16: {
-            uint16_t random_value_for_edian_test = 1;
+            const uint16_t random_value_for_edian_test = 1;
             if (!(*(uint8_t*)(&random_value_for_edian_test))) {// if big edian
                 free(new_buffer);
                 return true;
             }
 
-            uint64_t i = 0;
             #ifdef __AVX2__
             for (; i + 32 <= size; i += 32) {
-                __m256i in = _mm256_loadu_si256((const __m256i *)(src + i));
-                __m256i out = _mm256_or_si256(_mm256_slli_epi16(in, 8), _mm256_srli_epi16(in, 8));
-                _mm256_storeu_si256((__m256i *)(dest + i), out);
+                const __m256i in = _mm256_loadu_si256((const __m256i*)(src + i));
+                const __m256i out = _mm256_or_si256(_mm256_slli_epi16(in, 8), _mm256_srli_epi16(in, 8));
+                _mm256_storeu_si256((__m256i*)(dest + i), out);
+            }
+            #endif
+            #ifdef __SSE2__
+            for (; i + 16 <= size; i += 16) {
+                const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
+                const __m128i out = _mm_or_si128(_mm_slli_epi16(in, 8), _mm_srli_epi16(in, 8));
+                _mm_storeu_si128((__m128i*)(dest + i), out);
             }
             #endif
             for (; i < size; i+=2) {
@@ -1003,8 +1051,7 @@ bool slp_image_format(struct slp_image *image) {
 
 
 
-// only take microseconds to run
-bool slp_image_unformat(struct slp_image *image) {
+bool slp_image_unformat(struct slp_image* image) {
 
     const size_t size = (size_t)(image->height) * (image->width) * (image->channels) * (1 + (image->bit_depth == 16));
     const size_t new_size = (size_t)(image->height) * div_round_up((size_t)image->width * image->channels * image->bit_depth, 8);
@@ -1012,124 +1059,207 @@ bool slp_image_unformat(struct slp_image *image) {
     uint8_t* new_buffer = (uint8_t*)SLP_MALLOC(new_size);
     if (new_buffer == NULL) return false;
 
-    uint8_t *src = (uint8_t*)(image->buffer);
-    uint8_t *dest = (uint8_t*)(new_buffer);
+    uint8_t* src = (uint8_t*)(image->buffer);
+    uint8_t* dest = (uint8_t*)(new_buffer);
 
     size_t i = 0;
     switch (image->bit_depth) {
         case 1: {
             #ifdef __AVX2__
-            __m256i mask1 = _mm256_setr_epi8(1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
-            __m256i mask2 = _mm256_setr_epi8(0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0);
-            __m256i mask3 = _mm256_setr_epi8(0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
-            __m256i mask4 = _mm256_setr_epi8(0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
-            __m256i mask5 = _mm256_setr_epi8(0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
-            __m256i mask6 = _mm256_setr_epi8(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0);
-            __m256i mask7 = _mm256_setr_epi8(0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0);
-            __m256i mask8 = _mm256_setr_epi8(0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1);
-            __m256i extract = _mm256_setr_epi8(0, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
+            {
+                const __m256i mask1 = _mm256_setr_epi8(-1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0);
+                const __m256i mask2 = _mm256_setr_epi8(0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0);
+                const __m256i mask3 = _mm256_setr_epi8(0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0);
+                const __m256i mask4 = _mm256_setr_epi8(0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0);
+                const __m256i mask5 = _mm256_setr_epi8(0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0);
+                const __m256i mask6 = _mm256_setr_epi8(0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0);
+                const __m256i mask7 = _mm256_setr_epi8(0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0);
+                const __m256i mask8 = _mm256_setr_epi8(0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1);
+                const __m256i extract = _mm256_setr_epi8(0, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
 
+                for (; i + 32 <= size; i += 32) {
+                    __m256i in = _mm256_loadu_si256((const __m256i*)(src + i));
 
-            __m256i z = _mm256_setzero_si256();
-            for (; i + 32 <= size; i += 32) {
-                __m256i in = _mm256_loadu_si256((const __m256i *)src);
+                    in = _mm256_and_si256(in, _mm256_set1_epi8(1)); // take last 1 bit
 
-                in = _mm256_and_si256(in, _mm256_set1_epi8(1)); // mask the last 1 bit of each byte
+                    const __m256i bit1 = _mm256_slli_si256(_mm256_slli_epi64(_mm256_and_si256(in, mask1), 7), 0);
+                    const __m256i bit2 = _mm256_slli_si256(_mm256_slli_epi64(_mm256_and_si256(in, mask2), 6), 1);
+                    const __m256i bit3 = _mm256_slli_si256(_mm256_slli_epi64(_mm256_and_si256(in, mask3), 5), 2);
+                    const __m256i bit4 = _mm256_slli_si256(_mm256_slli_epi64(_mm256_and_si256(in, mask4), 4), 3);
+                    const __m256i bit5 = _mm256_slli_si256(_mm256_slli_epi64(_mm256_and_si256(in, mask5), 3), 4);
+                    const __m256i bit6 = _mm256_slli_si256(_mm256_slli_epi64(_mm256_and_si256(in, mask6), 2), 5);
+                    const __m256i bit7 = _mm256_slli_si256(_mm256_slli_epi64(_mm256_and_si256(in, mask7), 1), 6);
+                    const __m256i bit8 = _mm256_slli_si256(_mm256_slli_epi64(_mm256_and_si256(in, mask8), 0), 7);
 
-                __m256i bit1 = _mm256_slli_si256(_mm256_slli_epi64(_mm256_blendv_epi8(z, in, mask1), 7), 0);
-                __m256i bit2 = _mm256_slli_si256(_mm256_slli_epi64(_mm256_blendv_epi8(z, in, mask2), 6), 1);
-                __m256i bit3 = _mm256_slli_si256(_mm256_slli_epi64(_mm256_blendv_epi8(z, in, mask3), 5), 2);
-                __m256i bit4 = _mm256_slli_si256(_mm256_slli_epi64(_mm256_blendv_epi8(z, in, mask4), 4), 3);
-                __m256i bit5 = _mm256_slli_si256(_mm256_slli_epi64(_mm256_blendv_epi8(z, in, mask5), 3), 4);
-                __m256i bit6 = _mm256_slli_si256(_mm256_slli_epi64(_mm256_blendv_epi8(z, in, mask6), 2), 5);
-                __m256i bit7 = _mm256_slli_si256(_mm256_slli_epi64(_mm256_blendv_epi8(z, in, mask7), 1), 6);
-                __m256i bit8 = _mm256_slli_si256(_mm256_slli_epi64(_mm256_blendv_epi8(z, in, mask8), 0), 7);
+                    __m256i out = _mm256_or_si256(_mm256_or_si256(_mm256_or_si256(bit1, bit2), _mm256_or_si256(bit3, bit4)), _mm256_or_si256(_mm256_or_si256(bit5, bit6), _mm256_or_si256(bit7, bit8)));
+                    out = _mm256_shuffle_epi8(out, extract);
 
-                __m256i out = _mm256_or_si256(_mm256_or_si256(_mm256_or_si256(_mm256_or_si256(_mm256_or_si256(_mm256_or_si256(_mm256_or_si256(bit1, bit2), bit3), bit4), bit5), bit6), bit7), bit8);
-
-                out = _mm256_shuffle_epi8(out, extract);
-
-                *(uint16_t *)dest = _mm256_extract_epi16(out, 0);
-                dest += 2;
-                *(uint16_t *)dest = _mm256_extract_epi16(out, 8);
-                dest += 2;
-                src += 32;
+                    *(uint16_t*)(dest + i/8 + 0) = _mm256_extract_epi16(out, 0);
+                    *(uint16_t*)(dest + i/8 + 2) = _mm256_extract_epi16(out, 8);
+                }
             }
             #endif
-            for (; i < size; i++) {
-                *dest = 0;
-                for (int64_t j = 7; j >= 0; j--) *dest |= (((*src++) & 1) << j);
-                dest++;
+            #ifdef __SSE2__
+            {
+                const __m128i mask1 = _mm_setr_epi8(-1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0);
+                const __m128i mask2 = _mm_setr_epi8(0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0);
+                const __m128i mask3 = _mm_setr_epi8(0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0);
+                const __m128i mask4 = _mm_setr_epi8(0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0);
+                const __m128i mask5 = _mm_setr_epi8(0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0);
+                const __m128i mask6 = _mm_setr_epi8(0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0);
+                const __m128i mask7 = _mm_setr_epi8(0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0);
+                const __m128i mask8 = _mm_setr_epi8(0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1);
+                const __m128i extract = _mm_setr_epi8(0, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
+
+                for (; i + 16 <= size; i += 16) {
+                    __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
+
+                    in = _mm_and_si128(in, _mm_set1_epi8(1)); // take last 1 bit
+
+                    const __m128i bit1 = _mm_slli_si128(_mm_slli_epi64(_mm_and_si128(in, mask1), 7), 0);
+                    const __m128i bit2 = _mm_slli_si128(_mm_slli_epi64(_mm_and_si128(in, mask2), 6), 1);
+                    const __m128i bit3 = _mm_slli_si128(_mm_slli_epi64(_mm_and_si128(in, mask3), 5), 2);
+                    const __m128i bit4 = _mm_slli_si128(_mm_slli_epi64(_mm_and_si128(in, mask4), 4), 3);
+                    const __m128i bit5 = _mm_slli_si128(_mm_slli_epi64(_mm_and_si128(in, mask5), 3), 4);
+                    const __m128i bit6 = _mm_slli_si128(_mm_slli_epi64(_mm_and_si128(in, mask6), 2), 5);
+                    const __m128i bit7 = _mm_slli_si128(_mm_slli_epi64(_mm_and_si128(in, mask7), 1), 6);
+                    const __m128i bit8 = _mm_slli_si128(_mm_slli_epi64(_mm_and_si128(in, mask8), 0), 7);
+
+                    __m128i out = _mm_or_si128(_mm_or_si128(_mm_or_si128(bit1, bit2), _mm_or_si128(bit3, bit4)), _mm_or_si128(_mm_or_si128(bit5, bit6), _mm_or_si128(bit7, bit8)));
+                    out = _mm_shuffle_epi8(out, extract);
+
+                    *(uint16_t*)(dest + i/8) = _mm_cvtsi128_si16(out);
+                }
+            }
+            #endif
+            for (; i + 8 <= size; i += 8) {
+                dest[i/8] = (src[i + 0] & 1) << 7 | 
+                            (src[i + 1] & 1) << 6 |
+                            (src[i + 2] & 1) << 5 |
+                            (src[i + 3] & 1) << 4 |
+                            (src[i + 4] & 1) << 3 |
+                            (src[i + 5] & 1) << 2 |
+                            (src[i + 6] & 1) << 1 |
+                            (src[i + 7] & 1) << 0;
             }
             break;
         }
         case 2: {
             #ifdef __AVX2__
-            __m256i mask1 = _mm256_setr_epi8(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0);
-            __m256i mask2 = _mm256_setr_epi8(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0);
-            __m256i mask3 = _mm256_setr_epi8(0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0);
-            __m256i mask4 = _mm256_setr_epi8(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1);
-            __m256i extract = _mm256_setr_epi8(0, 4, 8, 12, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 4, 8, 12, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
+            {
+                const __m256i mask1 = _mm256_setr_epi8(-1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0);
+                const __m256i mask2 = _mm256_setr_epi8(0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0);
+                const __m256i mask3 = _mm256_setr_epi8(0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0);
+                const __m256i mask4 = _mm256_setr_epi8(0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1);
+                const __m256i extract = _mm256_setr_epi8(0, 4, 8, 12, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 4, 8, 12, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
 
-            __m256i z = _mm256_setzero_si256();
-            for (; i + 32 <= size; i += 32) {
-                __m256i in = _mm256_loadu_si256((const __m256i *)src);
+                for (; i + 32 <= size; i += 32) {
+                    __m256i in = _mm256_loadu_si256((const __m256i*)(src + i));
+                    in = _mm256_and_si256(in, _mm256_set1_epi8(3)); // take last 2 bit
 
-                in = _mm256_and_si256(in, _mm256_set1_epi8(3)); // mask the last 2 bit of each byte
+                    const __m256i b1 = _mm256_slli_si256(_mm256_slli_epi32(_mm256_and_si256(in, mask1), 6), 0);
+                    const __m256i b2 = _mm256_slli_si256(_mm256_slli_epi32(_mm256_and_si256(in, mask2), 4), 1);
+                    const __m256i b3 = _mm256_slli_si256(_mm256_slli_epi32(_mm256_and_si256(in, mask3), 2), 2);
+                    const __m256i b4 = _mm256_slli_si256(_mm256_slli_epi32(_mm256_and_si256(in, mask4), 0), 3);
 
-                __m256i bit1 = _mm256_slli_si256(_mm256_slli_epi32(_mm256_blendv_epi8(z, in, mask1), 3), 0);
-                __m256i bit2 = _mm256_slli_si256(_mm256_slli_epi32(_mm256_blendv_epi8(z, in, mask2), 2), 1);
-                __m256i bit3 = _mm256_slli_si256(_mm256_slli_epi32(_mm256_blendv_epi8(z, in, mask3), 1), 2);
-                __m256i bit4 = _mm256_slli_si256(_mm256_slli_epi32(_mm256_blendv_epi8(z, in, mask4), 0), 3);
+                    __m256i out = _mm256_or_si256(_mm256_or_si256(b1, b2), _mm256_or_si256(b3, b4));
+                    out = _mm256_shuffle_epi8(out, extract);
 
-                __m256i out = _mm256_or_si256(_mm256_or_si256(_mm256_or_si256(bit1, bit2), bit3), bit4);
-
-                out = _mm256_shuffle_epi8(out, extract);
-
-                *(uint32_t *)dest = _mm256_extract_epi32(out, 0);
-                dest += 4;
-                *(uint32_t *)dest = _mm256_extract_epi32(out, 4);
-                dest += 4;
-                src += 32;
+                    *(uint32_t*)(dest + i/4 + 0) = _mm256_extract_epi32(out, 0);
+                    *(uint32_t*)(dest + i/4 + 4) = _mm256_extract_epi32(out, 4);
+                }
             }
             #endif
-            for (; i < size; i++) {
-                *dest = 0;
-                for (int64_t j = 3; j >= 0; j--) *dest |= (((*src++) & 3) << j);
-                dest++;
+            #ifdef __SSE2__
+            {
+                const __m128i mask1 = _mm_setr_epi8(-1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0);
+                const __m128i mask2 = _mm_setr_epi8(0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0);
+                const __m128i mask3 = _mm_setr_epi8(0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0);
+                const __m128i mask4 = _mm_setr_epi8(0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1);
+                const __m128i extract = _mm_setr_epi8(0, 4, 8, 12, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
+
+                for (; i + 16 <= size; i += 16) {
+                    __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
+                    in = _mm_and_si128(in, _mm_set1_epi8(3)); // take last 2 bit
+
+                    const __m128i b1 = _mm_slli_si128(_mm_slli_epi32(_mm_and_si128(in, mask1), 6), 0);
+                    const __m128i b2 = _mm_slli_si128(_mm_slli_epi32(_mm_and_si128(in, mask2), 4), 1);
+                    const __m128i b3 = _mm_slli_si128(_mm_slli_epi32(_mm_and_si128(in, mask3), 2), 2);
+                    const __m128i b4 = _mm_slli_si128(_mm_slli_epi32(_mm_and_si128(in, mask4), 0), 3);
+
+                    __m128i out = _mm_or_si128(_mm_or_si128(b1, b2), _mm_or_si128(b3, b4));
+                    out = _mm_shuffle_epi8(out, extract);
+
+                    *(uint32_t*)(dest + i/4) = _mm_cvtsi128_si32(out);
+                }
+            }
+            #endif
+            for (; i + 4 <= size; i += 4) {
+                dest[i/4] = (src[i + 0] & 3) << 6 | 
+                            (src[i + 1] & 3) << 4 |
+                            (src[i + 2] & 3) << 2 |
+                            (src[i + 3] & 3) << 0;
             }
             break;
         }
         case 4: {
             #ifdef __AVX2__
-            __m256i mask1 = _mm256_setr_epi8(1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0);
-            __m256i mask2 = _mm256_setr_epi8(0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1);
-            __m256i extract = _mm256_setr_epi8(0, 2, 4, 6, 8, 10, 12, 14, -1, -1, -1, -1, -1, -1, -1, -1, 0, 2, 4, 6, 8, 10, 12, 14, -1, -1, -1, -1, -1, -1, -1, -1);
+            {
+                const __m256i mask1 = _mm256_setr_epi8(-1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0);
+                const __m256i mask2 = _mm256_setr_epi8(0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1);
+                const __m256i extract = _mm256_setr_epi8(0, 2, 4, 6, 8, 10, 12, 14, -1, -1, -1, -1, -1, -1, -1, -1, 0, 2, 4, 6, 8, 10, 12, 14, -1, -1, -1, -1, -1, -1, -1, -1);
 
-            __m256i z = _mm256_setzero_si256();
-            for (; i + 32 <= size; i += 32) {
-                __m256i in = _mm256_loadu_si256((const __m256i *)src);
+                for (; i + 32 <= size; i += 32) {
+                    __m256i in = _mm256_loadu_si256((const __m256i*)(src + i));
+                    in = _mm256_and_si256(in, _mm256_set1_epi8(0x0F)); // take the first 4 bit
 
-                in = _mm256_and_si256(in, _mm256_set1_epi8(0x0F)); // mask the last 4 bit of each byte
+                    const __m256i b1 = _mm256_slli_si256(_mm256_slli_epi16(_mm256_and_si256(in, mask1), 4), 0);
+                    const __m256i b2 = _mm256_slli_si256(_mm256_slli_epi16(_mm256_and_si256(in, mask2), 0), 1);
 
-                __m256i bit1 = _mm256_slli_si256(_mm256_slli_epi32(_mm256_blendv_epi8(z, in, mask1), 1), 0);
-                __m256i bit2 = _mm256_slli_si256(_mm256_slli_epi32(_mm256_blendv_epi8(z, in, mask2), 0), 1);
+                    __m256i out = _mm256_or_si256(b1, b2);
+                    out = _mm256_shuffle_epi8(out, extract);
 
-                __m256i out = _mm256_or_si256(bit1, bit2);
-
-                out = _mm256_shuffle_epi8(out, extract);
-
-                *(uint64_t *)dest = _mm256_extract_epi64(out, 0);
-                dest += 8;
-                *(uint64_t *)dest = _mm256_extract_epi64(out, 2);
-                dest += 8;
-                src += 32;
+                    #ifdef __i386__
+                    *(uint32_t*)(dest + i/2 + 0)  = _mm256_extract_epi32(out, 0);
+                    *(uint32_t*)(dest + i/2 + 4)  = _mm256_extract_epi32(out, 1);
+                    *(uint32_t*)(dest + i/2 + 8)  = _mm256_extract_epi32(out, 4);
+                    *(uint32_t*)(dest + i/2 + 12) = _mm256_extract_epi32(out, 5);
+                    #else
+                    *(uint64_t*)(dest + i/2 + 0) = _mm256_extract_epi64(out, 0);
+                    *(uint64_t*)(dest + i/2 + 8) = _mm256_extract_epi64(out, 2);
+                    #endif
+                }
             }
             #endif
-            for (; i < size; i++) {
-                *dest = 0;
-                for (int64_t j = 1; j >= 0; j--) *dest |= (((*src++) & 0x0F) << j);
-                dest++;
+            #ifdef __SSE2__
+            {
+                const __m128i mask1 = _mm_setr_epi8(-1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0);
+                const __m128i mask2 = _mm_setr_epi8(0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1);
+                const __m128i extract = _mm_setr_epi8(0, 2, 4, 6, 8, 10, 12, 14, -1, -1, -1, -1, -1, -1, -1, -1);
+
+                for (; i + 16 <= size; i += 16) {
+                    __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
+                    in = _mm_and_si128(in, _mm_set1_epi8(0x0F)); // take the last 4 bit
+
+                    const __m128i b1 = _mm_slli_si128(_mm_slli_epi16(_mm_and_si128(in, mask1), 4), 0);
+                    const __m128i b2 = _mm_slli_si128(_mm_slli_epi16(_mm_and_si128(in, mask2), 0), 1);
+
+                    __m128i out = _mm_or_si128(b1, b2);
+                    out = _mm_shuffle_epi8(out, extract);
+
+                    #ifdef __i386__
+                    *(uint32_t*)(dest + i/2 + 0) = _mm_cvtsi128_si32(out);
+                    *(uint16_t*)(dest + i/2 + 4) = _mm_extract_epi16(out, 2);
+                    *(uint16_t*)(dest + i/2 + 6) = _mm_extract_epi16(out, 3);
+                    #else
+                    *(uint64_t*)(dest + i/2) = _mm_cvtsi128_si64(out);
+                    #endif
+                }
+            }
+            #endif
+            for (; i+2 <= size; i+=2) {
+                dest[i/2] = (src[i + 0] & 0x0F) << 4 |
+                            (src[i + 1] & 0x0F) << 0;
             }
             break;
         }
@@ -1139,7 +1269,7 @@ bool slp_image_unformat(struct slp_image *image) {
             break;
         }
         case 16: {
-            uint16_t random_value_for_edian_test = 1;
+            const uint16_t random_value_for_edian_test = 1;
             if (!(*(uint8_t*)(&random_value_for_edian_test))) {
                 free(new_buffer);
                 return true;
@@ -1147,12 +1277,19 @@ bool slp_image_unformat(struct slp_image *image) {
 
             #ifdef __AVX2__
             for (; i + 32 <= size; i += 32) {
-                __m256i in = _mm256_loadu_si256((const __m256i *)(src + i));
-                __m256i out = _mm256_or_si256(_mm256_slli_epi16(in, 8), _mm256_srli_epi16(in, 8));
-                _mm256_storeu_si256((__m256i *)(dest + i), out);
+                const __m256i in = _mm256_loadu_si256((const __m256i*)(src + i));
+                const __m256i out = _mm256_or_si256(_mm256_slli_epi16(in, 8), _mm256_srli_epi16(in, 8));
+                _mm256_storeu_si256((__m256i*)(dest + i), out);
             }
             #endif
-            for (; i + 2 <= size; i+=2) {
+            #ifdef __SSE2__
+            for (; i + 16 <= size; i += 16) {
+                const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
+                const __m128i out = _mm_or_si128(_mm_slli_epi16(in, 8), _mm_srli_epi16(in, 8));
+                _mm_storeu_si128((__m128i*)(dest + i), out);
+            }
+            #endif
+            for (; i + 2 <= size; i += 2) {
                 dest[i + 0] = src[i + 1];
                 dest[i + 1] = src[i + 0];
             }
@@ -1179,7 +1316,7 @@ bool slp_image_unformat(struct slp_image *image) {
 
 
 // did not test, not sure if work reliably
-bool slp_image_convert_G8_to_RGBA32(struct slp_image *image) {
+bool slp_image_convert_G8_to_RGBA32(struct slp_image* image) {
     if (image->channels != 1 || image->bit_depth != 8) return false;
 
     const size_t size = (size_t)image->width * image->height;
@@ -1194,21 +1331,21 @@ bool slp_image_convert_G8_to_RGBA32(struct slp_image *image) {
 
     size_t i = 0;
     #ifdef __SSE2__
-    __m128i FF = _mm_set1_epi8(-1);
+    const __m128i FF = _mm_set1_epi8(-1);
     for (; i + 16 <= size; i+=16) {
-        __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
+        const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
 
-        __m128i inin1 = _mm_unpacklo_epi8(in, in);
-        __m128i inin2 = _mm_unpackhi_epi8(in, in);
+        const __m128i inin1 = _mm_unpacklo_epi8(in, in);
+        const __m128i inin2 = _mm_unpackhi_epi8(in, in);
 
-        __m128i inFF1 = _mm_unpacklo_epi8(in, FF);
-        __m128i inFF2 = _mm_unpackhi_epi8(in, FF);
+        const __m128i inFF1 = _mm_unpacklo_epi8(in, FF);
+        const __m128i inFF2 = _mm_unpackhi_epi8(in, FF);
 
-        __m128i inininFF_lo1 = _mm_unpacklo_epi16(inin1, inFF1);
-        __m128i inininFF_hi1 = _mm_unpackhi_epi16(inin1, inFF1);
+        const __m128i inininFF_lo1 = _mm_unpacklo_epi16(inin1, inFF1);
+        const __m128i inininFF_hi1 = _mm_unpackhi_epi16(inin1, inFF1);
 
-        __m128i inininFF_lo2 = _mm_unpacklo_epi16(inin2, inFF2);
-        __m128i inininFF_hi2 = _mm_unpackhi_epi16(inin2, inFF2);
+        const __m128i inininFF_lo2 = _mm_unpacklo_epi16(inin2, inFF2);
+        const __m128i inininFF_hi2 = _mm_unpackhi_epi16(inin2, inFF2);
 
         _mm_storeu_si128((__m128i*)(dest + i + 16 * 0), inininFF_lo1);
         _mm_storeu_si128((__m128i*)(dest + i + 16 * 1), inininFF_hi1);
@@ -1232,7 +1369,7 @@ bool slp_image_convert_G8_to_RGBA32(struct slp_image *image) {
 
 
 // did not test, not sure if work reliably
-bool slp_image_convert_GA16_to_RGBA32(struct slp_image *image) {
+bool slp_image_convert_GA16_to_RGBA32(struct slp_image* image) {
     if (image->channels != 2 || image->bit_depth != 8) return false;
 
     const size_t src_size_in_element = (size_t)image->width * image->height * 2;// size in element
@@ -1245,17 +1382,17 @@ bool slp_image_convert_GA16_to_RGBA32(struct slp_image *image) {
 
     size_t i = 0;
     #ifdef __SSE2__
-    __m128i FF00 = _mm_set1_epi16(0xFF);
+    const __m128i FF00 = _mm_set1_epi16(0xFF);
     for (; i + 8 <= src_size_in_element; i+=8) {
-        __m128i inAA = _mm_loadu_si128((const __m128i*)(src + i));
+        const __m128i inAA = _mm_loadu_si128((const __m128i*)(src + i));
 
-        __m128i in00 = _mm_and_si128(inAA, FF00);
-        __m128i _00in = _mm_srli_epi16(inAA, 8);
+        const __m128i in00 = _mm_and_si128(inAA, FF00);
+        const __m128i _00in = _mm_srli_epi16(inAA, 8);
 
-        __m128i inin = _mm_or_si128(in00, _00in);
+        const __m128i inin = _mm_or_si128(in00, _00in);
 
-        __m128i inininAA_lo = _mm_unpacklo_epi16(inin, inAA);
-        __m128i inininAA_hi = _mm_unpackhi_epi16(inin, inAA);
+        const __m128i inininAA_lo = _mm_unpacklo_epi16(inin, inAA);
+        const __m128i inininAA_hi = _mm_unpackhi_epi16(inin, inAA);
 
         _mm_storeu_si128((__m128i*)(dest + i + 8 * 0), inininAA_lo);
         _mm_storeu_si128((__m128i*)(dest + i + 8 * 1), inininAA_hi);
@@ -1277,7 +1414,7 @@ bool slp_image_convert_GA16_to_RGBA32(struct slp_image *image) {
 
 
 // did not test, not sure if work reliably
-bool slp_image_convert_G16_to_RGBA64(struct slp_image *image) {
+bool slp_image_convert_G16_to_RGBA64(struct slp_image* image) {
     if (image->channels != 1 || image->bit_depth != 16) return false;
 
     const size_t src_size_in_element = (size_t)image->width * image->height * 2;
@@ -1292,21 +1429,21 @@ bool slp_image_convert_G16_to_RGBA64(struct slp_image *image) {
 
     size_t i = 0;
     #ifdef __SSE2__
-    __m128i FF = _mm_set1_epi16(-1);
+    const __m128i FF = _mm_set1_epi16(-1);
     for (; i + 8 <= src_size_in_element; i+=8) {
-        __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
+        const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
 
-        __m128i inin1 = _mm_unpacklo_epi16(in, in);
-        __m128i inin2 = _mm_unpackhi_epi16(in, in);
+        const __m128i inin1 = _mm_unpacklo_epi16(in, in);
+        const __m128i inin2 = _mm_unpackhi_epi16(in, in);
 
-        __m128i inFF1 = _mm_unpacklo_epi16(in, FF);
-        __m128i inFF2 = _mm_unpackhi_epi16(in, FF);
+        const __m128i inFF1 = _mm_unpacklo_epi16(in, FF);
+        const __m128i inFF2 = _mm_unpackhi_epi16(in, FF);
 
-        __m128i inininFF_lo1 = _mm_unpacklo_epi32(inin1, inFF1);
-        __m128i inininFF_lo2 = _mm_unpacklo_epi32(inin2, inFF2);
+        const __m128i inininFF_lo1 = _mm_unpacklo_epi32(inin1, inFF1);
+        const __m128i inininFF_lo2 = _mm_unpacklo_epi32(inin2, inFF2);
 
-        __m128i inininFF_hi1 = _mm_unpackhi_epi32(inin1, inFF1);
-        __m128i inininFF_hi2 = _mm_unpackhi_epi32(inin2, inFF2);
+        const __m128i inininFF_hi1 = _mm_unpackhi_epi32(inin1, inFF1);
+        const __m128i inininFF_hi2 = _mm_unpackhi_epi32(inin2, inFF2);
 
         _mm_storeu_si128((__m128i*)(dest + i + 8 * 0), inininFF_lo1);
         _mm_storeu_si128((__m128i*)(dest + i + 8 * 1), inininFF_hi1);
@@ -1329,7 +1466,7 @@ bool slp_image_convert_G16_to_RGBA64(struct slp_image *image) {
 }
 
 // did not test, not sure if work reliably
-bool slp_image_convert_GA32_to_RGBA64(struct slp_image *image) {
+bool slp_image_convert_GA32_to_RGBA64(struct slp_image* image) {
     if (image->channels != 2 || image->bit_depth != 16) return false;
 
     const size_t src_size_in_element = (size_t)image->width * image->height * 4;
@@ -1344,17 +1481,17 @@ bool slp_image_convert_GA32_to_RGBA64(struct slp_image *image) {
 
     size_t i = 0;
     #ifdef __SSE2__
-    __m128i FF00 = _mm_set1_epi32(0xFFFF);
+    const __m128i FF00 = _mm_set1_epi32(0xFFFF);
     for (; i + 8 <= src_size_in_element; i+=8) {
-        __m128i inAA = _mm_loadu_si128((const __m128i*)(src + i));
+        const __m128i inAA = _mm_loadu_si128((const __m128i*)(src + i));
 
-        __m128i in00 = _mm_and_si128(inAA, FF00);
-        __m128i _00in = _mm_srli_epi16(inAA, 16);
+        const __m128i in00 = _mm_and_si128(inAA, FF00);
+        const __m128i _00in = _mm_srli_epi16(inAA, 16);
 
-        __m128i inin = _mm_or_si128(in00, _00in);
+        const __m128i inin = _mm_or_si128(in00, _00in);
 
-        __m128i inininAA_lo = _mm_unpacklo_epi32(inin, inAA);
-        __m128i inininAA_hi = _mm_unpackhi_epi32(inin, inAA);
+        const __m128i inininAA_lo = _mm_unpacklo_epi32(inin, inAA);
+        const __m128i inininAA_hi = _mm_unpackhi_epi32(inin, inAA);
 
         _mm_storeu_si128((__m128i*)(dest + i + 8 * 0), inininAA_lo);
         _mm_storeu_si128((__m128i*)(dest + i + 8 * 1), inininAA_hi);
