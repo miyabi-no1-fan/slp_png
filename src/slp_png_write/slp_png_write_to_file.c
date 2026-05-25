@@ -457,46 +457,46 @@ static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* res
 
             for (; j + 32 <= bpr; j += 32)
             {
-                __m256i r  = _mm256_loadu_si256((const __m256i *)(raw + j));
-                __m256i va = _mm256_loadu_si256((const __m256i *)(raw + j - bpp));
-                __m256i vb = _mm256_loadu_si256((const __m256i *)(raw + j - bpr));
-                __m256i vc = _mm256_loadu_si256((const __m256i *)(raw + j - bpr - bpp));
+                const __m256i r  = _mm256_loadu_si256((const __m256i*)(raw + j));
+                const __m256i va = _mm256_loadu_si256((const __m256i*)(raw + j - bpp));
+                const __m256i vb = _mm256_loadu_si256((const __m256i*)(raw + j - bpr));
+                const __m256i vc = _mm256_loadu_si256((const __m256i*)(raw + j - bpr - bpp));
 
 
-                __m256i va_lo = _mm256_unpacklo_epi8(va, zero);
-                __m256i va_hi = _mm256_unpackhi_epi8(va, zero);
+                const __m256i va_lo = _mm256_unpacklo_epi8(va, zero);
+                const __m256i va_hi = _mm256_unpackhi_epi8(va, zero);
 
-                __m256i vb_lo = _mm256_unpacklo_epi8(vb, zero);
-                __m256i vb_hi = _mm256_unpackhi_epi8(vb, zero);
+                const __m256i vb_lo = _mm256_unpacklo_epi8(vb, zero);
+                const __m256i vb_hi = _mm256_unpackhi_epi8(vb, zero);
 
-                __m256i vc_lo = _mm256_unpacklo_epi8(vc, zero);
-                __m256i vc_hi = _mm256_unpackhi_epi8(vc, zero);
-
-
-                __m256i p_lo = _mm256_add_epi16(va_lo, _mm256_sub_epi16(vb_lo, vc_lo));
-                __m256i p_hi = _mm256_add_epi16(va_hi, _mm256_sub_epi16(vb_hi, vc_hi));
-
-                __m256i pa_lo = _mm256_abs_epi16(_mm256_sub_epi16(p_lo, va_lo));
-                __m256i pa_hi = _mm256_abs_epi16(_mm256_sub_epi16(p_hi, va_hi));
-
-                __m256i pb_lo = _mm256_abs_epi16(_mm256_sub_epi16(p_lo, vb_lo));
-                __m256i pb_hi = _mm256_abs_epi16(_mm256_sub_epi16(p_hi, vb_hi));
-
-                __m256i pc_lo = _mm256_abs_epi16(_mm256_sub_epi16(p_lo, vc_lo));
-                __m256i pc_hi = _mm256_abs_epi16(_mm256_sub_epi16(p_hi, vc_hi));
+                const __m256i vc_lo = _mm256_unpacklo_epi8(vc, zero);
+                const __m256i vc_hi = _mm256_unpackhi_epi8(vc, zero);
 
 
-                __m256i not_pa_le_pb_lo = _mm256_cmpgt_epi16(pa_lo, pb_lo);
-                __m256i not_pa_le_pb_hi = _mm256_cmpgt_epi16(pa_hi, pb_hi);
+                const __m256i p_lo = _mm256_add_epi16(va_lo, _mm256_sub_epi16(vb_lo, vc_lo));
+                const __m256i p_hi = _mm256_add_epi16(va_hi, _mm256_sub_epi16(vb_hi, vc_hi));
 
-                __m256i not_pa_le_pc_lo = _mm256_cmpgt_epi16(pa_lo, pc_lo);
-                __m256i not_pa_le_pc_hi = _mm256_cmpgt_epi16(pa_hi, pc_hi);
+                const __m256i pa_lo = _mm256_abs_epi16(_mm256_sub_epi16(p_lo, va_lo));
+                const __m256i pa_hi = _mm256_abs_epi16(_mm256_sub_epi16(p_hi, va_hi));
 
-                __m256i not_cond1_lo = _mm256_or_si256(not_pa_le_pb_lo, not_pa_le_pc_lo);
-                __m256i not_cond1_hi = _mm256_or_si256(not_pa_le_pb_hi, not_pa_le_pc_hi);
+                const __m256i pb_lo = _mm256_abs_epi16(_mm256_sub_epi16(p_lo, vb_lo));
+                const __m256i pb_hi = _mm256_abs_epi16(_mm256_sub_epi16(p_hi, vb_hi));
 
-                __m256i not_cond2_lo = _mm256_cmpgt_epi16(pb_lo, pc_lo);
-                __m256i not_cond2_hi = _mm256_cmpgt_epi16(pb_hi, pc_hi);
+                const __m256i pc_lo = _mm256_abs_epi16(_mm256_sub_epi16(p_lo, vc_lo));
+                const __m256i pc_hi = _mm256_abs_epi16(_mm256_sub_epi16(p_hi, vc_hi));
+
+
+                const __m256i not_pa_le_pb_lo = _mm256_cmpgt_epi16(pa_lo, pb_lo);
+                const __m256i not_pa_le_pb_hi = _mm256_cmpgt_epi16(pa_hi, pb_hi);
+
+                const __m256i not_pa_le_pc_lo = _mm256_cmpgt_epi16(pa_lo, pc_lo);
+                const __m256i not_pa_le_pc_hi = _mm256_cmpgt_epi16(pa_hi, pc_hi);
+
+                const __m256i not_cond1_lo = _mm256_or_si256(not_pa_le_pb_lo, not_pa_le_pc_lo);
+                const __m256i not_cond1_hi = _mm256_or_si256(not_pa_le_pb_hi, not_pa_le_pc_hi);
+
+                const __m256i not_cond2_lo = _mm256_cmpgt_epi16(pb_lo, pc_lo);
+                const __m256i not_cond2_hi = _mm256_cmpgt_epi16(pb_hi, pc_hi);
 
                 __m256i d_lo = _mm256_blendv_epi8(vb_lo, vc_lo, not_cond2_lo);
                 __m256i d_hi = _mm256_blendv_epi8(vb_hi, vc_hi, not_cond2_hi);
@@ -504,18 +504,18 @@ static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* res
                 d_lo = _mm256_blendv_epi8(va_lo, d_lo, not_cond1_lo);
                 d_hi = _mm256_blendv_epi8(va_hi, d_hi, not_cond1_hi);
 
-                __m256i d = _mm256_packus_epi16(d_lo, d_hi);
+                const __m256i d = _mm256_packus_epi16(d_lo, d_hi);
 
 
-                __m256i tavg_lo = _mm256_srli_epi16(_mm256_add_epi16(va_lo, vb_lo), 1);
-                __m256i tavg_hi = _mm256_srli_epi16(_mm256_add_epi16(va_hi, vb_hi), 1);
-                __m256i tavg = _mm256_packus_epi16(tavg_lo, tavg_hi);
+                const __m256i tavg_lo = _mm256_srli_epi16(_mm256_add_epi16(va_lo, vb_lo), 1);
+                const __m256i tavg_hi = _mm256_srli_epi16(_mm256_add_epi16(va_hi, vb_hi), 1);
+                const __m256i tavg = _mm256_packus_epi16(tavg_lo, tavg_hi);
 
 
-                __m256i vsub = _mm256_sub_epi8(r, va);
-                __m256i vup = _mm256_sub_epi8(r, vb);
-                __m256i vavg = _mm256_sub_epi8(r, tavg);
-                __m256i vpaeth = _mm256_sub_epi8(r, d);
+                const __m256i vsub = _mm256_sub_epi8(r, va);
+                const __m256i vup = _mm256_sub_epi8(r, vb);
+                const __m256i vavg = _mm256_sub_epi8(r, tavg);
+                const __m256i vpaeth = _mm256_sub_epi8(r, d);
 
 
                 noneSum = _mm256_add_epi64(noneSum, _mm256_sad_epu8(r, zero));
@@ -525,11 +525,11 @@ static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* res
                 paethSum = _mm256_add_epi64(paethSum, _mm256_sad_epu8(r, d));
 
 
-                _mm256_storeu_si256((__m256i *)(filter_buffers[0] + j + 1), r);
-                _mm256_storeu_si256((__m256i *)(filter_buffers[1] + j + 1), vsub);
-                _mm256_storeu_si256((__m256i *)(filter_buffers[2] + j + 1), vup);
-                _mm256_storeu_si256((__m256i *)(filter_buffers[3] + j + 1), vavg);
-                _mm256_storeu_si256((__m256i *)(filter_buffers[4] + j + 1), vpaeth);
+                _mm256_storeu_si256((__m256i*)(filter_buffers[0] + j + 1), r);
+                _mm256_storeu_si256((__m256i*)(filter_buffers[1] + j + 1), vsub);
+                _mm256_storeu_si256((__m256i*)(filter_buffers[2] + j + 1), vup);
+                _mm256_storeu_si256((__m256i*)(filter_buffers[3] + j + 1), vavg);
+                _mm256_storeu_si256((__m256i*)(filter_buffers[4] + j + 1), vpaeth);
             }
 
             alignas(32) uint64_t tmp0[4];
@@ -538,11 +538,11 @@ static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* res
             alignas(32) uint64_t tmp3[4];
             alignas(32) uint64_t tmp4[4];
 
-            _mm256_store_si256((__m256i *)tmp0, noneSum);
-            _mm256_store_si256((__m256i *)tmp1, subSum);
-            _mm256_store_si256((__m256i *)tmp2, upSum);
-            _mm256_store_si256((__m256i *)tmp3, avgSum);
-            _mm256_store_si256((__m256i *)tmp4, paethSum);
+            _mm256_store_si256((__m256i*)tmp0, noneSum);
+            _mm256_store_si256((__m256i*)tmp1, subSum);
+            _mm256_store_si256((__m256i*)tmp2, upSum);
+            _mm256_store_si256((__m256i*)tmp3, avgSum);
+            _mm256_store_si256((__m256i*)tmp4, paethSum);
 
             for (unsigned int u = 0; u < 4; u++) {
                 filter_scores[0] += tmp0[u];
@@ -553,7 +553,7 @@ static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* res
             }
         }
         #endif
-        #ifdef __SSE4_2__
+        #ifdef __SSE2__
         {
             __m128i noneSum = _mm_setzero_si128();
             __m128i subSum = _mm_setzero_si128();
@@ -565,65 +565,71 @@ static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* res
 
             for (; j + 16 <= bpr; j += 16)
             {
-                __m128i r  = _mm_loadu_si128((const __m128i *)(raw + j));
-                __m128i va = _mm_loadu_si128((const __m128i *)(raw + j - bpp));
-                __m128i vb = _mm_loadu_si128((const __m128i *)(raw + j - bpr));
-                __m128i vc = _mm_loadu_si128((const __m128i *)(raw + j - bpr - bpp));
+                const __m128i r  = _mm_loadu_si128((const __m128i*)(raw + j));
+                const __m128i va = _mm_loadu_si128((const __m128i*)(raw + j - bpp));
+                const __m128i vb = _mm_loadu_si128((const __m128i*)(raw + j - bpr));
+                const __m128i vc = _mm_loadu_si128((const __m128i*)(raw + j - bpr - bpp));
 
 
-                __m128i va_lo = _mm_unpacklo_epi8(va, zero);
-                __m128i va_hi = _mm_unpackhi_epi8(va, zero);
+                const __m128i va_lo = _mm_unpacklo_epi8(va, zero);
+                const __m128i va_hi = _mm_unpackhi_epi8(va, zero);
 
-                __m128i vb_lo = _mm_unpacklo_epi8(vb, zero);
-                __m128i vb_hi = _mm_unpackhi_epi8(vb, zero);
+                const __m128i vb_lo = _mm_unpacklo_epi8(vb, zero);
+                const __m128i vb_hi = _mm_unpackhi_epi8(vb, zero);
 
-                __m128i vc_lo = _mm_unpacklo_epi8(vc, zero);
-                __m128i vc_hi = _mm_unpackhi_epi8(vc, zero);
-
-
-                __m128i p_lo = _mm_add_epi16(va_lo, _mm_sub_epi16(vb_lo, vc_lo));
-                __m128i p_hi = _mm_add_epi16(va_hi, _mm_sub_epi16(vb_hi, vc_hi));
-
-                __m128i pa_lo = _mm_abs_epi16(_mm_sub_epi16(p_lo, va_lo));
-                __m128i pa_hi = _mm_abs_epi16(_mm_sub_epi16(p_hi, va_hi));
-
-                __m128i pb_lo = _mm_abs_epi16(_mm_sub_epi16(p_lo, vb_lo));
-                __m128i pb_hi = _mm_abs_epi16(_mm_sub_epi16(p_hi, vb_hi));
-
-                __m128i pc_lo = _mm_abs_epi16(_mm_sub_epi16(p_lo, vc_lo));
-                __m128i pc_hi = _mm_abs_epi16(_mm_sub_epi16(p_hi, vc_hi));
+                const __m128i vc_lo = _mm_unpacklo_epi8(vc, zero);
+                const __m128i vc_hi = _mm_unpackhi_epi8(vc, zero);
 
 
-                __m128i not_pa_le_pb_lo = _mm_cmpgt_epi16(pa_lo, pb_lo);
-                __m128i not_pa_le_pb_hi = _mm_cmpgt_epi16(pa_hi, pb_hi);
+                const __m128i p_lo = _mm_add_epi16(va_lo, _mm_sub_epi16(vb_lo, vc_lo));
+                const __m128i p_hi = _mm_add_epi16(va_hi, _mm_sub_epi16(vb_hi, vc_hi));
 
-                __m128i not_pa_le_pc_lo = _mm_cmpgt_epi16(pa_lo, pc_lo);
-                __m128i not_pa_le_pc_hi = _mm_cmpgt_epi16(pa_hi, pc_hi);
+                const __m128i pa_lo = _mm_abs_epi16(_mm_sub_epi16(p_lo, va_lo));
+                const __m128i pa_hi = _mm_abs_epi16(_mm_sub_epi16(p_hi, va_hi));
 
-                __m128i not_cond1_lo = _mm_or_si128(not_pa_le_pb_lo, not_pa_le_pc_lo);
-                __m128i not_cond1_hi = _mm_or_si128(not_pa_le_pb_hi, not_pa_le_pc_hi);
+                const __m128i pb_lo = _mm_abs_epi16(_mm_sub_epi16(p_lo, vb_lo));
+                const __m128i pb_hi = _mm_abs_epi16(_mm_sub_epi16(p_hi, vb_hi));
 
-                __m128i not_cond2_lo = _mm_cmpgt_epi16(pb_lo, pc_lo);
-                __m128i not_cond2_hi = _mm_cmpgt_epi16(pb_hi, pc_hi);
+                const __m128i pc_lo = _mm_abs_epi16(_mm_sub_epi16(p_lo, vc_lo));
+                const __m128i pc_hi = _mm_abs_epi16(_mm_sub_epi16(p_hi, vc_hi));
 
+
+                const __m128i not_pa_le_pb_lo = _mm_cmpgt_epi16(pa_lo, pb_lo);
+                const __m128i not_pa_le_pb_hi = _mm_cmpgt_epi16(pa_hi, pb_hi);
+
+                const __m128i not_pa_le_pc_lo = _mm_cmpgt_epi16(pa_lo, pc_lo);
+                const __m128i not_pa_le_pc_hi = _mm_cmpgt_epi16(pa_hi, pc_hi);
+
+                const __m128i not_cond1_lo = _mm_or_si128(not_pa_le_pb_lo, not_pa_le_pc_lo);
+                const __m128i not_cond1_hi = _mm_or_si128(not_pa_le_pb_hi, not_pa_le_pc_hi);
+
+                const __m128i not_cond2_lo = _mm_cmpgt_epi16(pb_lo, pc_lo);
+                const __m128i not_cond2_hi = _mm_cmpgt_epi16(pb_hi, pc_hi);
+
+                #ifdef __SSE4_2__
                 __m128i d_lo = _mm_blendv_epi8(vb_lo, vc_lo, not_cond2_lo);
                 __m128i d_hi = _mm_blendv_epi8(vb_hi, vc_hi, not_cond2_hi);
-
                 d_lo = _mm_blendv_epi8(va_lo, d_lo, not_cond1_lo);
                 d_hi = _mm_blendv_epi8(va_hi, d_hi, not_cond1_hi);
+                #else
+                __m128i d_lo = _mm_or_si128(_mm_andnot_si128(not_cond2_lo, vb_lo), _mm_and_si128(not_cond2_lo, vc_lo));
+                __m128i d_hi = _mm_or_si128(_mm_andnot_si128(not_cond2_hi, vb_hi), _mm_and_si128(not_cond2_hi, vc_hi));
+                d_lo = _mm_or_si128(_mm_andnot_si128(not_cond1_lo, va_lo), _mm_and_si128(not_cond1_lo, d_lo));
+                d_hi = _mm_or_si128(_mm_andnot_si128(not_cond1_hi, va_hi), _mm_and_si128(not_cond1_hi, d_hi));
+                #endif
 
-                __m128i d = _mm_packus_epi16(d_lo, d_hi);
+                const __m128i d = _mm_packus_epi16(d_lo, d_hi);
 
 
-                __m128i tavg_lo = _mm_srli_epi16(_mm_add_epi16(va_lo, vb_lo), 1);
-                __m128i tavg_hi = _mm_srli_epi16(_mm_add_epi16(va_hi, vb_hi), 1);
-                __m128i tavg = _mm_packus_epi16(tavg_lo, tavg_hi);
+                const __m128i tavg_lo = _mm_srli_epi16(_mm_add_epi16(va_lo, vb_lo), 1);
+                const __m128i tavg_hi = _mm_srli_epi16(_mm_add_epi16(va_hi, vb_hi), 1);
+                const __m128i tavg = _mm_packus_epi16(tavg_lo, tavg_hi);
 
 
-                __m128i vsub = _mm_sub_epi8(r, va);
-                __m128i vup = _mm_sub_epi8(r, vb);
-                __m128i vavg = _mm_sub_epi8(r, tavg);
-                __m128i vpaeth = _mm_sub_epi8(r, d);
+                const __m128i vsub = _mm_sub_epi8(r, va);
+                const __m128i vup = _mm_sub_epi8(r, vb);
+                const __m128i vavg = _mm_sub_epi8(r, tavg);
+                const __m128i vpaeth = _mm_sub_epi8(r, d);
 
 
                 noneSum = _mm_add_epi64(noneSum, _mm_sad_epu8(r, zero));
@@ -633,11 +639,11 @@ static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* res
                 paethSum = _mm_add_epi64(paethSum, _mm_sad_epu8(r, d));
 
 
-                _mm_storeu_si128((__m128i *)(filter_buffers[0] + j + 1), r);
-                _mm_storeu_si128((__m128i *)(filter_buffers[1] + j + 1), vsub);
-                _mm_storeu_si128((__m128i *)(filter_buffers[2] + j + 1), vup);
-                _mm_storeu_si128((__m128i *)(filter_buffers[3] + j + 1), vavg);
-                _mm_storeu_si128((__m128i *)(filter_buffers[4] + j + 1), vpaeth);
+                _mm_storeu_si128((__m128i*)(filter_buffers[0] + j + 1), r);
+                _mm_storeu_si128((__m128i*)(filter_buffers[1] + j + 1), vsub);
+                _mm_storeu_si128((__m128i*)(filter_buffers[2] + j + 1), vup);
+                _mm_storeu_si128((__m128i*)(filter_buffers[3] + j + 1), vavg);
+                _mm_storeu_si128((__m128i*)(filter_buffers[4] + j + 1), vpaeth);
             }
 
             alignas(16) uint64_t tmp0[2];
@@ -646,11 +652,11 @@ static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* res
             alignas(16) uint64_t tmp3[2];
             alignas(16) uint64_t tmp4[2];
 
-            _mm_store_si128((__m128i *)tmp0, noneSum);
-            _mm_store_si128((__m128i *)tmp1, subSum);
-            _mm_store_si128((__m128i *)tmp2, upSum);
-            _mm_store_si128((__m128i *)tmp3, avgSum);
-            _mm_store_si128((__m128i *)tmp4, paethSum);
+            _mm_store_si128((__m128i*)tmp0, noneSum);
+            _mm_store_si128((__m128i*)tmp1, subSum);
+            _mm_store_si128((__m128i*)tmp2, upSum);
+            _mm_store_si128((__m128i*)tmp3, avgSum);
+            _mm_store_si128((__m128i*)tmp4, paethSum);
 
             for (unsigned int u = 0; u < 2; u++) {
                 filter_scores[0] += tmp0[u];
@@ -664,17 +670,18 @@ static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* res
 
         for (; j < bpr; j++)
         {
-            int p = raw[j - bpp] + raw[j - bpr] - raw[j - bpr - bpp];
-            int pa = abs(p - raw[j - bpp]);
-            int pb = abs(p - raw[j - bpr]);
-            int pc = abs(p - raw[j - bpr - bpp]);
+            const int p = raw[j - bpp] + raw[j - bpr] - raw[j - bpr - bpp];
+            const int pa = abs(p - raw[j - bpp]);
+            const int pb = abs(p - raw[j - bpr]);
+            const int pc = abs(p - raw[j - bpr - bpp]);
 
-            uint8_t d = (pa <= pb && pa <= pc) ? (raw[j - bpp]) : ((pb <= pc) ? (raw[j - bpr]) : (raw[j - bpr - bpp]));
+            uint8_t d = pb <= pc ? raw[j - bpr] : raw[j - bpr - bpp];
+            d = pa <= pb && pa <= pc ? raw[j - bpp] : d;
 
             filter_buffers[0][j+1] = raw[j];
             filter_buffers[1][j+1] = raw[j] - raw[j - bpp];
             filter_buffers[2][j+1] = raw[j] - raw[j - bpr];
-            filter_buffers[3][j+1] = raw[j] - ((raw[j - bpp] + raw[j - bpr]) >> 1);
+            filter_buffers[3][j+1] = raw[j] - ((raw[j - bpp] + raw[j - bpr]) / 2);
             filter_buffers[4][j+1] = raw[j] - d;
 
             filter_scores[0] += abs(filter_buffers[0][j+1]);
