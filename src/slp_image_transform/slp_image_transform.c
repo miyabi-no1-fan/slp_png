@@ -121,7 +121,7 @@ bool slp_image_convert_to_8bit(struct slp_image* image) {
         }
         case 2: {
             #ifdef __AVX2__
-            for (; i += 32 <= size; i += 32) {
+            for (; i + 32 <= size; i += 32) {
                 __m256i in = _mm256_loadu_si256((const __m256i*)(src + i));
                 __m256i in_lo = _mm256_unpacklo_epi8(in, _mm256_setzero_si256());
                 __m256i in_hi = _mm256_unpackhi_epi8(in, _mm256_setzero_si256());
@@ -132,7 +132,7 @@ bool slp_image_convert_to_8bit(struct slp_image* image) {
             }
             #endif
             #ifdef __SSE2__
-            for (; i += 16 <= size; i += 16) {
+            for (; i + 16 <= size; i += 16) {
                 __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
                 __m128i in_lo = _mm_unpacklo_epi8(in, _mm_setzero_si128());
                 __m128i in_hi = _mm_unpackhi_epi8(in, _mm_setzero_si128());
@@ -1128,7 +1128,7 @@ bool slp_image_unformat(struct slp_image* image) {
                     __m128i out = _mm_or_si128(_mm_or_si128(_mm_or_si128(bit1, bit2), _mm_or_si128(bit3, bit4)), _mm_or_si128(_mm_or_si128(bit5, bit6), _mm_or_si128(bit7, bit8)));
                     out = _mm_shuffle_epi8(out, extract);
 
-                    *(uint16_t*)(dest + i/8) = _mm_cvtsi128_si16(out);
+                    *(uint16_t*)(dest + i/8) = _mm_extract_epi16(out, 0);
                 }
             }
             #endif
