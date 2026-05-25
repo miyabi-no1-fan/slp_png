@@ -59,13 +59,13 @@ limitations under the License.
 static int slp_png_get_channels(int color_type, int bit_depth);
 
 
-static int slp_png_defilter(uint8_t *buffer, uint8_t* scanline[2], const size_t bpp, const size_t bpr, const size_t imtrker); // defilter engine, using scanline[0] as the up scanline and scanline[1] as the stream scanline each time
-
-//
-static void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, size_t file_size, int color_type);
+static int slp_png_defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker); // defilter, using scanline[0] as the up scanline and scanline[1] as the stream scanline each time
 
 
-static void slp_png_colortype3_unpack(uint8_t* buffer, struct slp_image *slp_png_stream, const size_t bpr, const size_t imtrker);
+static void slp_png_decode(struct slp_image* restrict slp_png_stream, FILE* restrict file, size_t file_size, int color_type);
+
+
+static void slp_png_colortype3_unpack(uint8_t* restrict buffer, struct slp_image* restrict slp_png_stream, const size_t bpr, const size_t imtrker);
 
 
 
@@ -73,6 +73,7 @@ static void slp_png_colortype3_unpack(uint8_t* buffer, struct slp_image *slp_png
 
 // constants
 static const size_t CHUNK = 65536;
+static const uint64_t PNG_SIGNATURE = 0x89504E470D0A1A0A;
 enum {
     IHDR = 'I' << 24 | 'H' << 16 | 'D' << 8 | 'R',
     IDAT = 'I' << 24 | 'D' << 16 | 'A' << 8 | 'T',
@@ -134,17 +135,14 @@ struct slp_image slp_png_read(const char path[]) {
         return slp_png_stream;
     }
 
-    if (big_edian_u64(worker) != UINT64_C(0x89504E470D0A1A0A) && big_edian_u32(worker + 8) != 13 && big_edian_u32(worker + 12) != IHDR) {
-        fclose(file);
-        slp_png_stream.bit_depth = 2;
-        slp_png_stream.buffer = NULL;
-        return slp_png_stream;
-    }
-
     uint32_t crc_ = crc32(0, worker + 12, 4);
     crc_ = crc32(crc_, worker + 16, 13);
 
-    if (big_edian_u32(worker + 29) != crc_) {
+    if (big_edian_u64(worker) != PNG_SIGNATURE ||
+        big_edian_u32(worker + 8) != 13 ||
+        big_edian_u32(worker + 12) != IHDR ||
+        big_edian_u32(worker + 29) != crc_)
+    {
         fclose(file);
         slp_png_stream.bit_depth = 2;
         slp_png_stream.buffer = NULL;
@@ -270,7 +268,7 @@ static inline int slp_png_get_channels(int color_type, int bit_depth) {
 
 
 
-static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, size_t file_size, int color_type) {
+static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FILE* restrict file, size_t file_size, int color_type) {
 
     const bool is_color_type3 = (color_type == 3);
     
@@ -703,7 +701,7 @@ cleanup:
 
 
 
-static inline int slp_png_defilter(uint8_t *buffer, uint8_t* scanline[2], const size_t bpp, const size_t bpr, const size_t imtrker) {
+static inline int slp_png_defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker) {
     uint8_t filter = *buffer++;
     switch (filter) {
         case 0: {
@@ -724,6 +722,13 @@ static inline int slp_png_defilter(uint8_t *buffer, uint8_t* scanline[2], const 
                     __m256i raw = _mm256_loadu_si256((const __m256i *)(buffer + i));
                     __m256i up  = _mm256_loadu_si256((const __m256i *)(scanline[0] + i));
                     _mm256_storeu_si256((__m256i *)(scanline[1] + i), _mm256_add_epi8(raw, up));
+                }
+                #endif
+                #ifdef __SSE2__
+                for (; i + 16 <= bpr; i += 16) {
+                    __m128i raw = _mm_loadu_si128((const __m128i *)(buffer + i));
+                    __m128i up  = _mm_loadu_si128((const __m128i *)(scanline[0] + i));
+                    _mm_storeu_si128((__m128i *)(scanline[1] + i), _mm_add_epi8(raw, up));
                 }
                 #endif
                 for (; i < bpr; i++) scanline[1][i] = buffer[i] + scanline[0][i];
@@ -772,7 +777,7 @@ static inline int slp_png_defilter(uint8_t *buffer, uint8_t* scanline[2], const 
 
 
 
-static inline void slp_png_colortype3_unpack(uint8_t* buffer, struct slp_image *slp_png_stream, const size_t bpr, const size_t imtrker) {
+static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, struct slp_image* restrict slp_png_stream, const size_t bpr, const size_t imtrker) {
     
     uint8_t *src = buffer;
     uint8_t *dest = slp_png_stream->buffer + imtrker * (size_t)slp_png_stream->width * slp_png_stream->channels;
@@ -1170,7 +1175,7 @@ static inline void slp_png_colortype3_unpack(uint8_t* buffer, struct slp_image *
 
 
 
-void slp_image_delete(struct slp_image *image) {
+void slp_image_delete(struct slp_image* image) {
     free(image->buffer);
     SLP_MEMSET(image, 0, sizeof(*image));
 }
