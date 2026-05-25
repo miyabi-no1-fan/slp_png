@@ -59,13 +59,13 @@ limitations under the License.
 static int slp_png_get_channels(int color_type, int bit_depth);
 
 
-static int slp_png_defilter(uint8_t *buffer, uint8_t* scanline[2], const size_t bpp, const size_t bpr, const size_t imtrker); // defilter engine, using scanline[0] as the up scanline and scanline[1] as the stream scanline each time
-
-//
-static void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, size_t file_size, int color_type);
+static int slp_png_defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker); // defilter, using scanline[0] as the up scanline and scanline[1] as the stream scanline each time
 
 
-static void slp_png_colortype3_unpack(uint8_t* buffer, struct slp_image *slp_png_stream, const size_t bpr, const size_t imtrker);
+static void slp_png_decode(struct slp_image* restrict slp_png_stream, FILE* restrict file, size_t file_size, int color_type);
+
+
+static void slp_png_colortype3_unpack(uint8_t* restrict buffer, struct slp_image* restrict slp_png_stream, const size_t bpr, const size_t imtrker);
 
 
 
@@ -73,6 +73,7 @@ static void slp_png_colortype3_unpack(uint8_t* buffer, struct slp_image *slp_png
 
 // constants
 static const size_t CHUNK = 65536;
+static const uint64_t PNG_SIGNATURE = 0x89504E470D0A1A0A;
 enum {
     IHDR = 'I' << 24 | 'H' << 16 | 'D' << 8 | 'R',
     IDAT = 'I' << 24 | 'D' << 16 | 'A' << 8 | 'T',
@@ -134,17 +135,14 @@ struct slp_image slp_png_read(const char path[]) {
         return slp_png_stream;
     }
 
-    if (big_edian_u64(worker) != UINT64_C(0x89504E470D0A1A0A) && big_edian_u32(worker + 8) != 13 && big_edian_u32(worker + 12) != IHDR) {
-        fclose(file);
-        slp_png_stream.bit_depth = 2;
-        slp_png_stream.buffer = NULL;
-        return slp_png_stream;
-    }
-
     uint32_t crc_ = crc32(0, worker + 12, 4);
     crc_ = crc32(crc_, worker + 16, 13);
 
-    if (big_edian_u32(worker + 29) != crc_) {
+    if (big_edian_u64(worker) != PNG_SIGNATURE ||
+        big_edian_u32(worker + 8) != 13 ||
+        big_edian_u32(worker + 12) != IHDR ||
+        big_edian_u32(worker + 29) != crc_)
+    {
         fclose(file);
         slp_png_stream.bit_depth = 2;
         slp_png_stream.buffer = NULL;
@@ -270,7 +268,7 @@ static inline int slp_png_get_channels(int color_type, int bit_depth) {
 
 
 
-static inline void slp_png_decode(struct slp_image *slp_png_stream, FILE *file, size_t file_size, int color_type) {
+static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FILE* restrict file, size_t file_size, int color_type) {
 
     const bool is_color_type3 = (color_type == 3);
     
@@ -703,7 +701,7 @@ cleanup:
 
 
 
-static inline int slp_png_defilter(uint8_t *buffer, uint8_t* scanline[2], const size_t bpp, const size_t bpr, const size_t imtrker) {
+static inline int slp_png_defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker) {
     uint8_t filter = *buffer++;
     switch (filter) {
         case 0: {
@@ -721,9 +719,16 @@ static inline int slp_png_defilter(uint8_t *buffer, uint8_t* scanline[2], const 
                 size_t i = 0;
                 #ifdef __AVX2__
                 for (; i + 32 <= bpr; i += 32) {
-                    __m256i raw = _mm256_loadu_si256((const __m256i *)(buffer + i));
-                    __m256i up  = _mm256_loadu_si256((const __m256i *)(scanline[0] + i));
-                    _mm256_storeu_si256((__m256i *)(scanline[1] + i), _mm256_add_epi8(raw, up));
+                    const __m256i raw = _mm256_loadu_si256((const __m256i *)(buffer + i));
+                    const __m256i up  = _mm256_loadu_si256((const __m256i *)(scanline[0] + i));
+                    _mm256_storeu_si256((__m256i*)(scanline[1] + i), _mm256_add_epi8(raw, up));
+                }
+                #endif
+                #ifdef __SSE2__
+                for (; i + 16 <= bpr; i += 16) {
+                    const __m128i raw = _mm_loadu_si128((const __m128i*)(buffer + i));
+                    const __m128i up  = _mm_loadu_si128((const __m128i*)(scanline[0] + i));
+                    _mm_storeu_si128((__m128i *)(scanline[1] + i), _mm_add_epi8(raw, up));
                 }
                 #endif
                 for (; i < bpr; i++) scanline[1][i] = buffer[i] + scanline[0][i];
@@ -772,7 +777,7 @@ static inline int slp_png_defilter(uint8_t *buffer, uint8_t* scanline[2], const 
 
 
 
-static inline void slp_png_colortype3_unpack(uint8_t* buffer, struct slp_image *slp_png_stream, const size_t bpr, const size_t imtrker) {
+static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, struct slp_image* restrict slp_png_stream, const size_t bpr, const size_t imtrker) {
     
     uint8_t *src = buffer;
     uint8_t *dest = slp_png_stream->buffer + imtrker * (size_t)slp_png_stream->width * slp_png_stream->channels;
@@ -781,197 +786,185 @@ static inline void slp_png_colortype3_unpack(uint8_t* buffer, struct slp_image *
     switch (slp_png_stream->bit_depth) {
     case 1: {
         #ifdef __SSE2__
-        __m128i ones = _mm_set1_epi16(1);
-        __m128i zeroes = _mm_setzero_si128();
+        const __m128i zeroes = _mm_setzero_si128();
 
         for (; i + 16 <= bpr; i += 16) {
-            __m128i in = _mm_loadu_si128((const __m128i *)(src + i));
+            const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
 
-            __m128i in_lo = _mm_unpacklo_epi8(in, zeroes);
-            __m128i in_hi = _mm_unpackhi_epi8(in, zeroes);
-
-            __m128i in0_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 0), ones);
-            __m128i in1_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 1), ones);
-            __m128i in2_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 2), ones);
-            __m128i in3_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 3), ones);
-            __m128i in4_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 4), ones);
-            __m128i in5_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 5), ones);
-            __m128i in6_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 6), ones);
-            __m128i in7_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 7), ones);
-
-            __m128i in0_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 0), ones);
-            __m128i in1_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 1), ones);
-            __m128i in2_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 2), ones);
-            __m128i in3_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 3), ones);
-            __m128i in4_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 4), ones);
-            __m128i in5_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 5), ones);
-            __m128i in6_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 6), ones);
-            __m128i in7_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 7), ones);
-
-            __m128i in0 = _mm_packus_epi16(in0_lo, in0_hi);
-            __m128i in1 = _mm_packus_epi16(in1_lo, in1_hi);
-            __m128i in2 = _mm_packus_epi16(in2_lo, in2_hi);
-            __m128i in3 = _mm_packus_epi16(in3_lo, in3_hi);
-            __m128i in4 = _mm_packus_epi16(in4_lo, in4_hi);
-            __m128i in5 = _mm_packus_epi16(in5_lo, in5_hi);
-            __m128i in6 = _mm_packus_epi16(in6_lo, in6_hi);
-            __m128i in7 = _mm_packus_epi16(in7_lo, in7_hi);
-
-            // 16 bit & 8 lanes
-            //  8 lanes will interleave by pair so 16 bit 8 lanes to 32 bit 4 lanes to 64 bit 2 lanes
-            //  lane is a block of bytes like a chunk, after 8 lanes - > 4 lanes we have group some elements in order as
-            //  we want storing elements still working like normal 64-bit does not means an element is now 64 bit it
-            //  means 1 lane/chunk is 64 bit
-
-            __m128i a0 = _mm_unpacklo_epi8(in0, in1); // 0 x 1 lo
-            __m128i a1 = _mm_unpackhi_epi8(in0, in1); // 0 x 1 hi
-            __m128i a2 = _mm_unpacklo_epi8(in2, in3); // 2 x 3 lo
-            __m128i a3 = _mm_unpackhi_epi8(in2, in3); // 2 x 3 hi
-            __m128i a4 = _mm_unpacklo_epi8(in4, in5); // 4 x 5 lo
-            __m128i a5 = _mm_unpackhi_epi8(in4, in5); // 4 x 5 hi
-            __m128i a6 = _mm_unpacklo_epi8(in6, in7); // 6 x 7 lo
-            __m128i a7 = _mm_unpackhi_epi8(in6, in7); // 6 x 7 hi
+            const __m128i in0 = _mm_and_si128(_mm_srli_epi64(in, 0), _mm_set1_epi8(1));
+            const __m128i in1 = _mm_and_si128(_mm_srli_epi64(in, 1), _mm_set1_epi8(1));
+            const __m128i in2 = _mm_and_si128(_mm_srli_epi64(in, 2), _mm_set1_epi8(1));
+            const __m128i in3 = _mm_and_si128(_mm_srli_epi64(in, 3), _mm_set1_epi8(1));
+            const __m128i in4 = _mm_and_si128(_mm_srli_epi64(in, 4), _mm_set1_epi8(1));
+            const __m128i in5 = _mm_and_si128(_mm_srli_epi64(in, 5), _mm_set1_epi8(1));
+            const __m128i in6 = _mm_and_si128(_mm_srli_epi64(in, 6), _mm_set1_epi8(1));
+            const __m128i in7 = _mm_and_si128(_mm_srli_epi64(in, 7), _mm_set1_epi8(1));
 
 
-            __m128i b0 = _mm_unpacklo_epi16(a0, a2); // 01 lo x 23 lo p0
-            __m128i b1 = _mm_unpacklo_epi16(a1, a3); // 01 hi x 23 hi p2
-            __m128i b2 = _mm_unpacklo_epi16(a4, a6); // 45 lo x 67 lo p0
-            __m128i b3 = _mm_unpacklo_epi16(a5, a7); // 45 hi x 67 hi p2
-
-            __m128i b4 = _mm_unpackhi_epi16(a0, a2); // 01 lo x 23 lo p1
-            __m128i b5 = _mm_unpackhi_epi16(a1, a3); // 01 hi x 23 hi p3
-            __m128i b6 = _mm_unpackhi_epi16(a4, a6); // 45 lo x 67 lo p1
-            __m128i b7 = _mm_unpackhi_epi16(a5, a7); // 45 hi x 67 hi p3
-
-
-            __m128i c0 = _mm_unpacklo_epi32(b0, b2); // 0123 p0 x 4567 p0 pp0
-            __m128i c1 = _mm_unpacklo_epi32(b4, b6); // 0123 p1 x 4567 p1 pp2
-            __m128i c2 = _mm_unpacklo_epi32(b1, b3); // 0123 p2 x 4567 p2 pp4
-            __m128i c3 = _mm_unpacklo_epi32(b5, b7); // 0123 p3 x 4567 p3 pp6
-
-            __m128i c4 = _mm_unpackhi_epi32(b0, b2); // 0123 p0 x 4567 p0 pp1
-            __m128i c5 = _mm_unpackhi_epi32(b4, b6); // 0123 p1 x 4567 p1 pp3
-            __m128i c6 = _mm_unpackhi_epi32(b1, b3); // 0123 p2 x 4567 p2 pp5
-            __m128i c7 = _mm_unpackhi_epi32(b5, b7); // 0123 p3 x 4567 p3 pp7
-
-            //_mm_storeu_si128((__m128i *)(dest + 0 * 16), c0);
-            __m128i c0_lo = _mm_unpacklo_epi8(c0, zeroes);
-            __m128i c0_hi = _mm_unpackhi_epi8(c0, zeroes);
-
-            __m128i p0 = _mm_unpacklo_epi16(c0_lo, zeroes);
-            __m128i p1 = _mm_unpackhi_epi16(c0_lo, zeroes);
-            __m128i p2 = _mm_unpacklo_epi16(c0_hi, zeroes);
-            __m128i p3 = _mm_unpackhi_epi16(c0_hi, zeroes);
-
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 0 * 16), p0);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 1 * 16), p1);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 2 * 16), p2);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 3 * 16), p3);
+            const __m128i a01_lo = _mm_unpacklo_epi8(in0, in1);
+            const __m128i a01_hi = _mm_unpackhi_epi8(in0, in1);
+            const __m128i a23_lo = _mm_unpacklo_epi8(in2, in3);
+            const __m128i a23_hi = _mm_unpackhi_epi8(in2, in3);
+            const __m128i a45_lo = _mm_unpacklo_epi8(in4, in5);
+            const __m128i a45_hi = _mm_unpackhi_epi8(in4, in5);
+            const __m128i a67_lo = _mm_unpacklo_epi8(in6, in7);
+            const __m128i a67_hi = _mm_unpackhi_epi8(in6, in7);
 
 
-            //_mm_storeu_si128((__m128i *)(dest + 1 * 16), c4);
-            __m128i c4_lo = _mm_unpacklo_epi8(c4, zeroes);
-            __m128i c4_hi = _mm_unpackhi_epi8(c4, zeroes);
-
-            p0 = _mm_unpacklo_epi16(c4_lo, zeroes);
-            p1 = _mm_unpackhi_epi16(c4_lo, zeroes);
-            p2 = _mm_unpacklo_epi16(c4_hi, zeroes);
-            p3 = _mm_unpackhi_epi16(c4_hi, zeroes);
-
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 4 * 16), p0);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 5 * 16), p1);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 6 * 16), p2);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 7 * 16), p3);
+            const __m128i a0123lo_lo = _mm_unpacklo_epi16(a01_lo, a23_lo);
+            const __m128i a0123lo_hi = _mm_unpackhi_epi16(a01_lo, a23_lo);
+            const __m128i a0123hi_lo = _mm_unpacklo_epi16(a01_hi, a23_hi);
+            const __m128i a0123hi_hi = _mm_unpackhi_epi16(a01_hi, a23_hi);
+            const __m128i a4567lo_lo = _mm_unpacklo_epi16(a45_lo, a67_lo);
+            const __m128i a4567lo_hi = _mm_unpackhi_epi16(a45_lo, a67_lo);
+            const __m128i a4567hi_lo = _mm_unpacklo_epi16(a45_hi, a67_hi);
+            const __m128i a4567hi_hi = _mm_unpackhi_epi16(a45_hi, a67_hi);
 
 
-            //_mm_storeu_si128((__m128i *)(dest + 2 * 16), c1);
-            __m128i c1_lo = _mm_unpacklo_epi8(c1, zeroes);
-            __m128i c1_hi = _mm_unpackhi_epi8(c1, zeroes);
-
-            p0 = _mm_unpacklo_epi16(c1_lo, zeroes);
-            p1 = _mm_unpackhi_epi16(c1_lo, zeroes);
-            p2 = _mm_unpacklo_epi16(c1_hi, zeroes);
-            p3 = _mm_unpackhi_epi16(c1_hi, zeroes);
-
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 8  * 16), p0);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 9  * 16), p1);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 10 * 16), p2);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 11 * 16), p3);
+            const __m128i a01234567lo_lo_lo = _mm_unpacklo_epi32(a0123lo_lo, a4567lo_lo);
+            const __m128i a01234567lo_lo_hi = _mm_unpackhi_epi32(a0123lo_lo, a4567lo_lo);
+            const __m128i a01234567lo_hi_lo = _mm_unpacklo_epi32(a0123lo_hi, a4567lo_hi);
+            const __m128i a01234567lo_hi_hi = _mm_unpackhi_epi32(a0123lo_hi, a4567lo_hi);
+            const __m128i a01234567hi_lo_lo = _mm_unpacklo_epi32(a0123hi_lo, a4567hi_lo);
+            const __m128i a01234567hi_lo_hi = _mm_unpackhi_epi32(a0123hi_lo, a4567hi_lo);
+            const __m128i a01234567hi_hi_lo = _mm_unpacklo_epi32(a0123hi_hi, a4567hi_hi);
+            const __m128i a01234567hi_hi_hi = _mm_unpackhi_epi32(a0123hi_hi, a4567hi_hi);
 
 
-            //_mm_storeu_si128((__m128i *)(dest + 3 * 16), c5);
-            __m128i c5_lo = _mm_unpacklo_epi8(c5, zeroes);
-            __m128i c5_hi = _mm_unpackhi_epi8(c5, zeroes);
+            //_mm_storeu_si128((__m128i *)(dest + 0 * 16), a01234567lo_lo_lo);
+            {
+                const __m128i x0 = _mm_unpacklo_epi8(a01234567lo_lo_lo, zeroes);
+                const __m128i x1 = _mm_unpackhi_epi8(a01234567lo_lo_lo, zeroes);
 
-            p0 = _mm_unpacklo_epi16(c5_lo, zeroes);
-            p1 = _mm_unpackhi_epi16(c5_lo, zeroes);
-            p2 = _mm_unpacklo_epi16(c5_hi, zeroes);
-            p3 = _mm_unpackhi_epi16(c5_hi, zeroes);
+                const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);
+                const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);
+                const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);
+                const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);
 
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 12 * 16), p0);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 13 * 16), p1);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 14 * 16), p2);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 15 * 16), p3);
-
-
-            //_mm_storeu_si128((__m128i *)(dest + 4 * 16), c2);
-            __m128i c2_lo = _mm_unpacklo_epi8(c2, zeroes);
-            __m128i c2_hi = _mm_unpackhi_epi8(c2, zeroes);
-
-            p0 = _mm_unpacklo_epi16(c2_lo, zeroes);
-            p1 = _mm_unpackhi_epi16(c2_lo, zeroes);
-            p2 = _mm_unpacklo_epi16(c2_hi, zeroes);
-            p3 = _mm_unpackhi_epi16(c2_hi, zeroes);
-
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 16 * 16), p0);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 17 * 16), p1);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 18 * 16), p2);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 19 * 16), p3);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 0 * 16), p0);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 1 * 16), p1);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 2 * 16), p2);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 3 * 16), p3);
+            }
 
 
-            //_mm_storeu_si128((__m128i *)(dest + 5 * 16), c6);
-            __m128i c6_lo = _mm_unpacklo_epi8(c6, zeroes);
-            __m128i c6_hi = _mm_unpackhi_epi8(c6, zeroes);
+            //_mm_storeu_si128((__m128i *)(dest + 1 * 16), a01234567lo_lo_hi);
+            {
+                const __m128i x0 = _mm_unpacklo_epi8(a01234567lo_lo_hi, zeroes);
+                const __m128i x1 = _mm_unpackhi_epi8(a01234567lo_lo_hi, zeroes);
 
-            p0 = _mm_unpacklo_epi16(c6_lo, zeroes);
-            p1 = _mm_unpackhi_epi16(c6_lo, zeroes);
-            p2 = _mm_unpacklo_epi16(c6_hi, zeroes);
-            p3 = _mm_unpackhi_epi16(c6_hi, zeroes);
+                const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);
+                const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);
+                const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);
+                const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);
 
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 20 * 16), p0);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 21 * 16), p1);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 22 * 16), p2);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 23 * 16), p3);
-
-
-            //_mm_storeu_si128((__m128i *)(dest + 6 * 16), c3);
-            __m128i c3_lo = _mm_unpacklo_epi8(c3, zeroes);
-            __m128i c3_hi = _mm_unpackhi_epi8(c3, zeroes);
-
-            p0 = _mm_unpacklo_epi16(c3_lo, zeroes);
-            p1 = _mm_unpackhi_epi16(c3_lo, zeroes);
-            p2 = _mm_unpacklo_epi16(c3_hi, zeroes);
-            p3 = _mm_unpackhi_epi16(c3_hi, zeroes);
-
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 24 * 16), p0);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 25 * 16), p1);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 26 * 16), p2);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 27 * 16), p3);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 4 * 16), p0);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 5 * 16), p1);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 6 * 16), p2);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 7 * 16), p3);
+            }    
 
 
-            //_mm_storeu_si128((__m128i *)(dest + 7 * 16), c7);
-            __m128i c7_lo = _mm_unpacklo_epi8(c7, zeroes);
-            __m128i c7_hi = _mm_unpackhi_epi8(c7, zeroes);
+            //_mm_storeu_si128((__m128i *)(dest + 2 * 16), a01234567lo_hi_lo);
+            {
+                const __m128i x0 = _mm_unpacklo_epi8(a01234567lo_hi_lo, zeroes);
+                const __m128i x1 = _mm_unpackhi_epi8(a01234567lo_hi_lo, zeroes);
 
-            p0 = _mm_unpacklo_epi16(c7_lo, zeroes);
-            p1 = _mm_unpackhi_epi16(c7_lo, zeroes);
-            p2 = _mm_unpacklo_epi16(c7_hi, zeroes);
-            p3 = _mm_unpackhi_epi16(c7_hi, zeroes);
+                const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);
+                const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);
+                const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);
+                const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);
 
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 28 * 16), p0);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 29 * 16), p1);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 30 * 16), p2);
-            _mm_storeu_si128((__m128i *)(dest + i*32 + 31 * 16), p3);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 8  * 16), p0);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 9  * 16), p1);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 10 * 16), p2);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 11 * 16), p3);
+            }
+
+
+            //_mm_storeu_si128((__m128i *)(dest + 3 * 16), a01234567lo_hi_hi);
+            {
+                const __m128i x0 = _mm_unpacklo_epi8(a01234567lo_hi_hi, zeroes);
+                const __m128i x1 = _mm_unpackhi_epi8(a01234567lo_hi_hi, zeroes);
+
+                const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);
+                const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);
+                const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);
+                const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);
+
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 12 * 16), p0);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 13 * 16), p1);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 14 * 16), p2);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 15 * 16), p3);
+            }
+
+
+            //_mm_storeu_si128((__m128i *)(dest + 4 * 16), a01234567hi_lo_lo);
+            {
+                const __m128i x0 = _mm_unpacklo_epi8(a01234567hi_lo_lo, zeroes);
+                const __m128i x1 = _mm_unpackhi_epi8(a01234567hi_lo_lo, zeroes);
+
+                const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);
+                const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);
+                const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);
+                const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);
+
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 16 * 16), p0);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 17 * 16), p1);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 18 * 16), p2);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 19 * 16), p3);
+            }
+
+
+            //_mm_storeu_si128((__m128i *)(dest + 5 * 16), a01234567hi_lo_hi);
+            {
+                const __m128i x0 = _mm_unpacklo_epi8(a01234567hi_lo_hi, zeroes);
+                const __m128i x1 = _mm_unpackhi_epi8(a01234567hi_lo_hi, zeroes);
+
+                const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);
+                const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);
+                const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);
+                const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);
+
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 20 * 16), p0);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 21 * 16), p1);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 22 * 16), p2);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 23 * 16), p3);
+            }
+
+
+            //_mm_storeu_si128((__m128i *)(dest + 6 * 16), a01234567hi_hi_lo);
+            {
+                const __m128i x0 = _mm_unpacklo_epi8(a01234567hi_hi_lo, zeroes);
+                const __m128i x1 = _mm_unpackhi_epi8(a01234567hi_hi_lo, zeroes);
+
+                const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);
+                const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);
+                const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);
+                const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);
+
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 24 * 16), p0);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 25 * 16), p1);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 26 * 16), p2);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 27 * 16), p3);
+            }
+
+
+            //_mm_storeu_si128((__m128i *)(dest + 7 * 16), a01234567hi_hi_hi);
+            {
+                const __m128i x0 = _mm_unpacklo_epi8(a01234567hi_hi_hi, zeroes);
+                const __m128i x1 = _mm_unpackhi_epi8(a01234567hi_hi_hi, zeroes);
+
+                const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);
+                const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);
+                const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);
+                const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);
+
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 28 * 16), p0);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 29 * 16), p1);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 30 * 16), p2);
+                _mm_storeu_si128((__m128i*)(dest + i*32 + 31 * 16), p3);
+            }
         }
         #endif
         for (; i < bpr; i++) {
@@ -988,98 +981,92 @@ static inline void slp_png_colortype3_unpack(uint8_t* buffer, struct slp_image *
     }
     case 2: {
         #ifdef __SSE2__
-        __m128i ones = _mm_set1_epi16(3);//0b11
-        __m128i zeroes = _mm_setzero_si128();
+        const __m128i zeroes = _mm_setzero_si128();
 
         for (; i + 16 <= bpr; i += 16) {
-            __m128i in = _mm_loadu_si128((const __m128i *)(src + i));
+            const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
 
-            __m128i in_lo = _mm_unpacklo_epi8(in, zeroes);
-            __m128i in_hi = _mm_unpacklo_epi8(in, zeroes);
+            const __m128i in0 = _mm_and_si128(_mm_srli_epi64(in, 0), _mm_set1_epi8(3));
+            const __m128i in1 = _mm_and_si128(_mm_srli_epi64(in, 2), _mm_set1_epi8(3));
+            const __m128i in2 = _mm_and_si128(_mm_srli_epi64(in, 4), _mm_set1_epi8(3));
+            const __m128i in3 = _mm_and_si128(_mm_srli_epi64(in, 6), _mm_set1_epi8(3));
 
-            __m128i in0_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 0), ones);
-            __m128i in0_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 0), ones);
-            __m128i in1_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 2), ones);
-            __m128i in1_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 2), ones);
-            __m128i in2_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 4), ones);
-            __m128i in2_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 4), ones);
-            __m128i in3_lo = _mm_and_si128(_mm_srli_epi16(in_lo, 6), ones);
-            __m128i in3_hi = _mm_and_si128(_mm_srli_epi16(in_hi, 6), ones);
+            const __m128i in01_lo = _mm_unpacklo_epi8(in0, in1);
+            const __m128i in01_hi = _mm_unpackhi_epi8(in0, in1);
+            const __m128i in23_lo = _mm_unpacklo_epi8(in2, in3);
+            const __m128i in23_hi = _mm_unpackhi_epi8(in2, in3);
 
-            __m128i in0 = _mm_packus_epi16(in0_lo, in0_hi); // 0
-            __m128i in1 = _mm_packus_epi16(in1_lo, in1_hi); // 1
-            __m128i in2 = _mm_packus_epi16(in2_lo, in2_hi); // 2
-            __m128i in3 = _mm_packus_epi16(in3_lo, in3_hi); // 3
-
-            __m128i a0 = _mm_unpacklo_epi8(in0, in1); // 0 lo x 1 lo p0
-            __m128i a1 = _mm_unpackhi_epi8(in0, in1); // 0 hi x 1 hi p1
-            __m128i a2 = _mm_unpacklo_epi8(in2, in3); // 2 lo x 3 lo p0
-            __m128i a3 = _mm_unpackhi_epi8(in2, in3); // 2 hi x 3 hi p1
-
-            __m128i b0 = _mm_unpacklo_epi16(a0, a2); // 01 p0 x 23 p0 pp0
-            __m128i b1 = _mm_unpacklo_epi16(a1, a3); // 01 p1 x 23 p1 pp2
-            __m128i b2 = _mm_unpackhi_epi16(a0, a2); // 01 p0 x 23 p0 pp1
-            __m128i b3 = _mm_unpackhi_epi16(a1, a3); // 01 p1 x 23 p1 pp3
+            const __m128i in0123lo_lo = _mm_unpacklo_epi16(in01_lo, in23_lo);
+            const __m128i in0123lo_hi = _mm_unpackhi_epi16(in01_lo, in23_lo);
+            const __m128i in0123hi_lo = _mm_unpacklo_epi16(in01_hi, in23_hi);
+            const __m128i in0123hi_hi = _mm_unpackhi_epi16(in01_hi, in23_hi);
 
 
-            //_mm_storeu_si128((__m128i *)(dest + 0 * 16), b0);
-            __m128i b0_lo = _mm_unpacklo_epi8(b0, zeroes);
-            __m128i b0_hi = _mm_unpackhi_epi8(b0, zeroes);
+            //_mm_storeu_si128((__m128i *)(dest + 0 * 16), in0123lo_lo);
+            {
+                const __m128i a0 = _mm_unpacklo_epi8(in0123lo_lo, zeroes);
+                __m128i a1 = _mm_unpackhi_epi8(in0123lo_lo, zeroes);
 
-            __m128i p0 = _mm_unpacklo_epi16(b0_lo, zeroes);
-            __m128i p1 = _mm_unpackhi_epi16(b0_lo, zeroes);
-            __m128i p2 = _mm_unpacklo_epi16(b0_hi, zeroes);
-            __m128i p3 = _mm_unpackhi_epi16(b0_hi, zeroes);
+                const __m128i p0 = _mm_unpacklo_epi16(a0, zeroes);
+                const __m128i p1 = _mm_unpackhi_epi16(a0, zeroes);
+                const __m128i p2 = _mm_unpacklo_epi16(a1, zeroes);
+                const __m128i p3 = _mm_unpackhi_epi16(a1, zeroes);
 
-            _mm_storeu_si128((__m128i *)(dest + i*16 + 0 * 16), p0);
-            _mm_storeu_si128((__m128i *)(dest + i*16 + 1 * 16), p1);
-            _mm_storeu_si128((__m128i *)(dest + i*16 + 2 * 16), p2);
-            _mm_storeu_si128((__m128i *)(dest + i*16 + 3 * 16), p3);
+                _mm_storeu_si128((__m128i*)(dest + i*16 + 0 * 16), p0);
+                _mm_storeu_si128((__m128i*)(dest + i*16 + 1 * 16), p1);
+                _mm_storeu_si128((__m128i*)(dest + i*16 + 2 * 16), p2);
+                _mm_storeu_si128((__m128i*)(dest + i*16 + 3 * 16), p3);
+            }
 
+            //_mm_storeu_si128((__m128i *)(dest + 1 * 16), in0123lo_hi);
+            {
+                const __m128i a0 = _mm_unpacklo_epi8(in0123lo_hi, zeroes);
+                __m128i a1 = _mm_unpackhi_epi8(in0123lo_hi, zeroes);
 
-            //_mm_storeu_si128((__m128i *)(dest + 1 * 16), b2);
-            __m128i b2_lo = _mm_unpacklo_epi8(b2, zeroes);
-            __m128i b2_hi = _mm_unpackhi_epi8(b2, zeroes);
+                const __m128i p0 = _mm_unpacklo_epi16(a0, zeroes);
+                const __m128i p1 = _mm_unpackhi_epi16(a0, zeroes);
+                const __m128i p2 = _mm_unpacklo_epi16(a1, zeroes);
+                const __m128i p3 = _mm_unpackhi_epi16(a1, zeroes);
 
-            p0 = _mm_unpacklo_epi16(b2_lo, zeroes);
-            p1 = _mm_unpackhi_epi16(b2_lo, zeroes);
-            p2 = _mm_unpacklo_epi16(b2_hi, zeroes);
-            p3 = _mm_unpackhi_epi16(b2_hi, zeroes);
-
-            _mm_storeu_si128((__m128i *)(dest + i*16 + 4 * 16), p0);
-            _mm_storeu_si128((__m128i *)(dest + i*16 + 5 * 16), p1);
-            _mm_storeu_si128((__m128i *)(dest + i*16 + 6 * 16), p2);
-            _mm_storeu_si128((__m128i *)(dest + i*16 + 7 * 16), p3);
-
-
-            //_mm_storeu_si128((__m128i *)(dest + 2 * 16), b1);
-            __m128i b1_lo = _mm_unpacklo_epi8(b1, zeroes);
-            __m128i b1_hi = _mm_unpackhi_epi8(b1, zeroes);
-
-            p0 = _mm_unpacklo_epi16(b1_lo, zeroes);
-            p1 = _mm_unpackhi_epi16(b1_lo, zeroes);
-            p2 = _mm_unpacklo_epi16(b1_hi, zeroes);
-            p3 = _mm_unpackhi_epi16(b1_hi, zeroes);
-
-            _mm_storeu_si128((__m128i *)(dest + i*16 + 8  * 16), p0);
-            _mm_storeu_si128((__m128i *)(dest + i*16 + 9  * 16), p1);
-            _mm_storeu_si128((__m128i *)(dest + i*16 + 10 * 16), p2);
-            _mm_storeu_si128((__m128i *)(dest + i*16 + 11 * 16), p3);
+                _mm_storeu_si128((__m128i*)(dest + i*16 + 4 * 16), p0);
+                _mm_storeu_si128((__m128i*)(dest + i*16 + 5 * 16), p1);
+                _mm_storeu_si128((__m128i*)(dest + i*16 + 6 * 16), p2);
+                _mm_storeu_si128((__m128i*)(dest + i*16 + 7 * 16), p3);
+            }
 
 
-            //_mm_storeu_si128((__m128i *)(dest + 3 * 16), b3);
-            __m128i b3_lo = _mm_unpacklo_epi8(b3, zeroes);
-            __m128i b3_hi = _mm_unpackhi_epi8(b3, zeroes);
+            //_mm_storeu_si128((__m128i *)(dest + 2 * 16), in0123hi_lo);
+            {
+                const __m128i a0 = _mm_unpacklo_epi8(in0123hi_lo, zeroes);
+                __m128i a1 = _mm_unpackhi_epi8(in0123hi_lo, zeroes);
 
-            p0 = _mm_unpacklo_epi16(b3_lo, zeroes);
-            p1 = _mm_unpackhi_epi16(b3_lo, zeroes);
-            p2 = _mm_unpacklo_epi16(b3_hi, zeroes);
-            p3 = _mm_unpackhi_epi16(b3_hi, zeroes);
+                const __m128i p0 = _mm_unpacklo_epi16(a0, zeroes);
+                const __m128i p1 = _mm_unpackhi_epi16(a0, zeroes);
+                const __m128i p2 = _mm_unpacklo_epi16(a1, zeroes);
+                const __m128i p3 = _mm_unpackhi_epi16(a1, zeroes);
 
-            _mm_storeu_si128((__m128i *)(dest + i*16 + 12 * 16), p0);
-            _mm_storeu_si128((__m128i *)(dest + i*16 + 13 * 16), p1);
-            _mm_storeu_si128((__m128i *)(dest + i*16 + 14 * 16), p2);
-            _mm_storeu_si128((__m128i *)(dest + i*16 + 15 * 16), p3);
+                _mm_storeu_si128((__m128i*)(dest + i*16 + 8  * 16), p0);
+                _mm_storeu_si128((__m128i*)(dest + i*16 + 9  * 16), p1);
+                _mm_storeu_si128((__m128i*)(dest + i*16 + 10 * 16), p2);
+                _mm_storeu_si128((__m128i*)(dest + i*16 + 11 * 16), p3);
+            }
+
+
+            //_mm_storeu_si128((__m128i *)(dest + 3 * 16), in0123hi_hi);
+            {
+                const __m128i a0 = _mm_unpacklo_epi8(in0123hi_hi, zeroes);
+                __m128i a1 = _mm_unpackhi_epi8(in0123hi_hi, zeroes);
+
+                const __m128i p0 = _mm_unpacklo_epi16(a0, zeroes);
+                const __m128i p1 = _mm_unpackhi_epi16(a0, zeroes);
+                const __m128i p2 = _mm_unpacklo_epi16(a1, zeroes);
+                const __m128i p3 = _mm_unpackhi_epi16(a1, zeroes);
+
+                _mm_storeu_si128((__m128i*)(dest + i*16 + 12 * 16), p0);
+                _mm_storeu_si128((__m128i*)(dest + i*16 + 13 * 16), p1);
+                _mm_storeu_si128((__m128i*)(dest + i*16 + 14 * 16), p2);
+                _mm_storeu_si128((__m128i*)(dest + i*16 + 15 * 16), p3);
+            }
         }
         #endif
         for (; i < bpr; i++) {
@@ -1092,46 +1079,48 @@ static inline void slp_png_colortype3_unpack(uint8_t* buffer, struct slp_image *
     }
     case 4: {
         #ifdef __SSE2__
-        __m128i m0 = _mm_set1_epi8( -16); //0b11110000
-        __m128i m1 = _mm_set1_epi8(0x0F); //0b00001111
-        __m128i zeroes = _mm_setzero_si128();
+        const __m128i zeroes = _mm_setzero_si128();
 
         for (; i + 16 <= bpr; i += 16) {
-            __m128i in = _mm_loadu_si128((const __m128i *)(src + i));
+            const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
 
-            __m128i in0 = _mm_srli_epi64(_mm_and_si128(in, m0), 4);
-            __m128i in1 = _mm_and_si128(in, m1);
+            const __m128i in0 = _mm_and_si128(_mm_srli_epi64(in, 0), _mm_set1_epi8(0x0F));
+            const __m128i in1 = _mm_and_si128(_mm_srli_epi64(in, 4), _mm_set1_epi8(0x0F));
 
-            __m128i a0 = _mm_unpacklo_epi8(in0, in1); // 0 x 1 lo
-            __m128i a1 = _mm_unpackhi_epi8(in0, in1); // 0 x 1 hi
+            const __m128i out_lo = _mm_unpacklo_epi8(in0, in1);
+            const __m128i out_hi = _mm_unpackhi_epi8(in0, in1);
 
-            //_mm_storeu_si128((__m128i *)(dest + 0 * 16), a0);
-            __m128i a0_lo = _mm_unpacklo_epi8(a0, zeroes);
-            __m128i a0_hi = _mm_unpackhi_epi8(a0, zeroes);
+            //_mm_storeu_si128((__m128i *)(dest + 0 * 16), out_lo);
+            {
+                const __m128i a0 = _mm_unpacklo_epi8(out_lo, zeroes);
+                const __m128i a1 = _mm_unpackhi_epi8(out_lo, zeroes);
 
-            __m128i p0 = _mm_unpacklo_epi16(a0_lo, zeroes);
-            __m128i p1 = _mm_unpackhi_epi16(a0_lo, zeroes);
-            __m128i p2 = _mm_unpacklo_epi16(a0_hi, zeroes);
-            __m128i p3 = _mm_unpackhi_epi16(a0_hi, zeroes);
+                const __m128i p0 = _mm_unpacklo_epi16(a0, zeroes);
+                const __m128i p1 = _mm_unpackhi_epi16(a0, zeroes);
+                const __m128i p2 = _mm_unpacklo_epi16(a1, zeroes);
+                const __m128i p3 = _mm_unpackhi_epi16(a1, zeroes);
 
-            _mm_storeu_si128((__m128i *)(dest + i*8 + 0 * 16), p0);
-            _mm_storeu_si128((__m128i *)(dest + i*8 + 1 * 16), p1);
-            _mm_storeu_si128((__m128i *)(dest + i*8 + 2 * 16), p2);
-            _mm_storeu_si128((__m128i *)(dest + i*8 + 3 * 16), p3);
+                _mm_storeu_si128((__m128i*)(dest + i*8 + 0 * 16), p0);
+                _mm_storeu_si128((__m128i*)(dest + i*8 + 1 * 16), p1);
+                _mm_storeu_si128((__m128i*)(dest + i*8 + 2 * 16), p2);
+                _mm_storeu_si128((__m128i*)(dest + i*8 + 3 * 16), p3);
+            }
 
-            //_mm_storeu_si128((__m128i *)(dest + 1 * 16), a1);
-            __m128i a1_lo = _mm_unpacklo_epi8(a1, zeroes);
-            __m128i a1_hi = _mm_unpackhi_epi8(a1, zeroes);
+            //_mm_storeu_si128((__m128i *)(dest + 1 * 16), out_hi);
+            {
+                const __m128i a0 = _mm_unpacklo_epi8(out_hi, zeroes);
+                const __m128i a1 = _mm_unpackhi_epi8(out_hi, zeroes);
 
-            p0 = _mm_unpacklo_epi16(a1_lo, zeroes);
-            p1 = _mm_unpackhi_epi16(a1_lo, zeroes);
-            p2 = _mm_unpacklo_epi16(a1_hi, zeroes);
-            p3 = _mm_unpackhi_epi16(a1_hi, zeroes);
+                const __m128i p0 = _mm_unpacklo_epi16(a0, zeroes);
+                const __m128i p1 = _mm_unpackhi_epi16(a0, zeroes);
+                const __m128i p2 = _mm_unpacklo_epi16(a1, zeroes);
+                const __m128i p3 = _mm_unpackhi_epi16(a1, zeroes);
 
-            _mm_storeu_si128((__m128i *)(dest + i*8 + 4 * 16), p0);
-            _mm_storeu_si128((__m128i *)(dest + i*8 + 5 * 16), p1);
-            _mm_storeu_si128((__m128i *)(dest + i*8 + 6 * 16), p2);
-            _mm_storeu_si128((__m128i *)(dest + i*8 + 7 * 16), p3);
+                _mm_storeu_si128((__m128i*)(dest + i*8 + 4 * 16), p0);
+                _mm_storeu_si128((__m128i*)(dest + i*8 + 5 * 16), p1);
+                _mm_storeu_si128((__m128i*)(dest + i*8 + 6 * 16), p2);
+                _mm_storeu_si128((__m128i*)(dest + i*8 + 7 * 16), p3);
+            }
         }
         #endif
         for (; i < bpr; i++) {
@@ -1142,24 +1131,24 @@ static inline void slp_png_colortype3_unpack(uint8_t* buffer, struct slp_image *
     }
     case 8: {
         #ifdef __SSE2__
-        __m128i zeroes = _mm_setzero_si128();
+        const __m128i zeroes = _mm_setzero_si128();
 
         for (; i + 16 <= bpr; i += 16) {
 
-            __m128i in = _mm_loadu_si128((const __m128i *)(src + i));
+            const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
 
-            __m128i in_lo = _mm_unpacklo_epi8(in, zeroes);
-            __m128i in_hi = _mm_unpackhi_epi8(in, zeroes);
+            const __m128i in_lo = _mm_unpacklo_epi8(in, zeroes);
+            const __m128i in_hi = _mm_unpackhi_epi8(in, zeroes);
 
-            __m128i p0 = _mm_unpacklo_epi16(in_lo, zeroes);
-            __m128i p1 = _mm_unpackhi_epi16(in_lo, zeroes);
-            __m128i p2 = _mm_unpacklo_epi16(in_hi, zeroes);
-            __m128i p3 = _mm_unpackhi_epi16(in_hi, zeroes);
+            const __m128i p0 = _mm_unpacklo_epi16(in_lo, zeroes);
+            const __m128i p1 = _mm_unpackhi_epi16(in_lo, zeroes);
+            const __m128i p2 = _mm_unpacklo_epi16(in_hi, zeroes);
+            const __m128i p3 = _mm_unpackhi_epi16(in_hi, zeroes);
 
-            _mm_storeu_si128((__m128i *)(dest + i*4 + 0 * 16), p0);
-            _mm_storeu_si128((__m128i *)(dest + i*4 + 1 * 16), p1);
-            _mm_storeu_si128((__m128i *)(dest + i*4 + 2 * 16), p2);
-            _mm_storeu_si128((__m128i *)(dest + i*4 + 3 * 16), p3);
+            _mm_storeu_si128((__m128i*)(dest + i*4 + 0 * 16), p0);
+            _mm_storeu_si128((__m128i*)(dest + i*4 + 1 * 16), p1);
+            _mm_storeu_si128((__m128i*)(dest + i*4 + 2 * 16), p2);
+            _mm_storeu_si128((__m128i*)(dest + i*4 + 3 * 16), p3);
         }
         #endif
         for (; i < bpr; i++) dest[i * 4] = src[i];
@@ -1170,7 +1159,7 @@ static inline void slp_png_colortype3_unpack(uint8_t* buffer, struct slp_image *
 
 
 
-void slp_image_delete(struct slp_image *image) {
+void slp_image_delete(struct slp_image* image) {
     free(image->buffer);
     SLP_MEMSET(image, 0, sizeof(*image));
 }
