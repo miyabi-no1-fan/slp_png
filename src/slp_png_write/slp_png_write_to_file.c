@@ -31,6 +31,26 @@ limitations under the License.
 #include <emmintrin.h>
 #endif
 
+
+#ifndef SLP_MALLOC
+#define SLP_MALLOC(size) malloc(size)
+#endif
+
+#ifndef SLP_MEMCPY
+#define SLP_MEMCPY(dest, source, size) memcpy(dest, source, size)
+#endif
+
+#ifndef SLP_MEMMOVE
+#define SLP_MEMMOVE(dest, source, size) memmove(dest, source, size)
+#endif
+
+#ifndef SLP_MEMSET
+#define SLP_MEMSET(s, c, n) memset(s, c, n)
+#endif
+
+
+
+
 #define __bswap_constant_32(x)                                 \
   ((((x) & 0xff000000u) >> 24) | (((x) & 0x00ff0000u) >>  8) | \
    (((x) & 0x0000ff00u) <<  8) | (((x) & 0x000000ffu) << 24))
@@ -38,8 +58,7 @@ limitations under the License.
 // return big edian in memory order
 #define big_edian_u32_in_mem(x, is_little_edian) ((is_little_edian) ? (__bswap_constant_32(x)) : (x))
 
-// x must >= 0
-#define ceil__(x) (((size_t)(x)) + ((x) > ((size_t)(x))))
+#define div_round_up(a, b) (((a) / (b)) + (((a) % (b)) != 0))
 
 // only use for write IHDR
 struct IHDR {
@@ -215,7 +234,7 @@ static inline int slp_png_encode(struct slp_image *image, FILE* file) {
     const size_t bit_depth = image->bit_depth;
 
     const size_t bpp = channels * (1 + (bit_depth == 16));
-    const size_t bpr = ceil__(((double)width * channels * bit_depth) / 8.0);// bytes per row
+    const size_t bpr = div_round_up(width * channels * bit_depth, 8);// bytes per row
 
     size_t have = 0;
     size_t data_len = 0;
@@ -229,13 +248,13 @@ static inline int slp_png_encode(struct slp_image *image, FILE* file) {
     uint8_t *out = NULL;
     // end pointers declare
 
-    out = (uint8_t*)malloc(CHUNK+12);if (out == NULL) goto cleanup;
+    out = (uint8_t*)SLP_MALLOC(CHUNK+12);if (out == NULL) goto cleanup;
     for (int i = 0; i < 5; i++) {
-        filter_buffers[i] = (int8_t*)malloc(bpr + 1);
+        filter_buffers[i] = (int8_t*)SLP_MALLOC(bpr + 1);
         if (filter_buffers[i] == NULL) goto cleanup;
     }
 
-    memcpy(out + 4, IDATsig, 4);
+    SLP_MEMCPY(out + 4, IDATsig, 4);
     filter_buffers[0][0] = 0;
     filter_buffers[1][0] = 1;
     filter_buffers[2][0] = 2;
@@ -450,11 +469,11 @@ static inline int slp_png_encode(struct slp_image *image, FILE* file) {
             if (strm.avail_out == 0) {
                 data_len = (uint32_t)(have);
                 data_len = big_edian_u32_in_mem(data_len, is_little_edian);
-                memcpy(out, &data_len, 4);
+                SLP_MEMCPY(out, &data_len, 4);
                 uint32_t crc_ = crc32(0, out + 4, 4);
                 crc_ = crc32(crc_, out + 8, have);
                 crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
-                memcpy(out + 8 + have, &crc_, 4);
+                SLP_MEMCPY(out + 8 + have, &crc_, 4);
 
                 if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4) {
                     return_code = 1;
@@ -484,10 +503,10 @@ static inline int slp_png_encode(struct slp_image *image, FILE* file) {
         if (strm.avail_out == 0) {
             data_len = (uint32_t)(have);
             data_len = big_edian_u32_in_mem(data_len, is_little_edian);
-            memcpy(out, &data_len, 4);
+            SLP_MEMCPY(out, &data_len, 4);
             uint32_t crc_ = crc32(0, out + 4, 4 + have);
             crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
-            memcpy(out + 8 + have, &crc_, 4);
+            SLP_MEMCPY(out + 8 + have, &crc_, 4);
             if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4) {
                 return_code = 1;
                 deflateEnd(&strm);
@@ -500,10 +519,10 @@ static inline int slp_png_encode(struct slp_image *image, FILE* file) {
 
     data_len = (uint32_t)(have);
     data_len = big_edian_u32_in_mem(data_len, is_little_edian);
-    memcpy(out, &data_len, 4);
+    SLP_MEMCPY(out, &data_len, 4);
     uint32_t crc_ = crc32(0, out + 4, 4 + have);
     crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
-    memcpy(out + 8 + have, &crc_, 4);
+    SLP_MEMCPY(out + 8 + have, &crc_, 4);
     if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4) {
         return_code = 1;
         deflateEnd(&strm);

@@ -22,7 +22,7 @@ limitations under the License.
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
-#include <time.h>
+#include <float.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -44,6 +44,27 @@ limitations under the License.
 #include <emmintrin.h>
 #endif
 
+
+
+#ifndef SLP_MALLOC
+#define SLP_MALLOC(size) malloc(size)
+#endif
+
+#ifndef SLP_MEMCPY
+#define SLP_MEMCPY(dest, source, size) memcpy(dest, source, size)
+#endif
+
+#ifndef SLP_MEMMOVE
+#define SLP_MEMMOVE(dest, source, size) memmove(dest, source, size)
+#endif
+
+#ifndef SLP_MEMSET
+#define SLP_MEMSET(s, c, n) memset(s, c, n)
+#endif
+
+
+
+
 #ifndef max
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #endif
@@ -53,8 +74,11 @@ limitations under the License.
 
 typedef intptr_t ssize_t;//MSVC don't have ssize_t
 
-// x must >= 0
-#define ceil__(x) (((ssize_t)(x)) + ((x) > ((ssize_t)(x))))
+#define div_round_up(a, b) (((a) / (b)) + (((a) % (b)) != 0))
+
+#define BIGGEST_DOUBLE_LESS_THAN_1 (1.0 - (DBL_EPSILON / 2.0))
+
+#define ceil__(x) ((ssize_t)((x) + BIGGEST_DOUBLE_LESS_THAN_1))
 
 
 // only take miliseconds to run
@@ -150,12 +174,12 @@ bool slp_image_convert_to_8bit(struct slp_image *image) {
 
 // only take miliseconds to run
 // mem: O(N)
-// return false = malloc fail or input wrong
+// return false = SLP_MALLOC fail or input wrong
 bool slp_image_convert_to_16bit(struct slp_image *image) {
 
     const size_t size = image->height * image->width * image->channels; // source size
 
-    uint8_t* new_buffer = (uint8_t*)malloc(size * 2);
+    uint8_t* new_buffer = (uint8_t*)SLP_MALLOC(size * 2);
     if (new_buffer == NULL) {
         if (image->bit_depth == 16) return true;
         return false;
@@ -299,7 +323,7 @@ static void* slp_image_crop_thread_task(void *arg) {
     struct slp_image_crop_thread_data data = *(struct slp_image_crop_thread_data*)arg;
     uint8_t* src = data.image->buffer + (size_t)(data.offset_height + data.s * data.block) * data.src_stride + (size_t)data.offset_width * data.c;
     uint8_t* dest = data.new_buffer + data.s * data.block * data.dest_stride;
-    for (size_t i = data.s * data.block; i < data.s * data.block + ((data.s == data.P - 1) ? data.last_block : data.block); i++) memcpy(dest + i * data.dest_stride, src + i * data.src_stride, data.dest_stride);
+    for (size_t i = data.s * data.block; i < data.s * data.block + ((data.s == data.P - 1) ? data.last_block : data.block); i++) SLP_MEMCPY(dest + i * data.dest_stride, src + i * data.src_stride, data.dest_stride);
     return NULL;
 }
 
@@ -311,7 +335,7 @@ bool image_crop(struct slp_image *image, const uint32_t new_width, const uint32_
     const size_t src_stride = (size_t)image->width * c;
     const size_t dest_stride = (size_t)new_width * c;
 
-    uint8_t* new_buffer = (uint8_t*)malloc(dest_stride * new_height);
+    uint8_t* new_buffer = (uint8_t*)SLP_MALLOC(dest_stride * new_height);
     if (new_buffer == NULL) return false;
 
     //get number of processers
@@ -332,13 +356,13 @@ bool image_crop(struct slp_image *image, const uint32_t new_width, const uint32_
 
     const int P = (nproc <= 1) ? (2) : (nproc);
 
-    struct slp_image_crop_thread_data *threads_arg = (struct slp_image_crop_thread_data*)malloc(P * sizeof(*threads_arg));
+    struct slp_image_crop_thread_data *threads_arg = (struct slp_image_crop_thread_data*)SLP_MALLOC(P * sizeof(*threads_arg));
     if (threads_arg == NULL) {
         free(new_buffer);
         return false;
     }
 
-    pthread_t* threads = (pthread_t*)malloc(P * sizeof(*threads));
+    pthread_t* threads = (pthread_t*)SLP_MALLOC(P * sizeof(*threads));
     if (threads == NULL) {
         free(new_buffer);
         free(threads_arg);
@@ -422,19 +446,19 @@ bool image_crop(struct slp_image *image, const uint32_t new_width, const uint32_
 
 static void slp_image_fill(uint8_t* buffer, size_t buffer_size, const uint8_t* pixel, const uint8_t pixel_size) {
 
-    memcpy(buffer, pixel, pixel_size);
+    SLP_MEMCPY(buffer, pixel, pixel_size);
 
     size_t filled = pixel_size;
 
     while (filled < 64 && filled < buffer_size) {
         size_t copy = (filled < buffer_size - filled) ? filled : (buffer_size - filled);
-        memcpy(buffer + filled, buffer, copy);
+        SLP_MEMCPY(buffer + filled, buffer, copy);
         filled += copy;
     }
 
     while (filled < buffer_size) {
         size_t copy = (filled < buffer_size - filled) ? filled : (buffer_size - filled);
-        memcpy(buffer + filled, buffer, copy);
+        SLP_MEMCPY(buffer + filled, buffer, copy);
         filled += copy;
     }
 }
@@ -547,7 +571,7 @@ static void* slp_image_linear_transform_thread_task(void* arg) {
         double y1 = -mid * data.inverseA[2] + Y;
         
         for (; mid < end; mid++) { // data
-            memcpy(dest, data.src + ((ssize_t)y1) * data.src_stride + ((ssize_t)x1) * data.pixel_size, data.pixel_size);
+            SLP_MEMCPY(dest, data.src + ((ssize_t)y1) * data.src_stride + ((ssize_t)x1) * data.pixel_size, data.pixel_size);
             dest += data.pixel_size;
             x1 += data.inverseA[0];
             y1 += -data.inverseA[2];
@@ -570,7 +594,7 @@ bool slp_image_linear_transform(struct slp_image *image, const double* A, const 
     const double detA = A[0] * A[3] - A[1] * A[2];
     if (detA == 0) {
         const size_t size = (size_t)image->width * image->height * image->channels * (1 + (image->bit_depth == 16));
-        memset(image->buffer, 0, size);
+        SLP_MEMSET(image->buffer, 0, size);
         image->height = 0;
         image->width = 0;
         return true;
@@ -607,7 +631,7 @@ bool slp_image_linear_transform(struct slp_image *image, const double* A, const 
     const size_t dst_stride = new_width * pixel_size; // sizeof 1 dest scanline
     const size_t new_size = (size_t)new_width * new_height * pixel_size;
 
-    uint8_t* new_buffer = (uint8_t*)malloc(new_size);
+    uint8_t* new_buffer = (uint8_t*)SLP_MALLOC(new_size);
     if (new_buffer == NULL) {
         return false;
     }
@@ -630,13 +654,13 @@ bool slp_image_linear_transform(struct slp_image *image, const double* A, const 
 
     const int P = (nproc <= 1) ? (2) : (nproc);
 
-    pthread_t *threads = (pthread_t*)malloc(P * sizeof(*threads));
+    pthread_t *threads = (pthread_t*)SLP_MALLOC(P * sizeof(*threads));
     if (threads == NULL) {
         free(new_buffer);
         return false;
     }
 
-    struct slp_image_linear_transform_thread_arg *threads_arg = (struct slp_image_linear_transform_thread_arg*)malloc(P * sizeof(*threads_arg));
+    struct slp_image_linear_transform_thread_arg *threads_arg = (struct slp_image_linear_transform_thread_arg*)SLP_MALLOC(P * sizeof(*threads_arg));
     if (threads_arg == NULL) {
         free(new_buffer);
         free(threads);
@@ -741,7 +765,7 @@ bool slp_image_format(struct slp_image *image) {
 
     const size_t size = (size_t)image->width * image->height * image->channels * (1 + (image->bit_depth == 16));
 
-    uint8_t *new_buffer = (uint8_t*)malloc(size);
+    uint8_t *new_buffer = (uint8_t*)SLP_MALLOC(size);
     if (new_buffer == NULL) {
         if (image->bit_depth == 8) return true;
         return false;
@@ -983,9 +1007,9 @@ bool slp_image_format(struct slp_image *image) {
 bool slp_image_unformat(struct slp_image *image) {
 
     const size_t size = (size_t)(image->height) * (image->width) * (image->channels) * (1 + (image->bit_depth == 16));
-    const size_t new_size = (size_t)(image->height) * ceil__(((double)(image->width) * (double)(image->channels) * (double)(image->bit_depth)) / 8.0);
+    const size_t new_size = (size_t)(image->height) * div_round_up((size_t)image->width * image->channels * image->bit_depth, 8);
     
-    uint8_t* new_buffer = (uint8_t*)malloc(new_size);
+    uint8_t* new_buffer = (uint8_t*)SLP_MALLOC(new_size);
     if (new_buffer == NULL) return false;
 
     uint8_t *src = (uint8_t*)(image->buffer);
@@ -1160,7 +1184,7 @@ bool slp_image_convert_G8_to_RGBA32(struct slp_image *image) {
 
     const size_t size = (size_t)image->width * image->height;
 
-    uint8_t *new_buffer = (uint8_t*)malloc((size_t)image->width * image->height * 4);
+    uint8_t *new_buffer = (uint8_t*)SLP_MALLOC((size_t)image->width * image->height * 4);
     if (new_buffer == NULL) {
         return false;
     }
@@ -1213,7 +1237,7 @@ bool slp_image_convert_GA16_to_RGBA32(struct slp_image *image) {
 
     const size_t src_size_in_element = (size_t)image->width * image->height * 2;// size in element
 
-    uint8_t *new_buffer = (uint8_t*)malloc((size_t)image->width * image->height * 8);
+    uint8_t *new_buffer = (uint8_t*)SLP_MALLOC((size_t)image->width * image->height * 8);
     if (new_buffer == NULL) return false;
 
     uint16_t *src = (uint16_t*)image->buffer;
@@ -1258,7 +1282,7 @@ bool slp_image_convert_G16_to_RGBA64(struct slp_image *image) {
 
     const size_t src_size_in_element = (size_t)image->width * image->height * 2;
 
-    uint8_t *new_buffer = (uint8_t*)malloc((size_t)image->width * image->height * 8);
+    uint8_t *new_buffer = (uint8_t*)SLP_MALLOC((size_t)image->width * image->height * 8);
     if (new_buffer == NULL) {
         return false;
     }
@@ -1310,7 +1334,7 @@ bool slp_image_convert_GA32_to_RGBA64(struct slp_image *image) {
 
     const size_t src_size_in_element = (size_t)image->width * image->height * 4;
 
-    uint8_t *new_buffer = (uint8_t*)malloc((size_t)image->width * image->height * 8);
+    uint8_t *new_buffer = (uint8_t*)SLP_MALLOC((size_t)image->width * image->height * 8);
     if (new_buffer == NULL) {
         return false;
     }
@@ -1358,12 +1382,12 @@ bool slp_image_convert_GA32_to_RGBA64(struct slp_image *image) {
 
 struct slp_image slp_image_copy(struct slp_image image) {
     const size_t size = (size_t)image.width * image.height * image.channels * (1 + (image.bit_depth == 16));
-    uint8_t* new_buffer = (uint8_t*)malloc(size);
+    uint8_t* new_buffer = (uint8_t*)SLP_MALLOC(size);
     if (new_buffer == NULL) {
         image.buffer = NULL;
         return image;
     }
-    memcpy(new_buffer, image.buffer, size);
+    SLP_MEMCPY(new_buffer, image.buffer, size);
     image.buffer = new_buffer;
     return image;
 }
