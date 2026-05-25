@@ -11,24 +11,26 @@ if [[ "$1" == "--help" ]]; then
     
     extra compile flags: all passes directly to gcc ( default flags are -O3 -march=native -mtune=native -DNDEBUG -flto -lz -pthread )
 
-    example: build_exe.sh static test.c test -lz -lm"
+    example: build_exe.sh static test.c test -mno-avx512f -lm"
 
     exit 0;
 
 fi
 
+LINK="$1"
+FILE="$2"
+OUT="$3"
+shift 3
 
+if [[ "$OUT" == "_" ]]; then
+    OUT="build/"$(basename "$FILE" .c)
+fi
 
-if [[ "$1" == "static" ]]; then
-
-    FILE="$2"
-    OUT="$3"
-    shift 3
+if [[ "$LINK" == "static" ]]; then
 
     echo "link: static (libslp_png only)
 compile: $FILE
-out: $OUT
-flags: $@"
+out: $OUT"
 
     gcc "$FILE" \
         -I include \
@@ -40,16 +42,11 @@ flags: $@"
         "$@"
     
 
-elif [[ "$1" == "dynamic" ]]; then
-
-    FILE="$2"
-    OUT="$3"
-    shift 3
+elif [[ "$LINK" == "dynamic" ]]; then
 
     echo "link: dynamic (libslp_png only)
 compile: $FILE
-out: $OUT
-flags: $@"
+out: $OUT"
 
     gcc "$FILE" \
         -I include \
@@ -61,7 +58,12 @@ flags: $@"
         "$@"
 
 else
-    echo "unknown linking type"
-    exit -1
-fi
+    echo "compile: $FILE
+out: $OUT"
 
+    gcc "$FILE" \
+        -L build \
+        -o "$OUT" \
+        -O3 -march=native -mtune=native -flto -DNDEBUG \
+        "$@"
+fi
