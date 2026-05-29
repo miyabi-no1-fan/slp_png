@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <stddef.h>
 #include <stdbool.h>
 
 
@@ -13,6 +14,8 @@ typedef struct slp_image {
     uint32_t width;
     uint32_t channels;
     uint8_t bit_depth;
+    size_t image_size; // = width * height * channels * (1 + (bit_depth == 16))
+    size_t allocated_size;
     // this is for debuging:
     // bit depth =
     // 0 = success
@@ -26,13 +29,13 @@ typedef struct slp_image {
 
 
 
-struct slp_image slp_png_read(const char path[]);
+struct slp_image slp_png_read(const char* path);
 
 
 
 
 // only call free(image->buffer); and set image to 0
-void slp_image_delete(struct slp_image *image);
+void slp_image_delete(struct slp_image* image);
 
 
 
