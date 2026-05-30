@@ -1177,6 +1177,7 @@ static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, struct sl
 }
 
 
+
 static inline void slp_png_index_u32_to_RGBA(struct slp_image* restrict slp_png_stream, const uint8_t* restrict palette) {
     for (size_t i = 0; i + slp_png_stream->channels <= slp_png_stream->image_size; i+=slp_png_stream->channels) {
         int index = slp_png_stream->buffer[i] * slp_png_stream->channels;
