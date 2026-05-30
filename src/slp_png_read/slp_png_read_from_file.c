@@ -810,14 +810,14 @@ static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, struct sl
             for (; i + 16 <= bpr; i += 16) {
                 const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
 
-                const __m128i in0 = _mm_and_si128(_mm_srli_epi64(in, 0), _mm_set1_epi8(1));
-                const __m128i in1 = _mm_and_si128(_mm_srli_epi64(in, 1), _mm_set1_epi8(1));
-                const __m128i in2 = _mm_and_si128(_mm_srli_epi64(in, 2), _mm_set1_epi8(1));
-                const __m128i in3 = _mm_and_si128(_mm_srli_epi64(in, 3), _mm_set1_epi8(1));
-                const __m128i in4 = _mm_and_si128(_mm_srli_epi64(in, 4), _mm_set1_epi8(1));
-                const __m128i in5 = _mm_and_si128(_mm_srli_epi64(in, 5), _mm_set1_epi8(1));
-                const __m128i in6 = _mm_and_si128(_mm_srli_epi64(in, 6), _mm_set1_epi8(1));
-                const __m128i in7 = _mm_and_si128(_mm_srli_epi64(in, 7), _mm_set1_epi8(1));
+                const __m128i in0 = _mm_and_si128(_mm_srli_epi64(in, 7), _mm_set1_epi8(1));
+                const __m128i in1 = _mm_and_si128(_mm_srli_epi64(in, 6), _mm_set1_epi8(1));
+                const __m128i in2 = _mm_and_si128(_mm_srli_epi64(in, 5), _mm_set1_epi8(1));
+                const __m128i in3 = _mm_and_si128(_mm_srli_epi64(in, 4), _mm_set1_epi8(1));
+                const __m128i in4 = _mm_and_si128(_mm_srli_epi64(in, 3), _mm_set1_epi8(1));
+                const __m128i in5 = _mm_and_si128(_mm_srli_epi64(in, 2), _mm_set1_epi8(1));
+                const __m128i in6 = _mm_and_si128(_mm_srli_epi64(in, 1), _mm_set1_epi8(1));
+                const __m128i in7 = _mm_and_si128(_mm_srli_epi64(in, 0), _mm_set1_epi8(1));
 
 
                 const __m128i a01_lo = _mm_unpacklo_epi8(in0, in1);
@@ -1005,10 +1005,10 @@ static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, struct sl
             for (; i + 16 <= bpr; i += 16) {
                 const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
 
-                const __m128i in0 = _mm_and_si128(_mm_srli_epi64(in, 0), _mm_set1_epi8(3));
-                const __m128i in1 = _mm_and_si128(_mm_srli_epi64(in, 2), _mm_set1_epi8(3));
-                const __m128i in2 = _mm_and_si128(_mm_srli_epi64(in, 4), _mm_set1_epi8(3));
-                const __m128i in3 = _mm_and_si128(_mm_srli_epi64(in, 6), _mm_set1_epi8(3));
+                const __m128i in0 = _mm_and_si128(_mm_srli_epi64(in, 6), _mm_set1_epi8(3));
+                const __m128i in1 = _mm_and_si128(_mm_srli_epi64(in, 4), _mm_set1_epi8(3));
+                const __m128i in2 = _mm_and_si128(_mm_srli_epi64(in, 2), _mm_set1_epi8(3));
+                const __m128i in3 = _mm_and_si128(_mm_srli_epi64(in, 0), _mm_set1_epi8(3));
 
                 const __m128i in01_lo = _mm_unpacklo_epi8(in0, in1);
                 const __m128i in01_hi = _mm_unpackhi_epi8(in0, in1);
@@ -1103,8 +1103,8 @@ static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, struct sl
             for (; i + 16 <= bpr; i += 16) {
                 const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
 
-                const __m128i in0 = _mm_and_si128(_mm_srli_epi64(in, 0), _mm_set1_epi8(0x0F));
-                const __m128i in1 = _mm_and_si128(_mm_srli_epi64(in, 4), _mm_set1_epi8(0x0F));
+                const __m128i in0 = _mm_and_si128(_mm_srli_epi64(in, 4), _mm_set1_epi8(0x0F));
+                const __m128i in1 = _mm_and_si128(_mm_srli_epi64(in, 0), _mm_set1_epi8(0x0F));
 
                 const __m128i out_lo = _mm_unpacklo_epi8(in0, in1);
                 const __m128i out_hi = _mm_unpackhi_epi8(in0, in1);
