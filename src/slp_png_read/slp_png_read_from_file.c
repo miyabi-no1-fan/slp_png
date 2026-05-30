@@ -47,6 +47,28 @@ limitations under the License.
 #define SLP_MEMSET(s, c, n) memset(s, c, n)
 #endif
 
+#ifndef SLP_USE_ALIGN_ALLOC
+#define SLP_USE_ALIGN_ALLOC 1
+#endif
+
+#ifndef SLP_CHUNK
+#define SLP_CHUNK 65536
+#endif
+
+#if SLP_USE_ALIGN_ALLOC
+
+#ifndef SLP_ALIGNMENT
+#define SLP_ALIGNMENT 64
+#endif
+
+#define SLP_ALIGN_SIZE(size) (((size) + SLP_ALIGNMENT - 1) & ~(SLP_ALIGNMENT - 1))
+
+#ifndef SLP_ALIGNED_ALLOC
+#define SLP_ALIGNED_ALLOC(size) aligned_alloc(SLP_ALIGNMENT, SLP_ALIGN_SIZE(size))
+#endif
+
+#endif
+
 
 
 #define big_edian_u32(x) (((uint32_t)((x)[0]) << 24) | ((uint32_t)((x)[1]) << 16) | ((uint32_t)((x)[2]) <<  8) | ((uint32_t)((x)[3]) <<  0))
@@ -56,13 +78,13 @@ limitations under the License.
 
 // helper
 // functions
-static int slp_png_get_channels(int color_type, int bit_depth);
+static int slp_png_get_channels(const int color_type,const int bit_depth);
 
 
 static int slp_png_defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker); // defilter, using scanline[0] as the up scanline and scanline[1] as the stream scanline each time
 
 
-static void slp_png_decode(struct slp_image* restrict slp_png_stream, FILE* restrict file, size_t file_size, int color_type);
+static void slp_png_decode(struct slp_image* restrict slp_png_stream, FILE* restrict file, const size_t file_size, const int color_type);
 
 
 static void slp_png_colortype3_unpack(uint8_t* restrict buffer, struct slp_image* restrict slp_png_stream, const size_t bpr, const size_t imtrker);
@@ -72,7 +94,6 @@ static void slp_png_colortype3_unpack(uint8_t* restrict buffer, struct slp_image
 
 
 // constants
-static const size_t CHUNK = 65536;
 static const uint64_t PNG_SIGNATURE = 0x89504E470D0A1A0A;
 enum {
     IHDR = 'I' << 24 | 'H' << 16 | 'D' << 8 | 'R',
@@ -90,7 +111,7 @@ enum {
 
 
 // read png from file
-struct slp_image slp_png_read(const char path[]) {
+struct slp_image slp_png_read(const char* path) {
 
     struct slp_image slp_png_stream = {0};
     FILE* file;
@@ -166,9 +187,14 @@ struct slp_image slp_png_read(const char path[]) {
         return slp_png_stream;
     }
 
-    const size_t size = (size_t)width * height * channels * (1 + (bit_depth == 16));
-
-    slp_png_stream.buffer = (uint8_t*)SLP_MALLOC(size);
+    const size_t image_size = slp_png_stream.image_size = (size_t)width * height * channels * (1 + (bit_depth == 16));
+    #if SLP_USE_ALIGN_ALLOC
+    const size_t allocated_size = slp_png_stream.allocated_size = SLP_ALIGN_SIZE(image_size);
+    slp_png_stream.buffer = (uint8_t*)SLP_ALIGNED_ALLOC(allocated_size);
+    #else
+    const size_t allocated_size = slp_png_stream.allocated_size = image_size;
+    slp_png_stream.buffer = (uint8_t*)SLP_MALLOC(allocated_size);
+    #endif
 
     if (slp_png_stream.buffer == NULL) {
         fclose(file);
@@ -208,7 +234,7 @@ struct slp_image slp_png_read(const char path[]) {
 
 
 
-static inline int slp_png_get_channels(int color_type, int bit_depth) {
+static inline int slp_png_get_channels(const int color_type, const int bit_depth) {
     int channels;
     switch (color_type) {
         case 0: {
@@ -268,7 +294,7 @@ static inline int slp_png_get_channels(int color_type, int bit_depth) {
 
 
 
-static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FILE* restrict file, size_t file_size, int color_type) {
+static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FILE* restrict file, const size_t file_size, const int color_type) {
 
     const bool is_color_type3 = (color_type == 3);
     
@@ -300,7 +326,7 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
         uint32_t chunk_type = big_edian_u32(worker + 4);
         data_len = big_edian_u32(worker);
 
-        //
+
         switch (chunk_type) {
 
 
@@ -336,15 +362,15 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
 
 
                 size_t imtrker = 0;
-                size_t ai = CHUNK;
+                size_t ai = SLP_CHUNK;
                 size_t ftrker = 0;
                 size_t intrker = 0;
                 size_t offset = 0;
                 size_t have = 0;
                 size_t row_produced = 0;
                 uint32_t crc = 0;
-                out = (uint8_t*)SLP_MALLOC(CHUNK);
-                in = (uint8_t*)SLP_MALLOC(CHUNK);
+                out = (uint8_t*)SLP_MALLOC(SLP_CHUNK);
+                in = (uint8_t*)SLP_MALLOC(SLP_CHUNK);
                 if (out == NULL || in == NULL) {
                     slp_png_stream->bit_depth = 255;
                     inflateEnd(&strm);
@@ -397,10 +423,10 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                         strm.next_in = in;
                         do {
                             do {
-                                strm.avail_out = CHUNK - offset;
+                                strm.avail_out = SLP_CHUNK - offset;
                                 strm.next_out = out + offset;
                                 ret = inflate(&strm, Z_NO_FLUSH);
-                                have = CHUNK - strm.avail_out;
+                                have = SLP_CHUNK - strm.avail_out;
                                 if (ret != Z_OK && ret != Z_STREAM_END) {
                                     slp_png_stream->bit_depth = 3;
                                     inflateEnd(&strm);
@@ -435,7 +461,7 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                                 }
                                 SLP_MEMMOVE(out, out + have - offset, offset);
                             } while (strm.avail_in > 0);
-                            ai = CHUNK;
+                            ai = SLP_CHUNK;
                             intrker = 0;
                             if (ftrker > ai) {
                                 if (fread(in + intrker, 1, ai, file) != ai) {
@@ -485,10 +511,10 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                 strm.avail_in = intrker;
                 strm.next_in = in;
                 do {
-                    strm.avail_out = CHUNK - offset;
+                    strm.avail_out = SLP_CHUNK - offset;
                     strm.next_out = out + offset;
                     ret = inflate(&strm, Z_NO_FLUSH);
-                    have = CHUNK - strm.avail_out;
+                    have = SLP_CHUNK - strm.avail_out;
                     if (ret != Z_OK && ret != Z_STREAM_END) {
                         slp_png_stream->bit_depth = 3;
                         inflateEnd(&strm);

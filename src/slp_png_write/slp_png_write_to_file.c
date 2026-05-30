@@ -48,7 +48,15 @@ limitations under the License.
 #define SLP_MEMSET(s, c, n) memset(s, c, n)
 #endif
 
+#ifndef SLP_USE_ALIGN_ALLOC
+#define SLP_USE_ALIGN_ALLOC 1
+#endif
 
+#if SLP_USE_ALIGN_ALLOC
+#define SLP_ALIGNMENT 64
+#define SLP_ALIGN_SIZE(size) (((size) + SLP_ALIGNMENT - 1) & ~(SLP_ALIGNMENT - 1))
+#define SLP_ALIGNED_ALLOC(size) aligned_alloc(SLP_ALIGNMENT, SLP_ALIGN_SIZE(size))
+#endif
 
 
 #define __bswap_constant_32(x)                                 \
@@ -237,19 +245,36 @@ static inline int slp_png_encode(struct slp_image* restrict image, FILE* restric
     size_t have = 0;
     size_t data_len = 0;
 
-    // pointers declare
-    int8_t *filter_buffers[5] = {NULL, NULL, NULL, NULL, NULL};
+    uint8_t* mem_ptr = NULL;
 
-    uint8_t* image_buffer = image->buffer;
-
-    uint8_t *out = NULL;
-    // end pointers declare
-
-    out = (uint8_t*)SLP_MALLOC(CHUNK+12);if (out == NULL) goto cleanup;
-    for (int i = 0; i < 5; i++) {
-        filter_buffers[i] = (int8_t*)SLP_MALLOC(bpr + 1);
-        if (filter_buffers[i] == NULL) goto cleanup;
+    #if SLP_USE_ALIGN_ALLOC
+    mem_ptr = (uint8_t*)SLP_ALIGNED_ALLOC(SLP_ALIGN_SIZE(bpr + 1)*5 + CHUNK+12);
+    if (mem_ptr == NULL) {
+        return_code = -1;
+        goto cleanup;
     }
+    int8_t* filter_buffers[5];
+    filter_buffers[0] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*0;
+    filter_buffers[1] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*1;
+    filter_buffers[2] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*2;
+    filter_buffers[3] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*3;
+    filter_buffers[4] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*4;
+    uint8_t* out = mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*5;
+    #else
+    mem_ptr = (uint8_t*)SLP_MALLOC((bpr + 1)*5 + CHUNK+12);
+    if (mem_ptr == NULL) {
+        return_code = -1;
+        goto cleanup;
+    }
+    int8_t* filter_buffers[5];
+    filter_buffers[0] = (int8_t*)mem_ptr + (bpr + 1)*0;
+    filter_buffers[1] = (int8_t*)mem_ptr + (bpr + 1)*1;
+    filter_buffers[2] = (int8_t*)mem_ptr + (bpr + 1)*2;
+    filter_buffers[3] = (int8_t*)mem_ptr + (bpr + 1)*3;
+    filter_buffers[4] = (int8_t*)mem_ptr + (bpr + 1)*4;
+    uint8_t* out = mem_ptr + (bpr + 1)*5;
+    #endif
+
 
     SLP_MEMCPY(out + 4, IDATsig, 4);
     filter_buffers[0][0] = 0;
@@ -293,7 +318,7 @@ static inline int slp_png_encode(struct slp_image* restrict image, FILE* restric
     for (size_t i = 0; i < height; i++)
     {
         uint64_t filter_scores[5] = {0};
-        slp_png_filter(image_buffer, filter_buffers, filter_scores, i, bpr, bpp);
+        slp_png_filter(image->buffer, filter_buffers, filter_scores, i, bpr, bpp);
         unsigned int filter_type = 0;
         for (unsigned int i = 0; i < 5; i++) filter_type = (filter_scores[i] < filter_scores[filter_type]) ? (i) : (filter_type);
 
@@ -405,8 +430,7 @@ static inline int slp_png_encode(struct slp_image* restrict image, FILE* restric
     }
     // finish IEND
 cleanup:
-    free(out);
-    for (int i = 0; i < 5; i++) free(filter_buffers[i]);
+    free(mem_ptr);
     return return_code;
 }
 
