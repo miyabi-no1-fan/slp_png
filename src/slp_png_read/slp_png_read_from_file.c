@@ -55,7 +55,6 @@ limitations under the License.
 #define SLP_CHUNK 65536
 #endif
 
-#if SLP_USE_ALIGN_ALLOC
 
 #ifndef SLP_ALIGNMENT
 #define SLP_ALIGNMENT 64
@@ -67,7 +66,6 @@ limitations under the License.
 #define SLP_ALIGNED_ALLOC(size) aligned_alloc(SLP_ALIGNMENT, SLP_ALIGN_SIZE(size))
 #endif
 
-#endif
 
 
 
