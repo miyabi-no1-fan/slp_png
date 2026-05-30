@@ -35,6 +35,10 @@ limitations under the License.
 #define SLP_MALLOC(size) malloc(size)
 #endif
 
+#ifndef SLP_CALLOC
+#define SLP_CALLOC(size) calloc(size, 1)
+#endif
+
 #ifndef SLP_MEMCPY
 #define SLP_MEMCPY(dest, source, size) memcpy(dest, source, size)
 #endif
@@ -88,7 +92,7 @@ static void slp_png_decode(struct slp_image* restrict slp_png_stream, FILE* rest
 static void slp_png_colortype3_unpack(uint8_t* restrict buffer, struct slp_image* restrict slp_png_stream, const size_t bpr, const size_t imtrker);
 
 
-
+static void slp_png_index_u32_to_RGBA(struct slp_image* restrict slp_png_stream, const uint8_t* restrict palette);
 
 
 // constants
@@ -307,7 +311,6 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
     int iend_check = 0;
 
     uint8_t* palette = NULL;
-    size_t entries = 0;
 
     uint8_t* scanline[2] = {NULL, NULL};
 
@@ -558,9 +561,11 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                 free(in); in = NULL;
 
                 if (is_color_type3) {
-                    free(scanline[0]); scanline[0] = NULL;
-                    free(scanline[1]); scanline[1] = NULL;
+                    free(scanline[0]);
+                    free(scanline[1]);
                 }
+                scanline[0] = NULL;
+                scanline[1] = NULL;
 
                 break;
             }
@@ -608,8 +613,7 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                         goto cleanup;
                     }
 
-                    entries = data_len / 3;
-                    palette = (uint8_t*)SLP_MALLOC(entries * 4);
+                    palette = (uint8_t*)SLP_CALLOC(256 * 4);// default to always use 256 entries
                     if (palette == NULL) {
                         free(plte);
                         slp_png_stream->bit_depth = 255;
@@ -665,7 +669,7 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                 }
 
                 if (is_color_type3) {
-                    if (plte_check == 0 || data_len > entries) {
+                    if (plte_check == 0 || data_len > 256) {
                         slp_png_stream->bit_depth = 2;
                         goto cleanup;
                     }
@@ -701,16 +705,7 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
         goto cleanup;
     }
 
-    if (is_color_type3) {
-        for (size_t i = 0; i + slp_png_stream->channels <= (size_t)slp_png_stream->height * slp_png_stream->width * slp_png_stream->channels; i+=slp_png_stream->channels) {
-            if (slp_png_stream->buffer[i] >= entries) {
-                slp_png_stream->bit_depth = 2;
-                goto cleanup;
-            }
-            size_t index = (size_t)slp_png_stream->buffer[i] * slp_png_stream->channels;
-            for (size_t k = 0; k < slp_png_stream->channels; k++) slp_png_stream->buffer[i + k] = palette[index + k];
-        }
-    }
+    if (is_color_type3) slp_png_index_u32_to_RGBA(slp_png_stream, palette);
 
 cleanup:
     if (is_color_type3) {
@@ -1181,6 +1176,13 @@ static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, struct sl
     }
 }
 
+
+static inline void slp_png_index_u32_to_RGBA(struct slp_image* restrict slp_png_stream, const uint8_t* restrict palette) {
+    for (size_t i = 0; i + slp_png_stream->channels <= slp_png_stream->image_size; i+=slp_png_stream->channels) {
+        int index = slp_png_stream->buffer[i] * slp_png_stream->channels;
+        for (size_t k = 0; k < slp_png_stream->channels; k++) slp_png_stream->buffer[i + k] = palette[index + k];
+    }
+}
 
 
 void slp_image_delete(struct slp_image* image) {
