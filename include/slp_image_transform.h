@@ -16,7 +16,7 @@ bool slp_image_convert_GA16_to_RGBA32(struct slp_image* image);
 bool slp_image_convert_G16_to_RGBA64(struct slp_image* image);
 bool slp_image_convert_GA32_to_RGBA64(struct slp_image* image);
 
-struct slp_image slp_image_copy(const struct slp_image image);
+struct slp_image slp_formatted_image_copy(const struct slp_image image);
 
 bool slp_image_unformat(struct slp_image* image);
 bool slp_image_format(struct slp_image* image);
