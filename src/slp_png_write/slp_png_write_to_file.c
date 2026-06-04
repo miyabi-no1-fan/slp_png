@@ -36,6 +36,10 @@ limitations under the License.
 #define SLP_MALLOC(size) malloc(size)
 #endif
 
+#ifndef SLP_FREE
+#define SLP_FREE(ptr) free(ptr)
+#endif
+
 #ifndef SLP_MEMCPY
 #define SLP_MEMCPY(dest, source, size) memcpy(dest, source, size)
 #endif
@@ -430,7 +434,7 @@ static inline int slp_png_encode(struct slp_image* restrict image, FILE* restric
     }
     // finish IEND
 cleanup:
-    free(mem_ptr);
+    SLP_FREE(mem_ptr);
     return return_code;
 }
 
@@ -699,13 +703,13 @@ static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* res
             const int pb = abs(p - raw[j - bpr]);
             const int pc = abs(p - raw[j - bpr - bpp]);
 
-            uint8_t d = pb <= pc ? raw[j - bpr] : raw[j - bpr - bpp];
-            d = pa <= pb && pa <= pc ? raw[j - bpp] : d;
+            uint8_t d = (pb <= pc) ? raw[j - bpr] : raw[j - bpr - bpp];
+            d = (pa <= pb && pa <= pc) ? raw[j - bpp] : d;
 
             filter_buffers[0][j+1] = raw[j];
             filter_buffers[1][j+1] = raw[j] - raw[j - bpp];
             filter_buffers[2][j+1] = raw[j] - raw[j - bpr];
-            filter_buffers[3][j+1] = raw[j] - ((raw[j - bpp] + raw[j - bpr]) / 2);
+            filter_buffers[3][j+1] = raw[j] - ((int)(raw[j - bpp] + raw[j - bpr]) / 2);
             filter_buffers[4][j+1] = raw[j] - d;
 
             filter_scores[0] += abs(filter_buffers[0][j+1]);
