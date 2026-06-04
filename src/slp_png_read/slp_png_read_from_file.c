@@ -39,6 +39,10 @@ limitations under the License.
 #define SLP_CALLOC(size) calloc(size, 1)
 #endif
 
+#ifndef SLP_FREE
+#define SLP_FREE(ptr) free(ptr)
+#endif
+
 #ifndef SLP_MEMCPY
 #define SLP_MEMCPY(dest, source, size) memcpy(dest, source, size)
 #endif
@@ -189,7 +193,8 @@ struct slp_image slp_png_read(const char* path) {
         return slp_png_stream;
     }
 
-    const size_t image_size = slp_png_stream.image_size = (size_t)width * height * channels * (1 + (bit_depth == 16));
+    const size_t image_size = slp_png_stream.image_size = div_round_up((size_t)height * width * channels * bit_depth, 8);
+
     #if SLP_USE_ALIGN_ALLOC
     const size_t allocated_size = slp_png_stream.allocated_size = SLP_ALIGN_SIZE(image_size);
     slp_png_stream.buffer = (uint8_t*)SLP_ALIGNED_ALLOC(allocated_size);
@@ -208,7 +213,7 @@ struct slp_image slp_png_read(const char* path) {
     slp_png_decode(&slp_png_stream, file, file_size, color_type);
     if (slp_png_stream.bit_depth != bit_depth) {
         fclose(file);
-        free(slp_png_stream.buffer);
+        SLP_FREE(slp_png_stream.buffer);
         slp_png_stream.buffer = NULL;
         return slp_png_stream;
     }
@@ -301,8 +306,8 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
     const bool is_color_type3 = (color_type == 3);
     
     uint8_t worker[12];
-    uint8_t *out = NULL;
-    uint8_t *in = NULL;
+    uint8_t* out = NULL;
+    uint8_t* in = NULL;
 
     size_t data_len = 0;
     int plte_check = 0;
@@ -314,7 +319,7 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
 
     uint8_t* scanline[2] = {NULL, NULL};
 
-    const size_t bpp = is_color_type3 ? 1 : (slp_png_stream->channels * (slp_png_stream->bit_depth == 16 ? 2 : 1));
+    const size_t bpp = is_color_type3 ? 1 : (slp_png_stream->channels * (1 + (slp_png_stream->bit_depth == 16)));
     const size_t bpr = div_round_up(slp_png_stream->width * (is_color_type3 ? 1 : slp_png_stream->channels) * slp_png_stream->bit_depth, 8);
 
 
@@ -367,9 +372,7 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                 size_t ftrker = 0;
                 size_t intrker = 0;
                 size_t offset = 0;
-                size_t have = 0;
-                size_t row_produced = 0;
-                uint32_t crc = 0;
+                size_t row_count = 0;
                 out = (uint8_t*)SLP_MALLOC(SLP_CHUNK);
                 in = (uint8_t*)SLP_MALLOC(SLP_CHUNK);
                 if (out == NULL || in == NULL) {
@@ -379,18 +382,12 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                 }
 
 
-                if (is_color_type3) {
-                    scanline[0] = (uint8_t*)SLP_MALLOC(bpr);
-                    scanline[1] = (uint8_t*)SLP_MALLOC(bpr);
-                    if (scanline[0] == NULL || scanline[1] == NULL) {
-                        slp_png_stream->bit_depth = 255;
-                        inflateEnd(&strm);
-                        goto cleanup;
-                    }
-                }
-                else {
-                    scanline[0] = slp_png_stream->buffer;
-                    scanline[1] = slp_png_stream->buffer;
+                scanline[0] = (is_color_type3) ? ((uint8_t*)SLP_MALLOC(bpr)) : slp_png_stream->buffer;
+                scanline[1] = (is_color_type3) ? ((uint8_t*)SLP_MALLOC(bpr)) : slp_png_stream->buffer;
+                if (scanline[0] == NULL || scanline[1] == NULL) {
+                    slp_png_stream->bit_depth = 255;
+                    inflateEnd(&strm);
+                    goto cleanup;
                 }
 
 
@@ -398,7 +395,7 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                 do {
                     data_len = big_edian_u32(worker);
 
-                    crc = crc32(0, worker + 4, 4);
+                    uint32_t crc = crc32(0, worker + 4, 4);
 
                     if (data_len < ai) {
                         if (fread(in + intrker, 1, data_len, file) != data_len) {
@@ -427,13 +424,21 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                                 strm.avail_out = SLP_CHUNK - offset;
                                 strm.next_out = out + offset;
                                 ret = inflate(&strm, Z_NO_FLUSH);
-                                have = SLP_CHUNK - strm.avail_out;
+                                size_t have = SLP_CHUNK - strm.avail_out;
                                 if (ret != Z_OK && ret != Z_STREAM_END) {
                                     slp_png_stream->bit_depth = 3;
                                     inflateEnd(&strm);
                                     goto cleanup;
                                 }
-                                row_produced = have / (bpr + 1);
+                                size_t row_produced = have / (bpr + 1);
+
+                                row_count += row_produced;
+                                if (row_count > slp_png_stream->height) {
+                                    slp_png_stream->bit_depth = 2;
+                                    inflateEnd(&strm);
+                                    goto cleanup;
+                                }
+
                                 offset = have % (bpr + 1);
                                 for (size_t i = 0; i < row_produced; i++) {
 
@@ -515,13 +520,21 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                     strm.avail_out = SLP_CHUNK - offset;
                     strm.next_out = out + offset;
                     ret = inflate(&strm, Z_NO_FLUSH);
-                    have = SLP_CHUNK - strm.avail_out;
+                    size_t have = SLP_CHUNK - strm.avail_out;
                     if (ret != Z_OK && ret != Z_STREAM_END) {
                         slp_png_stream->bit_depth = 3;
                         inflateEnd(&strm);
                         goto cleanup;
                     }
-                    row_produced = have / (bpr + 1);
+                    size_t row_produced = have / (bpr + 1);
+
+                    row_count += row_produced;
+                    if (row_count > slp_png_stream->height) {
+                        slp_png_stream->bit_depth = 2;
+                        inflateEnd(&strm);
+                        goto cleanup;
+                    }
+
                     offset = have % (bpr + 1);
                     for (size_t i = 0; i < row_produced; i++) {
 
@@ -550,19 +563,24 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                     }
                     SLP_MEMMOVE(out, out + have - offset, offset);
                 } while (ret != Z_STREAM_END);
-                // if (offset != 0) {slp_png_stream->bit_depth = 2; inflateEnd(&strm); goto cleanup;}
                 inflateEnd(&strm);
+
+                if (offset != 0) {
+                    slp_png_stream->bit_depth = 2;
+                    goto cleanup;
+                }
+
                 if (fseek(file, -8, SEEK_CUR) != 0) {
                     slp_png_stream->bit_depth = 1;
                     goto cleanup;
                 }
 
-                free(out); out = NULL;
-                free(in); in = NULL;
+                SLP_FREE(out); out = NULL;
+                SLP_FREE(in); in = NULL;
 
                 if (is_color_type3) {
-                    free(scanline[0]);
-                    free(scanline[1]);
+                    SLP_FREE(scanline[0]);
+                    SLP_FREE(scanline[1]);
                 }
                 scanline[0] = NULL;
                 scanline[1] = NULL;
@@ -585,7 +603,7 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                 }
 
                 if (fread(plte, 1, data_len, file) != data_len) {
-                    free(plte);
+                    SLP_FREE(plte);
                     slp_png_stream->bit_depth = 1;
                     goto cleanup;
                 }
@@ -595,27 +613,27 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
 
 
                 if (fread(worker + 8, 1, 4, file) != 4) {
-                    free(plte);
+                    SLP_FREE(plte);
                     slp_png_stream->bit_depth = 1;
                     goto cleanup;
                 }
 
                 if (big_edian_u32(worker + 8) != crc_) {
-                    free(plte);
+                    SLP_FREE(plte);
                     slp_png_stream->bit_depth = 2;
                     goto cleanup;
                 }
 
                 if (is_color_type3) {
                     if (data_len % 3 != 0 || data_len / 3 > 256) {
-                        free(plte);
+                        SLP_FREE(plte);
                         slp_png_stream->bit_depth = 2;
                         goto cleanup;
                     }
 
                     palette = (uint8_t*)SLP_CALLOC(256 * 4);// default to always use 256 entries
                     if (palette == NULL) {
-                        free(plte);
+                        SLP_FREE(plte);
                         slp_png_stream->bit_depth = 255;
                         goto cleanup;
                     }
@@ -628,7 +646,7 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                     }
                 }
 
-                free(plte);
+                SLP_FREE(plte);
 
                 break;
             }
@@ -648,7 +666,7 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                 }
 
                 if (fread(trns, 1, data_len, file) != data_len) {
-                    free(trns);
+                    SLP_FREE(trns);
                     slp_png_stream->bit_depth = 1;
                     goto cleanup;
                 }
@@ -657,13 +675,13 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                 crc_ = crc32(crc_, trns, data_len);
 
                 if (fread(worker + 8, 1, 4, file) != 4) {
-                    free(trns);
+                    SLP_FREE(trns);
                     slp_png_stream->bit_depth = 1;
                     goto cleanup;
                 }
 
                 if (big_edian_u32(worker + 8) != crc_) {
-                    free(trns);
+                    SLP_FREE(trns);
                     slp_png_stream->bit_depth = 2;
                     goto cleanup;
                 }
@@ -676,7 +694,7 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
                     for (size_t i = 0; i < data_len; i++) palette[i * 4 + 3] = trns[i];
                 }
 
-                free(trns);
+                SLP_FREE(trns);
 
                 break;
             }
@@ -705,16 +723,21 @@ static inline void slp_png_decode(struct slp_image* restrict slp_png_stream, FIL
         goto cleanup;
     }
 
+    if ((size_t)(ftell(file) + 4) != file_size) { // IEND != EOF
+        slp_png_stream->bit_depth = 2;
+        goto cleanup;
+    }
+
     if (is_color_type3) slp_png_index_u32_to_RGBA(slp_png_stream, palette);
 
 cleanup:
     if (is_color_type3) {
-        free(scanline[0]);
-        free(scanline[1]);
+        SLP_FREE(scanline[0]);
+        SLP_FREE(scanline[1]);
     }
-    free(palette);
-    free(out);
-    free(in);
+    SLP_FREE(palette);
+    SLP_FREE(out);
+    SLP_FREE(in);
     return;
 }
 
@@ -1187,7 +1210,7 @@ static inline void slp_png_index_u32_to_RGBA(struct slp_image* restrict slp_png_
 
 
 void slp_image_delete(struct slp_image* image) {
-    free(image->buffer);
+    SLP_FREE(image->buffer);
     SLP_MEMSET(image, 0, sizeof(*image));
 }
 
