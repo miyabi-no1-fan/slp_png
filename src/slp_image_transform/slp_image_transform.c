@@ -50,6 +50,10 @@ limitations under the License.
 #define SLP_MALLOC(size) malloc(size)
 #endif
 
+#ifndef SLP_FREE
+#define SLP_FREE(ptr) free(ptr)
+#endif
+
 #ifndef SLP_MEMCPY
 #define SLP_MEMCPY(dest, source, size) memcpy(dest, source, size)
 #endif
@@ -366,16 +370,16 @@ bool slp_image_convert_to_16bit(struct slp_image* image) {
             break;
         }
         case 16: {
-            free(new_buffer);
+            SLP_FREE(new_buffer);
             return true;
         }
         default: {
-            free(new_buffer);
+            SLP_FREE(new_buffer);
             return false;
         }
     }
 
-    free(image->buffer);
+    SLP_FREE(image->buffer);
     image->buffer = new_buffer;
 
     image->bit_depth = 16;
@@ -446,14 +450,14 @@ bool image_crop(struct slp_image* image, const uint32_t new_width, const uint32_
 
     struct slp_image_crop_thread_data *threads_arg = (struct slp_image_crop_thread_data*)SLP_MALLOC(P * sizeof(*threads_arg));
     if (threads_arg == NULL) {
-        free(new_buffer);
+        SLP_FREE(new_buffer);
         return false;
     }
 
     pthread_t* threads = (pthread_t*)SLP_MALLOC(P * sizeof(*threads));
     if (threads == NULL) {
-        free(new_buffer);
-        free(threads_arg);
+        SLP_FREE(new_buffer);
+        SLP_FREE(threads_arg);
         return false;
     }
 
@@ -479,9 +483,9 @@ bool image_crop(struct slp_image* image, const uint32_t new_width, const uint32_
             for (int i = 0; i < s; i++) {
                 pthread_join(threads[i], NULL);
             }
-            free(threads);
-            free(new_buffer);
-            free(threads_arg);
+            SLP_FREE(threads);
+            SLP_FREE(new_buffer);
+            SLP_FREE(threads_arg);
             return false;
         }
     }
@@ -502,17 +506,17 @@ bool image_crop(struct slp_image* image, const uint32_t new_width, const uint32_
         for (int i = 0; i < s; i++) {
             pthread_join(threads[i], NULL);
         }
-        free(threads);
-        free(new_buffer);
-        free(threads_arg);
+        SLP_FREE(threads);
+        SLP_FREE(new_buffer);
+        SLP_FREE(threads_arg);
         return false;
     }
 
     for (int i = 0; i < P; i++) pthread_join(threads[i], NULL);
 
-    free(threads);
-    free(threads_arg);
-    free(image->buffer);
+    SLP_FREE(threads);
+    SLP_FREE(threads_arg);
+    SLP_FREE(image->buffer);
 
     image->buffer = new_buffer;
     image->width = new_width;
@@ -681,8 +685,7 @@ bool slp_image_linear_transform(struct slp_image* restrict image, const double* 
     // DO NOT USE FLOAT
     const double detA = A[0] * A[3] - A[1] * A[2];
     if (detA == 0) {
-        const size_t size = (size_t)image->width * image->height * image->channels * (1 + (image->bit_depth == 16));
-        SLP_MEMSET(image->buffer, 0, size);
+        SLP_MEMSET(image->buffer, 0, image->image_size);
         image->height = 0;
         image->width = 0;
         return true;
@@ -744,14 +747,14 @@ bool slp_image_linear_transform(struct slp_image* restrict image, const double* 
 
     pthread_t *threads = (pthread_t*)SLP_MALLOC(P * sizeof(*threads));
     if (threads == NULL) {
-        free(new_buffer);
+        SLP_FREE(new_buffer);
         return false;
     }
 
     struct slp_image_linear_transform_thread_arg *threads_arg = (struct slp_image_linear_transform_thread_arg*)SLP_MALLOC(P * sizeof(*threads_arg));
     if (threads_arg == NULL) {
-        free(new_buffer);
-        free(threads);
+        SLP_FREE(new_buffer);
+        SLP_FREE(threads);
         return false;
     }
 
@@ -789,9 +792,9 @@ bool slp_image_linear_transform(struct slp_image* restrict image, const double* 
             for (int i = 0; i < s; i++) {
                 pthread_join(threads[i], NULL);
             }
-            free(threads);
-            free(new_buffer);
-            free(threads_arg);
+            SLP_FREE(threads);
+            SLP_FREE(new_buffer);
+            SLP_FREE(threads_arg);
             return false;
         }
     }
@@ -821,18 +824,18 @@ bool slp_image_linear_transform(struct slp_image* restrict image, const double* 
         for (int i = 0; i < s; i++) {
             pthread_join(threads[i], NULL);
         }
-        free(threads);
-        free(new_buffer);
-        free(threads_arg);
+        SLP_FREE(threads);
+        SLP_FREE(new_buffer);
+        SLP_FREE(threads_arg);
         return false;
     }
 
     thread_start_execute = true;
     for (int i = 0; i < P; i++) pthread_join(threads[i], NULL);
 
-    free(threads);
-    free(threads_arg);
-    free(image->buffer);
+    SLP_FREE(threads);
+    SLP_FREE(threads_arg);
+    SLP_FREE(image->buffer);
 
     image->buffer = new_buffer;
     image->width = new_width;
@@ -1002,13 +1005,13 @@ bool slp_image_format(struct slp_image* image) {
             break;
         }
         case 8: {
-            free(new_buffer);
+            SLP_FREE(new_buffer);
             return true;
         }
         case 16: {
             const uint16_t random_value_for_edian_test = 1;
             if (!(*(uint8_t*)(&random_value_for_edian_test))) {// if big edian
-                free(new_buffer);
+                SLP_FREE(new_buffer);
                 return true;
             }
 
@@ -1033,12 +1036,12 @@ bool slp_image_format(struct slp_image* image) {
             break;
         }
         default: {
-            free(new_buffer);
+            SLP_FREE(new_buffer);
             return false;
         }
     }
 
-    free(image->buffer);
+    SLP_FREE(image->buffer);
     image->buffer = new_buffer;
 
     return true;
@@ -1053,8 +1056,8 @@ bool slp_image_format(struct slp_image* image) {
 
 bool slp_image_unformat(struct slp_image* image) {
 
-    const size_t size = (size_t)(image->height) * (image->width) * (image->channels) * (1 + (image->bit_depth == 16));
-    const size_t new_size = (size_t)(image->height) * div_round_up((size_t)image->width * image->channels * image->bit_depth, 8);
+    const size_t size = (size_t)image->height * image->width * image->channels * (1 + (image->bit_depth == 16));
+    const size_t new_size = image->image_size;
     
     uint8_t* new_buffer = (uint8_t*)SLP_MALLOC(new_size);
     if (new_buffer == NULL) return false;
@@ -1264,14 +1267,14 @@ bool slp_image_unformat(struct slp_image* image) {
             break;
         }
         case 8: {
-            free(new_buffer);
+            SLP_FREE(new_buffer);
             return true;
             break;
         }
         case 16: {
             const uint16_t random_value_for_edian_test = 1;
             if (!(*(uint8_t*)(&random_value_for_edian_test))) {
-                free(new_buffer);
+                SLP_FREE(new_buffer);
                 return true;
             }
 
@@ -1296,12 +1299,12 @@ bool slp_image_unformat(struct slp_image* image) {
             break;
         }
         default: {
-            free(new_buffer);
+            SLP_FREE(new_buffer);
             return false;
         }
     }
 
-    free(image->buffer);
+    SLP_FREE(image->buffer);
     image->buffer = new_buffer;
 
     return true;
@@ -1319,9 +1322,9 @@ bool slp_image_unformat(struct slp_image* image) {
 bool slp_image_convert_G8_to_RGBA32(struct slp_image* image) {
     if (image->channels != 1 || image->bit_depth != 8) return false;
 
-    const size_t size = (size_t)image->width * image->height;
+    const size_t size = (size_t)image->width * image->height * image->channels * (1 + (image->bit_depth == 16));
 
-    uint8_t *new_buffer = (uint8_t*)SLP_MALLOC((size_t)image->width * image->height * 4);
+    uint8_t *new_buffer = (uint8_t*)SLP_MALLOC(size * 4);
     if (new_buffer == NULL) {
         return false;
     }
@@ -1360,7 +1363,7 @@ bool slp_image_convert_G8_to_RGBA32(struct slp_image* image) {
         dest[i+1] = 0xFF;//A
     }
 
-    free(image->buffer);
+    SLP_FREE(image->buffer);
     image->buffer = new_buffer;
     image->channels = 4;
 
@@ -1405,7 +1408,7 @@ bool slp_image_convert_GA16_to_RGBA32(struct slp_image* image) {
         dest[i+1] = src[i+1];//A
     }
 
-    free(image->buffer);
+    SLP_FREE(image->buffer);
     image->buffer = new_buffer;
     image->channels = 4;
 
@@ -1458,7 +1461,7 @@ bool slp_image_convert_G16_to_RGBA64(struct slp_image* image) {
         dest[i + 4] = 0xFFFF;
     }
 
-    free(image->buffer);
+    SLP_FREE(image->buffer);
     image->buffer = new_buffer;
     image->channels = 4;
 
@@ -1504,7 +1507,7 @@ bool slp_image_convert_GA32_to_RGBA64(struct slp_image* image) {
         dest[i + 4] = src[i + 1];
     }
 
-    free(image->buffer);
+    SLP_FREE(image->buffer);
     image->buffer = new_buffer;
     image->channels = 4;
 
@@ -1517,7 +1520,7 @@ bool slp_image_convert_GA32_to_RGBA64(struct slp_image* image) {
 
 
 
-struct slp_image slp_image_copy(struct slp_image image) {
+struct slp_image slp_formatted_image_copy(struct slp_image image) {
     const size_t size = (size_t)image.width * image.height * image.channels * (1 + (image.bit_depth == 16));
     uint8_t* new_buffer = (uint8_t*)SLP_MALLOC(size);
     if (new_buffer == NULL) {
