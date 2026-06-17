@@ -51,13 +51,13 @@ build/example
 
 int main(void)
 {
-    slp_image your_image = slp_png_read("/path/to/your/image");
+    slp_image_t your_image = slp_png_read("/path/to/your/image");
     if (your_image.buffer == NULL) return 1;
 
     int ret = slp_png_write(your_image, "/path/to/where/to/write");
     if (ret != 0) return 1;
 
-    free(your_image.buffer);
+    slp_image_destroy(&your_image);
     return 0;
 }
 ```
