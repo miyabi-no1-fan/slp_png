@@ -32,9 +32,15 @@ jobs:
 
       - name: Valgrind test
         shell: bash
-        run: |
-          valgrind --leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=all --track-origins=yes --error-exitcode=1 build/test --no-thread_test
-      
+        run: >
+          valgrind
+          --leak-check=full
+          --show-leak-kinds=all
+          --errors-for-leak-kinds=all
+          --track-origins=yes
+          --error-exitcode=1
+          build/test --no-thread_test
+
       - name: Build Release
         run: >
           cmake -B build
@@ -97,6 +103,7 @@ jobs:
               exit 1
             fi
           done
+          echo "pass"
 
   test_windows:
     runs-on: windows-latest
