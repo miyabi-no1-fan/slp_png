@@ -1107,7 +1107,7 @@ static inline void slp_png_index_u32_to_RGBA(slp_image_t* restrict slp_png_strea
 }
 
 
-void slp_image_delete(slp_image_t* image) {
+void slp_image_destroy(slp_image_t* image) {
     SLP_ALIGNED_FREE(image->buffer);
     SLP_MEMSET(image, 0, sizeof(*image));
 }

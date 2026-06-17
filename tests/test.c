@@ -69,8 +69,8 @@ int rw_test(const char* path, const char* path_out) {
         }
     }
 
-    slp_image_delete(&b);
-    slp_image_delete(&a);
+    slp_image_destroy(&b);
+    slp_image_destroy(&a);
     return 0;
 }
 

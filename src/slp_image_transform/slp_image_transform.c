@@ -15,7 +15,6 @@ limitations under the License.
 */
 #include <slp_image.h>
 #include <slp_image_transform.h>
-#include <slp_png.h>
 #include <stdalign.h>
 #include <stddef.h>
 #include <stdint.h>
