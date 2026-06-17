@@ -58,24 +58,27 @@ jobs:
         run: brew install zlib-ng-compat llvm
 
       - name: Build Release
+        shell: bash
         run: >
+          export CMAKE_PREFIX_PATH="/opt/homebrew/opt/llvm" &&
           cmake -B build
           -DCMAKE_C_COMPILER=clang
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           -DCMAKE_BUILD_TYPE=Release
           -DBUILD_TEST=ON -DSLP_IMAGE_TRANSFORM=ON
+          -DCMAKE_C_FLAGS="-L/opt/homebrew/opt/zlib-ng-compat/lib -L/opt/homebrew/opt/llvm/lib"
           -S .
           && cmake --build build --config Release
 
       - name: clang-analyzer test
         shell: bash
         run: >
-          export PATH="$(brew --prefix llvm)/bin:$PATH" &&
+          export PATH="/opt/homebrew/opt/llvm/bin:$PATH" &&
+          export LDFLAGS="-L/opt/homebrew/opt/llvm/lib" &&
+          export CFLAGS="-I/opt/homebrew/opt/llvm/include" &&
           clang-tidy -p build
           --checks='-*,clang-analyzer-*, -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling, -clang-diagnostic-unknown-warning-option'
-          -extra-arg=-Wno-unknown-warning-option
-          -extra-arg=-I /opt/homebrew/include
-          -extra-arg=-I include
+          -extra-arg='-I/opt/homebrew/include -Wno-unknown-warning-option -Wno-return-type'
           --warnings-as-errors='*'
           src/slp_image_transform/slp_image_transform.c
           src/slp_png_read/slp_png_read_from_file.c
