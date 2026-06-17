@@ -29,7 +29,7 @@ limitations under the License.
 #include <windows.h>
 #endif
 
-#ifdef __unix__
+#if defined(__unix__) || defined(__APPLE__)
 #include <unistd.h>
 #endif
 
@@ -43,9 +43,10 @@ static int get_nproc(void) {
     GetSystemInfo(&sysinfo);
     return sysinfo.dwNumberOfProcessors;
     #endif
-    #ifdef __unix__
+    #if defined(__unix__) || defined(__APPLE__)
     return sysconf(_SC_NPROCESSORS_ONLN);
     #endif
+    return 2;
 }
 
 
@@ -326,16 +327,16 @@ bool slp_image_convert_to_16bit(slp_image_t* image) {
             break;
         }
         case 16: {
-            SLP_FREE(new_buffer);
+            SLP_ALIGNED_FREE(new_buffer);
             return true;
         }
         default: {
-            SLP_FREE(new_buffer);
+            SLP_ALIGNED_FREE(new_buffer);
             return false;
         }
     }
 
-    SLP_FREE(image->buffer);
+    SLP_ALIGNED_FREE(image->buffer);
     image->buffer = new_buffer;
     image->bit_depth = 16;
     image->image_size = size * 2;
@@ -383,13 +384,13 @@ bool image_crop(slp_image_t* image, const uint32_t new_width, const uint32_t new
 
     struct slp_image_crop_thread_data *threads_arg = (struct slp_image_crop_thread_data*)SLP_MALLOC(P * sizeof(*threads_arg));
     if (threads_arg == NULL) {
-        SLP_FREE(new_buffer);
+        SLP_ALIGNED_FREE(new_buffer);
         return false;
     }
 
     pthread_t* threads = (pthread_t*)SLP_MALLOC(P * sizeof(*threads));
     if (threads == NULL) {
-        SLP_FREE(new_buffer);
+        SLP_ALIGNED_FREE(new_buffer);
         SLP_FREE(threads_arg);
         return false;
     }
@@ -416,7 +417,7 @@ bool image_crop(slp_image_t* image, const uint32_t new_width, const uint32_t new
                 pthread_join(threads[i], NULL);
             }
             SLP_FREE(threads);
-            SLP_FREE(new_buffer);
+            SLP_ALIGNED_FREE(new_buffer);
             SLP_FREE(threads_arg);
             return false;
         }
@@ -439,7 +440,7 @@ bool image_crop(slp_image_t* image, const uint32_t new_width, const uint32_t new
             pthread_join(threads[i], NULL);
         }
         SLP_FREE(threads);
-        SLP_FREE(new_buffer);
+        SLP_ALIGNED_FREE(new_buffer);
         SLP_FREE(threads_arg);
         return false;
     }
@@ -448,7 +449,7 @@ bool image_crop(slp_image_t* image, const uint32_t new_width, const uint32_t new
 
     SLP_FREE(threads);
     SLP_FREE(threads_arg);
-    SLP_FREE(image->buffer);
+    SLP_ALIGNED_FREE(image->buffer);
 
     image->buffer = new_buffer;
     image->width = new_width;
@@ -741,8 +742,8 @@ cleanup:
     SLP_FREE(threads_arg);
     pthread_mutexattr_destroy(&mtxattr);
     SLP_FREE(mtx);
-    if (return_code) SLP_FREE(image->buffer);
-    else SLP_FREE(new_buffer);
+    if (return_code) SLP_ALIGNED_FREE(image->buffer);
+    else SLP_ALIGNED_FREE(new_buffer);
     return return_code;
 }
 
@@ -902,7 +903,7 @@ bool slp_image_format(slp_image_t* image) {
             break;
         }
         case 8: {
-            SLP_FREE(new_buffer);
+            SLP_ALIGNED_FREE(new_buffer);
             return true;
         }
         case 16: {
@@ -938,7 +939,7 @@ bool slp_image_format(slp_image_t* image) {
         }
     }
 
-    SLP_FREE(image->buffer);
+    SLP_ALIGNED_FREE(image->buffer);
     image->buffer = new_buffer;
     image->image_size = size;
     image->allocated_size = SLP_ALIGN_SIZE(size);
@@ -1161,14 +1162,14 @@ bool slp_image_unformat(slp_image_t* image) {
             break;
         }
         case 8: {
-            SLP_FREE(new_buffer);
+            SLP_ALIGNED_FREE(new_buffer);
             return true;
             break;
         }
         case 16: {
             const uint16_t random_value_for_edian_test = 1;
             if (!(*(uint8_t*)(&random_value_for_edian_test))) {
-                SLP_FREE(new_buffer);
+                SLP_ALIGNED_FREE(new_buffer);
                 return true;
             }
 
@@ -1193,12 +1194,12 @@ bool slp_image_unformat(slp_image_t* image) {
             break;
         }
         default: {
-            SLP_FREE(new_buffer);
+            SLP_ALIGNED_FREE(new_buffer);
             return false;
         }
     }
 
-    SLP_FREE(image->buffer);
+    SLP_ALIGNED_FREE(image->buffer);
     image->buffer = new_buffer;
     image->image_size = new_size;
     image->allocated_size = SLP_ALIGN_SIZE(new_size);
@@ -1252,7 +1253,7 @@ bool slp_image_convert_G8_to_RGBA32(slp_image_t* image) {
         dest[i+1] = 0xFF;//A
     }
 
-    SLP_FREE(image->buffer);
+    SLP_ALIGNED_FREE(image->buffer);
     image->buffer = new_buffer;
     image->channels = 4;
     image->image_size = size * 4;
@@ -1299,7 +1300,7 @@ bool slp_image_convert_GA16_to_RGBA32(slp_image_t* image) {
         dest[i+1] = src[i+1];//A
     }
 
-    SLP_FREE(image->buffer);
+    SLP_ALIGNED_FREE(image->buffer);
     image->buffer = new_buffer;
     image->channels = 4;
     image->image_size = new_size;
@@ -1355,7 +1356,7 @@ bool slp_image_convert_G16_to_RGBA64(slp_image_t* image) {
         dest[i + 4] = 0xFFFF;
     }
 
-    SLP_FREE(image->buffer);
+    SLP_ALIGNED_FREE(image->buffer);
     image->buffer = new_buffer;
     image->channels = 4;
     image->image_size = new_size;
@@ -1405,7 +1406,7 @@ bool slp_image_convert_GA32_to_RGBA64(slp_image_t* image) {
         dest[i + 4] = src[i + 1];
     }
 
-    SLP_FREE(image->buffer);
+    SLP_ALIGNED_FREE(image->buffer);
     image->buffer = new_buffer;
     image->channels = 4;
     image->image_size = new_size;

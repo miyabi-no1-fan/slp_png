@@ -32,9 +32,15 @@ jobs:
 
       - name: Valgrind test
         shell: bash
-        run: |
-          valgrind --leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=all --track-origins=yes --error-exitcode=1 build/test --no-thread_test
-      
+        run: >
+          valgrind
+          --leak-check=full
+          --show-leak-kinds=all
+          --errors-for-leak-kinds=all
+          --track-origins=yes
+          --error-exitcode=1
+          build/test --no-thread_test
+
       - name: Build Release
         run: >
           cmake -B build
@@ -97,3 +103,36 @@ jobs:
               exit 1
             fi
           done
+          echo "pass"
+
+  test_windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Set up MSYS2 and Install deps
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          install: >
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-make
+            mingw-w64-ucrt-x86_64-zlib-ng-compat
+            mingw-w64-ucrt-x86_64-libwinpthread
+
+      - name: Build Release
+        shell: msys2 {0}
+        run: >
+          cmake -B build
+          -DCMAKE_C_COMPILER=gcc
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_EXAMPLE=ON -DSLP_IMAGE_TRANSFORM=ON
+          -S .
+          && cmake --build build --config Release
+
+      - name: Run example
+        shell: msys2 {0}
+        run: build/example && build/example-static 

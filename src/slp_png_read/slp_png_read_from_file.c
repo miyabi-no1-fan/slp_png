@@ -144,7 +144,7 @@ slp_image_t slp_png_read(const char* path) {
     slp_png_decode(&slp_png_stream, file, file_size, color_type);
     if (slp_png_stream.bit_depth != bit_depth) {
         fclose(file);
-        SLP_FREE(slp_png_stream.buffer);
+        SLP_ALIGNED_FREE(slp_png_stream.buffer);
         slp_png_stream.buffer = NULL;
         return slp_png_stream;
     }
@@ -1108,6 +1108,6 @@ static inline void slp_png_index_u32_to_RGBA(slp_image_t* restrict slp_png_strea
 
 
 void slp_image_delete(slp_image_t* image) {
-    SLP_FREE(image->buffer);
+    SLP_ALIGNED_FREE(image->buffer);
     SLP_MEMSET(image, 0, sizeof(*image));
 }

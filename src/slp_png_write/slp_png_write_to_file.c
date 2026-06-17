@@ -294,7 +294,7 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
     // finish IEND
 
 cleanup:
-    SLP_FREE(mem_ptr);
+    SLP_ALIGNED_FREE(mem_ptr);
     return return_code;
 }
 
