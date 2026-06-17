@@ -44,7 +44,14 @@ typedef struct __attribute__((packed)) {
 static uint8_t slp_get_color_type(const uint8_t channels);
 static int slp_png_encode(slp_image_t* restrict image, FILE* restrict file);
 static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp);
-__m128i _mm_abs_epi16_sse2(__m128i v);
+
+#ifdef __SSE2__
+__m128i _mm_abs_epi16_sse2(__m128i v) {
+    __m128i mask = _mm_srai_epi16(v, 15); // srai will shift in 1 or 0 depends on the msbit
+    v = _mm_xor_si128(v, mask); // do bit flips if signed
+    return _mm_sub_epi16(v, mask); // this is add 1 if signed, for signed number all1 = -1 so --1 = +1
+}
+#endif
 
 // constants
 enum {
@@ -557,10 +564,4 @@ static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restri
             filter_scores[4] += abs(filter_buffers[4][j+1]);
         }
     }
-}
-
-__m128i _mm_abs_epi16_sse2(__m128i v) {
-    __m128i mask = _mm_srai_epi16(v, 15); // srai will shift in 1 or 0 depends on the msbit
-    v = _mm_xor_si128(v, mask); // do bit flips if signed
-    return _mm_sub_epi16(v, mask); // this is add 1 if signed, for signed number all1 = -1 so --1 = +1
 }
