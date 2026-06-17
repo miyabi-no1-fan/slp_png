@@ -48,7 +48,7 @@ typedef struct slp_image_t {
 #endif
 
 #ifndef SLP_USE_ALIGN_ALLOC
-#ifdef __unix__
+#if defined(__unix__) || defined(__APPLE__)
 #define SLP_USE_ALIGN_ALLOC 1
 #else
 #define SLP_USE_ALIGN_ALLOC 0
@@ -60,6 +60,7 @@ typedef struct slp_image_t {
 #define SLP_ALIGN_SIZE(size) (((size) + SLP_ALIGNMENT - 1) & ~(SLP_ALIGNMENT - 1))
 #define SLP_ALIGNED_ALLOC(size) aligned_alloc(SLP_ALIGNMENT, SLP_ALIGN_SIZE(size))
 #else
+#define SLP_ALIGN_SIZE(size) (size)
 #define SLP_ALIGNED_ALLOC(size) malloc(size)
 #endif
 
