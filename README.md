@@ -5,9 +5,25 @@
 - macOS
 
 
+## Install
+```bash
+git clone https://github.com/slp-c/slp_png.git
+cd slp_png
+cmake -B build
+cmake --build build
+```
+- If you want to run test, see CMakeLists.txt option
+- Or you can run this following line:
+```bash
+gcc tests/example.c -Iinclude -Lbuild -lslp_png -Wl,-rpath,build
+```
+- Replace tests/example.c with the file you wanna test with and specify -o if you want
+
+
 ## Project structure
 - slp_png: PNG codec
     - include:
+        - include/slp_image.h
         - include/slp_png.h
     - src:
         - src/slp_png_read/*
@@ -15,14 +31,15 @@
     - dependencies:
         - zlib
 
-- slp_image_transform: extra image transformation tools
+- slp_image_transform: (still experimental)
     - include:
-        - include/slp_png.h
+        - include/slp_image.h
         - include/slp_image_transform.h
     - src:
         - src/slp_image_transform/*
     - dependencies:
         - pthreads
+        - math
 
 
 ## Basic usage
@@ -30,7 +47,7 @@
 #include <slp_png.h>
 #include <stdio.h>
 
-int main()
+int main(void)
 {
     slp_image your_image = slp_png_read("/path/to/your/image");
     if (your_image.buffer == NULL) return 1;
@@ -39,11 +56,10 @@ int main()
     if (ret != 0) return 1;
 
     free(your_image.buffer);
-
     return 0;
 }
 ```
-- NOTICE: if slp_png_read fail, your_image.bit_depth will be overwitten with a specified error code ! 
+- NOTICE: if slp_png_read fail, your_image.bit_depth will be overwitten with a specified error code.
     - See in include/slp_image.h for more details about the error code
 
 
@@ -77,39 +93,50 @@ int main()
         - Heuristic filtering is extremely cheap, if good filter is generated, deflate runtime will reduce significantly
 
 - For both slp_png_read and slp_png_write:
-    - AVX2, SSE2 support
+    - SIMD optimizations (no AVX512)
     - Thread-safe: this function can call by any thread, but it does not automatically handle fileIO conflicts
-    - Allocation: mainly malloc, stack allocation via arrays are small
-        - Specifically, total size of all array allocated on the stack is only about 57 bytes
-        - Low risk of stack overflow
+    - The buffer in slp_image_t is allocated via aligned_alloc
+    - See include/slp_image.h if there are any #define you wanna change (aligned_alloc, memcpy, malloc,...)
 
 
 ## Performance
-- OS: Archlinux
+- Platform: Linux
 - CPU: intel i5 12450H
 - RAM: 16GB DDR5
+- Compare with https://github.com/randy408/libspng
 
-- Test code located at: tests/perf/
-
-- Compare with libspng-git from the AUR
-
-- Commands:
+- For slp_png:
 ```bash
-#! /bin/bash
-set -euo pipefail
-
 git clone https://github.com/slp-c/slp_png.git
 cd slp_png
+cmake -S . -B build -DBUILD_EXAMPLE=ON
+cmake --build build
+build/example
+```
+- For spng, I use a modified one of https://github.com/randy408/libspng/blob/master/examples/example.c for performance test:
+```C
+// in main:
+// for read time, the clock start here
+    start = clock();
+    png = fopen(path, "rb");
+// and end here
+    do
+    {
+        ret = spng_get_row_info(ctx, &row_info);
+        if(ret) break;
 
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        ret = spng_decode_row(ctx, image + row_info.row_num * image_width, image_width);
+    }
+    while(!ret);
 
-cmake --build build --config Release
+    end = clock();
 
-./build/slp_png_perf_test
-./build/spng_perf_test
+// in encode_image:
+// the clock is like this
+start = clock();ret = spng_encode_image(ctx, image, length, fmt, SPNG_ENCODE_FINALIZE);end = clock();
 ```
 
-
+- Results:
 - Read time:
     - slp_png: 0.104468s
     - libspng: 0.105065s
@@ -126,24 +153,6 @@ cmake --build build --config Release
     - libspng: 33 MiB
     - slp_png: 33 MiB
 
-
-## Quick test on minimal setup
-- Platform: Linux
-- Pakages: glibc gcc zlib
-- Optional pakages: valgrind
-
-```bash
-#! /bin/bash
-set -e
-
-# clone the repo
-git clone https://github.com/slp-c/slp_png.git
-cd slp_png
-
-_scripts/archlinux/build_lib.sh -Ofast
-_scripts/archlinux/build_exe.sh dynamic tests/perf/slp_png_perf_test.c build/slp_png_perf_test -Ofast
-_scripts/archlinux/build_exe.sh dynamic tests/perf/spng_perf_test.c build/spng_perf_test -Ofast -lspng
-
-build/slp_png_perf_test
-build/spng_perf_test
-```
+- slp_png read time is usually the same as spng, while slp_png write time is a little bit faster
+- The differences in performance is small
+- Though slp_png got simplier API, just a single slp_png_read/write call that have an equivalent performance is not bad right?
