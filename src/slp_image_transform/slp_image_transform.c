@@ -636,9 +636,6 @@ bool slp_image_linear_transform(slp_image_t* restrict image, const double* restr
 
     pthread_mutexattr_t mtxattr;
     if (pthread_mutexattr_init(&mtxattr) != 0) return false;
-
-    slp_image_fill(new_buffer, new_size, background, pixel_size);
-    uint8_t* src = image->buffer;
     const int P = (get_nproc() <= 1) ? 2 : get_nproc();
 
     new_buffer = (uint8_t*)SLP_ALIGNED_ALLOC(new_size);
@@ -653,6 +650,9 @@ bool slp_image_linear_transform(slp_image_t* restrict image, const double* restr
         return_code = false;
         goto cleanup;
     }
+
+    slp_image_fill(new_buffer, new_size, background, pixel_size);
+    uint8_t* src = image->buffer;
 
     const size_t block = new_height / (P - 1); // P threads, P-1 work for block of scanline, the remain 1 thread works for what remain:)
     const size_t last_block = new_height - block * (P-1); // == new_height % (P-1)
