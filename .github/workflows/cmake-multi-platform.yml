@@ -112,7 +112,7 @@ jobs:
 
       - name: Install deps
         shell: msys2 {0}
-        run: pacman -Syuu --needed --noconfirm gcc make cmake base base-devel zlib
+        run: pacman -Syuu --noconfirm gcc make cmake base base-devel zlib
 
       - name: Build Release
         shell: msys2 {0}
