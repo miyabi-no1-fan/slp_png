@@ -121,6 +121,8 @@ jobs:
           -DCMAKE_C_COMPILER=gcc
           -DCMAKE_BUILD_TYPE=Release
           -DBUILD_EXAMPLE=ON -DSLP_IMAGE_TRANSFORM=ON
+          -DCMAKE_PREFIX_PATH=/ucrt64
+          -DCMAKE_TOOLCHAIN_FILE=/ucrt64/share/cmake/toolchains/mingw.cmake
           -S .
           && cmake --build build --config Release
 
