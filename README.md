@@ -15,9 +15,10 @@ cmake --build build
 - If you want to run test, see CMakeLists.txt option
 - Or you can run this following line:
 ```bash
-gcc tests/example.c -Iinclude -Lbuild -lslp_png -Wl,-rpath,build
+gcc tests/example.c -Iinclude -Lbuild -lslp_png -Wl,-rpath,build -o build/example
+build/example
 ```
-- Replace tests/example.c with the file you wanna test with and specify -o if you want
+- Replace tests/example.c with the file you wanna test with
 
 
 ## Project structure
