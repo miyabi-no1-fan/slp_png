@@ -123,7 +123,6 @@ jobs:
           -DCMAKE_C_COMPILER=gcc
           -DCMAKE_BUILD_TYPE=Release
           -DBUILD_EXAMPLE=ON -DSLP_IMAGE_TRANSFORM=ON
-          -DCMAKE_PREFIX_PATH="C:/msys64/ucrt64"
           -S .
           && cmake --build build --config Release
 
