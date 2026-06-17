@@ -73,9 +73,10 @@ jobs:
           export PATH="$(brew --prefix llvm)/bin:$PATH" &&
           clang-tidy -p build
           --checks='-*,clang-analyzer-*, -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling, -clang-diagnostic-unknown-warning-option'
-          -extra-arg=-Wno-unknown-warning-option --warnings-as-errors='*'
-          -I /opt/homebrew/include
-          -I include
+          -extra-arg=-Wno-unknown-warning-option
+          -extra-arg=-I /opt/homebrew/include
+          -extra-arg=-I include
+          --warnings-as-errors='*'
           src/slp_image_transform/slp_image_transform.c
           src/slp_png_read/slp_png_read_from_file.c
           src/slp_png_write/slp_png_write_to_file.c
