@@ -75,7 +75,7 @@ if (SLP_PNG_STATIC)
     target_link_libraries("slp_png-static" PRIVATE ZLIB::ZLIB)
 
     if (ENABLE_OPT)
-        target_compile_options("slp_png-static" PRIVATE -O3 -ffast-math -march=native -mtune=native -DNDEBUG -flto=auto)
+        target_compile_options("slp_png-static" PRIVATE -O3 -ffast-math -march=native -mtune=native -DNDEBUG)
     endif()
 
     target_include_directories("slp_png-static" PUBLIC include)
