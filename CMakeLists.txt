@@ -72,7 +72,7 @@ if (SLP_PNG_STATIC)
     endif()
 
     find_package(ZLIB REQUIRED)
-    target_link_libraries("slp_png-static" PRIVATE ZLIB::ZLIB)
+    target_link_libraries("slp_png-static" PUBLIC ZLIB::ZLIB)
 
     if (ENABLE_OPT)
         target_compile_options("slp_png-static" PRIVATE -O3 -ffast-math -march=native -mtune=native -DNDEBUG)
