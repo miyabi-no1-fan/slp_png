@@ -29,7 +29,7 @@ limitations under the License.
 #include <windows.h>
 #endif
 
-#ifdef __unix__
+#if defined(__unix__) || defined(__APPLE__)
 #include <unistd.h>
 #endif
 
@@ -43,9 +43,10 @@ static int get_nproc(void) {
     GetSystemInfo(&sysinfo);
     return sysinfo.dwNumberOfProcessors;
     #endif
-    #ifdef __unix__
+    #if defined(__unix__) || defined(__APPLE__)
     return sysconf(_SC_NPROCESSORS_ONLN);
     #endif
+    return 2;
 }
 
 
