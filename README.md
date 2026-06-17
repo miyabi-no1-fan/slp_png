@@ -3,6 +3,7 @@
 ## Support platforms
 - Linux
 - macOS
+- Windows
 
 
 ## Install
