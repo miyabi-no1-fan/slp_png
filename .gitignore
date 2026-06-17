@@ -5,3 +5,4 @@ exe/
 compile_commands.json
 include/slpz.h
 src/slpz/
+tests/spng_test.c
