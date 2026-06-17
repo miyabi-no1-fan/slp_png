@@ -1,6 +1,8 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifndef SLP_IMAGE_H
 #define SLP_IMAGE_H
