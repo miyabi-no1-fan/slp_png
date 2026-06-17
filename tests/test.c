@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
 
 
 int rw_test(const char* path, const char* path_out) {
-    slp_image a = slp_png_read(path);
+    slp_image_t a = slp_png_read(path);
     if (a.buffer == NULL) {printf("\nread failed: %d\n", a.bit_depth);return 1;}
 
     int ret = slp_png_write(a, path_out);
@@ -58,7 +58,7 @@ int rw_test(const char* path, const char* path_out) {
 
     // validate new saved image
     #define DEBUG
-    slp_image b = slp_png_read(path_out);
+    slp_image_t b = slp_png_read(path_out);
     if (b.buffer == NULL) {printf("\nread newly saved .png failed: %d\n", b.bit_depth);return 1;}
     const size_t size = (size_t)a.width * a.height * a.channels * (1 + (a.bit_depth == 16));
     for (size_t i = 0; i < size; i++) {
@@ -89,7 +89,7 @@ void* thread_safety_test_task(void* arg) {
     for (uint16_t i = 0; i < spam; i++) {
 
         struct thread_safety_test_arg data = *(struct thread_safety_test_arg*)arg;
-        slp_image a = slp_png_read(data.in_path);
+        slp_image_t a = slp_png_read(data.in_path);
         if (a.buffer == NULL) {
             abort();
         }
@@ -105,7 +105,7 @@ void* thread_safety_test_task(void* arg) {
         }
 
         // validate new saved image
-        slp_image b = slp_png_read(data.out_path);
+        slp_image_t b = slp_png_read(data.out_path);
         if (b.buffer == NULL) {
             abort();
         }

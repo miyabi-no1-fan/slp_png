@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
     double write_time = 0;
 
     start = clock();
-    slp_image a = slp_png_read(path);
+    slp_image_t a = slp_png_read(path);
     end = clock();
     if (a.buffer == NULL) {printf("read failed: %d\n", a.bit_depth);return 1;}
 
