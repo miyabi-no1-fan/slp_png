@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install deps
-        run: apt install build-essential zlib1g-dev gcc clang valgrind llvm cmake make
+        run: sudo apt install build-essential zlib1g-dev gcc clang valgrind llvm cmake make
 
       - name: Build debug
         run: >
