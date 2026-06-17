@@ -5,7 +5,7 @@
 #ifndef SLP_IMAGE_H
 #define SLP_IMAGE_H
 
-typedef struct slp_image {
+typedef struct slp_image_t {
     uint8_t* buffer;
     uint32_t height;
     uint32_t width;
