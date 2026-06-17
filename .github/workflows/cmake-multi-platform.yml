@@ -66,7 +66,7 @@ jobs:
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           -DCMAKE_BUILD_TYPE=Release
           -DBUILD_TEST=ON -DSLP_IMAGE_TRANSFORM=ON
-          -DCMAKE_C_FLAGS="-L/opt/homebrew/opt/zlib-ng-compat/lib -L/opt/homebrew/opt/llvm/lib"
+          -DCMAKE_C_FLAGS="-L/opt/homebrew/opt/zlib-ng-compat/lib -I/opt/homebrew/opt/zlib-ng-compat/include -L/opt/homebrew/opt/llvm/lib"
           -S .
           && cmake --build build --config Release
 
@@ -78,7 +78,7 @@ jobs:
           export CFLAGS="-I/opt/homebrew/opt/llvm/include" &&
           clang-tidy -p build
           --checks='-*,clang-analyzer-*, -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling, -clang-diagnostic-unknown-warning-option'
-          -extra-arg='-I/opt/homebrew/include -Wno-unknown-warning-option -Wno-return-type'
+          -extra-arg='-Wno-unknown-warning-option -Wno-return-type'
           --warnings-as-errors='*'
           src/slp_image_transform/slp_image_transform.c
           src/slp_png_read/slp_png_read_from_file.c
