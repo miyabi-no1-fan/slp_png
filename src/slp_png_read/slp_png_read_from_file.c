@@ -125,15 +125,9 @@ slp_image_t slp_png_read(const char* path) {
     }
 
     const size_t image_size = slp_png_stream.image_size = div_round_up((size_t)height * width * channels * bit_depth, 8);
-
-    #if SLP_USE_ALIGN_ALLOC
     const size_t allocated_size = slp_png_stream.allocated_size = SLP_ALIGN_SIZE(image_size);
-    slp_png_stream.buffer = (uint8_t*)SLP_ALIGNED_ALLOC(allocated_size);
-    #else
-    const size_t allocated_size = slp_png_stream.allocated_size = image_size;
-    slp_png_stream.buffer = (uint8_t*)SLP_MALLOC(allocated_size);
-    #endif
 
+    slp_png_stream.buffer = (uint8_t*)SLP_ALIGNED_ALLOC(allocated_size);
     if (slp_png_stream.buffer == NULL) {
         fclose(file);
         slp_png_stream.bit_depth = 255;

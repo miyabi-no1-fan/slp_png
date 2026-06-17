@@ -150,7 +150,6 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
 
     uint8_t* mem_ptr = NULL;
 
-    #if SLP_USE_ALIGN_ALLOC
     mem_ptr = (uint8_t*)SLP_ALIGNED_ALLOC(SLP_ALIGN_SIZE(bpr + 1)*5 + CHUNK+12);
     if (mem_ptr == NULL) {
         return_code = -1;
@@ -163,21 +162,6 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
     filter_buffers[3] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*3;
     filter_buffers[4] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*4;
     uint8_t* out = mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*5;
-    #else
-    mem_ptr = (uint8_t*)SLP_MALLOC((bpr + 1)*5 + CHUNK+12);
-    if (mem_ptr == NULL) {
-        return_code = -1;
-        goto cleanup;
-    }
-    int8_t* filter_buffers[5];
-    filter_buffers[0] = (int8_t*)mem_ptr + (bpr + 1)*0;
-    filter_buffers[1] = (int8_t*)mem_ptr + (bpr + 1)*1;
-    filter_buffers[2] = (int8_t*)mem_ptr + (bpr + 1)*2;
-    filter_buffers[3] = (int8_t*)mem_ptr + (bpr + 1)*3;
-    filter_buffers[4] = (int8_t*)mem_ptr + (bpr + 1)*4;
-    uint8_t* out = mem_ptr + (bpr + 1)*5;
-    #endif
-
 
     SLP_MEMCPY(out + 4, "IDAT", 4);
     filter_buffers[0][0] = 0;
