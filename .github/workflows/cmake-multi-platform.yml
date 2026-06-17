@@ -61,6 +61,7 @@ jobs:
         run: >
           cmake -B build
           -DCMAKE_C_COMPILER=clang
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           -DCMAKE_BUILD_TYPE=Release
           -DBUILD_TEST=ON -DSLP_IMAGE_TRANSFORM=ON
           -S .
