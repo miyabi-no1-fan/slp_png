@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+#include <slp_image.h>
 #include <slp_png.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,57 +24,12 @@ limitations under the License.
 #include <string.h>
 #include <zlib.h>
 
-#ifdef __AVX2__
+#if defined(__i386__) || defined(__x86_64__)
 #include <immintrin.h>
 #endif
 
-#ifdef __SSE2__
-#include <emmintrin.h>
-#endif
-
-
-#ifndef SLP_MALLOC
-#define SLP_MALLOC(size) malloc(size)
-#endif
-
-#ifndef SLP_FREE
-#define SLP_FREE(ptr) free(ptr)
-#endif
-
-#ifndef SLP_MEMCPY
-#define SLP_MEMCPY(dest, source, size) memcpy(dest, source, size)
-#endif
-
-#ifndef SLP_MEMMOVE
-#define SLP_MEMMOVE(dest, source, size) memmove(dest, source, size)
-#endif
-
-#ifndef SLP_MEMSET
-#define SLP_MEMSET(s, c, n) memset(s, c, n)
-#endif
-
-#ifndef SLP_USE_ALIGN_ALLOC
-#define SLP_USE_ALIGN_ALLOC 1
-#endif
-
-#if SLP_USE_ALIGN_ALLOC
-#define SLP_ALIGNMENT 64
-#define SLP_ALIGN_SIZE(size) (((size) + SLP_ALIGNMENT - 1) & ~(SLP_ALIGNMENT - 1))
-#define SLP_ALIGNED_ALLOC(size) aligned_alloc(SLP_ALIGNMENT, SLP_ALIGN_SIZE(size))
-#endif
-
-
-#define __bswap_constant_32(x)                                 \
-  ((((x) & 0xff000000u) >> 24) | (((x) & 0x00ff0000u) >>  8) | \
-   (((x) & 0x0000ff00u) <<  8) | (((x) & 0x000000ffu) << 24))
-
-// return big edian in memory order
-#define big_edian_u32_in_mem(x, is_little_edian) ((is_little_edian) ? (__bswap_constant_32(x)) : (x))
-
-#define div_round_up(a, b) (((a) / (b)) + (((a) % (b)) != 0))
-
-// only use to write IHDR
-struct IHDR {
+// use to write IHDR
+typedef struct __attribute__((packed)) {
     uint32_t width;
     uint32_t height;
     uint8_t bit_depth;
@@ -81,61 +37,25 @@ struct IHDR {
     uint8_t compression_method;
     uint8_t filter_method;
     uint8_t interlace_method;
+}ihdr_t;
+
+// helper
+// functions
+static uint8_t slp_get_color_type(const uint8_t channels);
+static int slp_png_encode(slp_image_t* restrict image, FILE* restrict file);
+static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp);
+__m128i _mm_abs_epi16_sse2(__m128i v);
+
+// constants
+enum {
+    level = 6, // level of compression
+    CHUNK = 65536 // sizeof 1 IDAT chunk
 };
 
 
 
-
-
-
-
-// helper
-// functions
-
-static uint8_t slp_get_color_type(const uint8_t channels);
-
-static int slp_png_encode(struct slp_image* restrict image, FILE* restrict file);
-
-static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp);
-
-
-
-
-
-
-
-
-
-
-// constants
-static const uint8_t PNGsig[8] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
-static const uint8_t IHDRsig[4] = {'I', 'H', 'D', 'R'};
-static const uint8_t IDATsig[4] = {'I', 'D', 'A', 'T'};
-static const uint8_t IENDsig[12] = {0, 0, 0, 0, 'I', 'E', 'N', 'D', 0xAE, 0x42, 0x60, 0x82};
-static const int level = 6; // level of compression
-static const size_t CHUNK = 65536; // use for IDAT write
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-int slp_png_write(struct slp_image image, const char* path) {
-
-    static const uint16_t random_value_for_edian_test = 1;
-    const bool is_little_edian = *(uint8_t*)(&random_value_for_edian_test);
-
+int slp_png_write(slp_image_t image, const char* path) {
     if (image.height == 0 || image.width == 0 || image.channels == 0) return 2;
-
     switch (image.bit_depth) {
         case 1: break;
         case 2: break;
@@ -145,41 +65,37 @@ int slp_png_write(struct slp_image image, const char* path) {
         default: return 2;
     }
 
+    const uint16_t random_value_for_edian_test = 1;
+    const bool is_little_edian = *(uint8_t*)(&random_value_for_edian_test);
+    const uint64_t PNG_SIGNATURE = big_edian_u64_in_mem(0x89504E470D0A1A0Aull, is_little_edian);
+
     FILE *file = fopen(path, "wb");
     if (file == NULL) return 1;
 
-    struct IHDR header = {0};
-    
-    header.width = big_edian_u32_in_mem(image.width, is_little_edian);
-    header.height = big_edian_u32_in_mem(image.height, is_little_edian);
-    header.bit_depth = image.bit_depth;
-    header.color_type = slp_get_color_type(image.channels);
-    header.compression_method = 0;
-    header.filter_method = 0;
-    header.interlace_method = 0;
+    ihdr_t header = {
+        .width = big_edian_u32_in_mem(image.width, is_little_edian),
+        .height = big_edian_u32_in_mem(image.height, is_little_edian),
+        .bit_depth = image.bit_depth,
+        .color_type = slp_get_color_type(image.channels),
+        .compression_method = 0,
+        .filter_method = 0,
+        .interlace_method = 0
+    };
 
     if (header.color_type == 0xFF) {
         fclose(file);
         return 2;
     }
 
-    uint32_t crc_ = crc32(0, IHDRsig, 4);
-    crc_ = crc32(crc_, (uint8_t*)(&header), 13);
-    crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
+    uint32_t crc = crc32(0xA8A1AE0A, (unsigned char*)(&header), 13);
+    crc = big_edian_u32_in_mem(crc, is_little_edian);
+    const uint32_t data_len = big_edian_u32_in_mem(13, is_little_edian);
 
-    uint32_t data_len = big_edian_u32_in_mem(13, is_little_edian);
-
-    if (fwrite(PNGsig                    , 1, 8, file) != 8 ||
-        fwrite(&data_len                 , 1, 4, file) != 4 ||
-        fwrite(IHDRsig                   , 1, 4, file) != 4 ||
-        fwrite(&header.width             , 1, 4, file) != 4 ||
-        fwrite(&header.height            , 1, 4, file) != 4 ||
-        fwrite(&header.bit_depth         , 1, 1, file) != 1 ||
-        fwrite(&header.color_type        , 1, 1, file) != 1 ||
-        fwrite(&header.compression_method, 1, 1, file) != 1 ||
-        fwrite(&header.filter_method     , 1, 1, file) != 1 ||
-        fwrite(&header.interlace_method  , 1, 1, file) != 1 ||
-        fwrite(&crc_                     , 1, 4, file) != 4)
+    if (fwrite(&PNG_SIGNATURE, 1,  8, file) != 8  ||
+        fwrite(&data_len     , 1,  4, file) != 4  ||
+        fwrite("IHDR"        , 1,  4, file) != 4  ||
+        fwrite(&header       , 1, 13, file) != 13 ||
+        fwrite(&crc          , 1,  4, file) != 4)
     {
         fclose(file);
         return 1;
@@ -197,20 +113,6 @@ int slp_png_write(struct slp_image image, const char* path) {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 static inline uint8_t slp_get_color_type(const uint8_t channels) {
     switch (channels) {
         case 1: return 0;
@@ -221,21 +123,11 @@ static inline uint8_t slp_get_color_type(const uint8_t channels) {
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-static inline int slp_png_encode(struct slp_image* restrict image, FILE* restrict file) {
+static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict file) {
     // initialize variables
     int return_code = 0;
 
-    static const uint16_t random_value_for_edian_test = 1;
+    const uint16_t random_value_for_edian_test = 1;
     const bool is_little_edian = *(uint8_t*)(&random_value_for_edian_test);
 
     const size_t width = image->width;
@@ -280,7 +172,7 @@ static inline int slp_png_encode(struct slp_image* restrict image, FILE* restric
     #endif
 
 
-    SLP_MEMCPY(out + 4, IDATsig, 4);
+    SLP_MEMCPY(out + 4, "IDAT", 4);
     filter_buffers[0][0] = 0;
     filter_buffers[1][0] = 1;
     filter_buffers[2][0] = 2;
@@ -289,23 +181,7 @@ static inline int slp_png_encode(struct slp_image* restrict image, FILE* restric
     // end initialize variables
 
 
-
-
-
-
-
-
     // CHUNK BEFORE IDAT STAY HERE
-
-
-
-
-
-
-
-
-
-
 
 
     // writting IDAT
@@ -399,53 +275,23 @@ static inline int slp_png_encode(struct slp_image* restrict image, FILE* restric
     // finish writting IDAT
 
 
-
-
-
-
-
-
-
-
-
-
-
-
     // CHUNK AFTER IDAT STAY HERE
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
     // writting IEND
+    const uint8_t IENDsig[12] = {0, 0, 0, 0, 'I', 'E', 'N', 'D', 0xAE, 0x42, 0x60, 0x82};
     if (fwrite(IENDsig, 1, 12, file) != 12) {
         return_code = 1;
         goto cleanup;
     }
     // finish IEND
+
 cleanup:
     SLP_FREE(mem_ptr);
     return return_code;
 }
 
-
-
-
-
-
-
-
-static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp) {
+static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp) {
     if (i == 0)
     {
         uint8_t *raw = image_buffer;
@@ -598,43 +444,40 @@ static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* res
                 const __m128i vb = _mm_loadu_si128((const __m128i*)(raw + j - bpr));
                 const __m128i vc = _mm_loadu_si128((const __m128i*)(raw + j - bpr - bpp));
 
-
                 const __m128i va_lo = _mm_unpacklo_epi8(va, zero);
                 const __m128i va_hi = _mm_unpackhi_epi8(va, zero);
-
                 const __m128i vb_lo = _mm_unpacklo_epi8(vb, zero);
                 const __m128i vb_hi = _mm_unpackhi_epi8(vb, zero);
-
                 const __m128i vc_lo = _mm_unpacklo_epi8(vc, zero);
                 const __m128i vc_hi = _mm_unpackhi_epi8(vc, zero);
 
-
                 const __m128i p_lo = _mm_add_epi16(va_lo, _mm_sub_epi16(vb_lo, vc_lo));
                 const __m128i p_hi = _mm_add_epi16(va_hi, _mm_sub_epi16(vb_hi, vc_hi));
-
+                #ifdef __SSSE3__
                 const __m128i pa_lo = _mm_abs_epi16(_mm_sub_epi16(p_lo, va_lo));
                 const __m128i pa_hi = _mm_abs_epi16(_mm_sub_epi16(p_hi, va_hi));
-
                 const __m128i pb_lo = _mm_abs_epi16(_mm_sub_epi16(p_lo, vb_lo));
                 const __m128i pb_hi = _mm_abs_epi16(_mm_sub_epi16(p_hi, vb_hi));
-
                 const __m128i pc_lo = _mm_abs_epi16(_mm_sub_epi16(p_lo, vc_lo));
                 const __m128i pc_hi = _mm_abs_epi16(_mm_sub_epi16(p_hi, vc_hi));
-
+                #else
+                const __m128i pa_lo = _mm_abs_epi16_sse2(_mm_sub_epi16(p_lo, va_lo));
+                const __m128i pa_hi = _mm_abs_epi16_sse2(_mm_sub_epi16(p_hi, va_hi));
+                const __m128i pb_lo = _mm_abs_epi16_sse2(_mm_sub_epi16(p_lo, vb_lo));
+                const __m128i pb_hi = _mm_abs_epi16_sse2(_mm_sub_epi16(p_hi, vb_hi));
+                const __m128i pc_lo = _mm_abs_epi16_sse2(_mm_sub_epi16(p_lo, vc_lo));
+                const __m128i pc_hi = _mm_abs_epi16_sse2(_mm_sub_epi16(p_hi, vc_hi));
+                #endif
 
                 const __m128i not_pa_le_pb_lo = _mm_cmpgt_epi16(pa_lo, pb_lo);
                 const __m128i not_pa_le_pb_hi = _mm_cmpgt_epi16(pa_hi, pb_hi);
-
                 const __m128i not_pa_le_pc_lo = _mm_cmpgt_epi16(pa_lo, pc_lo);
                 const __m128i not_pa_le_pc_hi = _mm_cmpgt_epi16(pa_hi, pc_hi);
-
                 const __m128i not_cond1_lo = _mm_or_si128(not_pa_le_pb_lo, not_pa_le_pc_lo);
                 const __m128i not_cond1_hi = _mm_or_si128(not_pa_le_pb_hi, not_pa_le_pc_hi);
-
                 const __m128i not_cond2_lo = _mm_cmpgt_epi16(pb_lo, pc_lo);
                 const __m128i not_cond2_hi = _mm_cmpgt_epi16(pb_hi, pc_hi);
-
-                #ifdef __SSE4_2__
+                #ifdef __SSE4_1__
                 __m128i d_lo = _mm_blendv_epi8(vb_lo, vc_lo, not_cond2_lo);
                 __m128i d_hi = _mm_blendv_epi8(vb_hi, vc_hi, not_cond2_hi);
                 d_lo = _mm_blendv_epi8(va_lo, d_lo, not_cond1_lo);
@@ -645,27 +488,22 @@ static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* res
                 d_lo = _mm_or_si128(_mm_andnot_si128(not_cond1_lo, va_lo), _mm_and_si128(not_cond1_lo, d_lo));
                 d_hi = _mm_or_si128(_mm_andnot_si128(not_cond1_hi, va_hi), _mm_and_si128(not_cond1_hi, d_hi));
                 #endif
-
                 const __m128i d = _mm_packus_epi16(d_lo, d_hi);
-
 
                 const __m128i tavg_lo = _mm_srli_epi16(_mm_add_epi16(va_lo, vb_lo), 1);
                 const __m128i tavg_hi = _mm_srli_epi16(_mm_add_epi16(va_hi, vb_hi), 1);
                 const __m128i tavg = _mm_packus_epi16(tavg_lo, tavg_hi);
-
 
                 const __m128i vsub = _mm_sub_epi8(r, va);
                 const __m128i vup = _mm_sub_epi8(r, vb);
                 const __m128i vavg = _mm_sub_epi8(r, tavg);
                 const __m128i vpaeth = _mm_sub_epi8(r, d);
 
-
                 noneSum = _mm_add_epi64(noneSum, _mm_sad_epu8(r, zero));
                 subSum = _mm_add_epi64(subSum, _mm_sad_epu8(r, va));
                 upSum = _mm_add_epi64(upSum, _mm_sad_epu8(r, vb));
                 avgSum = _mm_add_epi64(avgSum, _mm_sad_epu8(r, tavg));
                 paethSum = _mm_add_epi64(paethSum, _mm_sad_epu8(r, d));
-
 
                 _mm_storeu_si128((__m128i*)(filter_buffers[0] + j + 1), r);
                 _mm_storeu_si128((__m128i*)(filter_buffers[1] + j + 1), vsub);
@@ -709,7 +547,7 @@ static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* res
             filter_buffers[0][j+1] = raw[j];
             filter_buffers[1][j+1] = raw[j] - raw[j - bpp];
             filter_buffers[2][j+1] = raw[j] - raw[j - bpr];
-            filter_buffers[3][j+1] = raw[j] - ((int)(raw[j - bpp] + raw[j - bpr]) / 2);
+            filter_buffers[3][j+1] = raw[j] - ((raw[j - bpp] + raw[j - bpr]) / 2);
             filter_buffers[4][j+1] = raw[j] - d;
 
             filter_scores[0] += abs(filter_buffers[0][j+1]);
@@ -721,5 +559,8 @@ static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* res
     }
 }
 
-
-
+__m128i _mm_abs_epi16_sse2(__m128i v) {
+    __m128i mask = _mm_srai_epi16(v, 15); // srai will shift in 1 or 0 depends on the msbit
+    v = _mm_xor_si128(v, mask); // do bit flips if signed
+    return _mm_sub_epi16(v, mask); // this is add 1 if signed, for signed number all1 = -1 so --1 = +1
+}
