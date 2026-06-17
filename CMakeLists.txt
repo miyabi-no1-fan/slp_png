@@ -5,11 +5,6 @@ project("slp" C)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-if(APPLE)
-    include_directories("/opt/homebrew/include")
-    link_directories("/opt/homebrew/lib")
-endif()
-
 option(ENABLE_OPT "Enable architecture-specific optimizations" ON)
 option(SLP_PNG_SHARED "Build shared lib" ON)
 option(SLP_PNG_STATIC "Build static lib" ON)
