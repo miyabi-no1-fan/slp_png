@@ -77,7 +77,7 @@ jobs:
           export CFLAGS="-I/opt/homebrew/opt/llvm/include" &&
           clang-tidy -p build
           --checks='-*,clang-analyzer-*, -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling, -clang-diagnostic-unknown-warning-option'
-          -extra-arg='-Wno-return-type -Wno-unknown-warning-option'
+          -extra-arg='-Wno-unknown-warning-option'
           --warnings-as-errors='*'
           src/slp_image_transform/slp_image_transform.c
           src/slp_png_read/slp_png_read_from_file.c
