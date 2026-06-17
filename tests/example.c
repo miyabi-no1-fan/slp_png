@@ -1,9 +1,7 @@
 #include <slp_png.h>
-
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-#include <stdlib.h>
 
 // test images name:
 // rover
@@ -60,6 +58,6 @@ int main(int argc, char* argv[]) {
 
     printf("total time: %.6fs\n", read_time + write_time);
 
-    slp_image_delete(&a);
+    slp_image_destroy(&a);
     return 0;
 }

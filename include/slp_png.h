@@ -5,7 +5,7 @@ slp_image_t slp_png_read(const char* path);
 
 
 // only call free(image->buffer); and set image to 0
-void slp_image_delete(slp_image_t* image);
+void slp_image_destroy(slp_image_t* image);
 
 
 /*
