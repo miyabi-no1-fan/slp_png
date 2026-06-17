@@ -35,7 +35,10 @@ if (SLP_PNG_SHARED)
     target_link_libraries("slp_png" PRIVATE ZLIB::ZLIB)
 
     if (ENABLE_OPT)
-        target_compile_options("slp_png" PRIVATE -O3 -ffast-math -march=native -mtune=native -DNDEBUG -flto=auto)
+        target_compile_options("slp_png" PRIVATE -O3 -ffast-math -march=native -mtune=native -DNDEBUG)
+        if (!WIN32)
+            target_compile_options("slp_png" PRIVATE -flto=auto)
+        endif()
     endif()
 
     target_include_directories("slp_png" PUBLIC include)
@@ -76,6 +79,9 @@ if (SLP_PNG_STATIC)
 
     if (ENABLE_OPT)
         target_compile_options("slp_png-static" PRIVATE -O3 -ffast-math -march=native -mtune=native -DNDEBUG)
+        if (!WIN32)
+            target_compile_options("slp_png-static" PRIVATE -flto=auto)
+        endif()
     endif()
 
     target_include_directories("slp_png-static" PUBLIC include)
