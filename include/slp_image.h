@@ -59,6 +59,8 @@ typedef struct slp_image_t {
 #define SLP_ALIGNMENT 64
 #define SLP_ALIGN_SIZE(size) (((size) + SLP_ALIGNMENT - 1) & ~(SLP_ALIGNMENT - 1))
 #define SLP_ALIGNED_ALLOC(size) aligned_alloc(SLP_ALIGNMENT, SLP_ALIGN_SIZE(size))
+#else
+#define SLP_ALIGNED_ALLOC(size) malloc(size)
 #endif
 
 #define bswap_u32(x) ((((x) & 0xFF000000u) >> 24) | (((x) & 0x00FF0000u) >>  8) | \
