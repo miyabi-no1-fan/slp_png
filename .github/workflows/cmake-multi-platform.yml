@@ -122,10 +122,9 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DBUILD_EXAMPLE=ON -DSLP_IMAGE_TRANSFORM=ON
           -DCMAKE_PREFIX_PATH=/ucrt64
-          -DENABLE_OPT=OFF
           -S .
           && cmake --build build --config Release
 
       - name: Run example
         shell: msys2 {0}
-        run: build/example && build/example-static
+        run: build/example && build/example-static 
