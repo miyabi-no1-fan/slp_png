@@ -16,9 +16,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: run docker to run test on archlinux
+      - name: Install deps
+        run: sudo apt install build-essential zlib1g-dev gcc clang valgrind llvm cmake make
+
+      - name: Build debug
+        run: >
+          cmake -B build
+          -DCMAKE_C_COMPILER=gcc
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_C_FLAGS="-mno-avx512f -Og -g -fno-inline"
+          -DENABLE_OPT=OFF
+          -DBUILD_TEST=ON -DSLP_IMAGE_TRANSFORM=ON
+          -S .
+          && cmake --build build --config Debug
+
+      - name: Valgrind test
+        shell: bash
         run: |
-          docker build --no-cache -t slp_png-linux _scripts/archlinux
+          valgrind --leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=all --track-origins=yes --error-exitcode=1 build/test --no-thread_test
+      
+      - name: Build Release
+        run: >
+          cmake -B build
+          -DCMAKE_C_COMPILER=gcc
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_EXAMPLE=ON -DSLP_IMAGE_TRANSFORM=ON
+          -S .
+          && cmake --build build --config Release
+
+      - name: Run example
+        run: build/example && build/example-static
 
   test_macOS:
     runs-on: macos-latest
@@ -27,13 +54,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       
-      - name: Build and test
+      - name: Install deps
+        run: brew install zlib-ng-compat llvm
+
+      - name: Build Release
+        shell: bash
+        run: >
+          export CMAKE_PREFIX_PATH="/opt/homebrew/opt/llvm" &&
+          cmake -B build
+          -DCMAKE_C_COMPILER=clang
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_TEST=ON -DSLP_IMAGE_TRANSFORM=ON
+          -S .
+          && cmake --build build --config Release
+
+      - name: clang-analyzer test
+        shell: bash
+        run: >
+          export PATH="/opt/homebrew/opt/llvm/bin:$PATH" &&
+          export LDFLAGS="-L/opt/homebrew/opt/llvm/lib" &&
+          export CFLAGS="-I/opt/homebrew/opt/llvm/include" &&
+          clang-tidy -p build
+          --checks='-*,clang-analyzer-*, -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling, -clang-diagnostic-unknown-warning-option'
+          -extra-arg='-Wno-unknown-warning-option'
+          --warnings-as-errors='*'
+          src/slp_image_transform/slp_image_transform.c
+          src/slp_png_read/slp_png_read_from_file.c
+          src/slp_png_write/slp_png_write_to_file.c
+
+      - name: Run test
         shell: bash
         run: |
           set -e
-          brew install zlib-ng libspng llvm
-          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S .
-          cmake --build build --config Release
           build/test
           shopt -s nullglob
           set +e
@@ -44,5 +97,3 @@ jobs:
               exit 1
             fi
           done
-          shopt -u nullglob
-
