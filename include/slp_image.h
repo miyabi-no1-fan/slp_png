@@ -60,10 +60,17 @@ typedef struct slp_image_t {
 #if SLP_USE_ALIGN_ALLOC
 #define SLP_ALIGNMENT 64
 #define SLP_ALIGN_SIZE(size) (((size) + SLP_ALIGNMENT - 1) & ~(SLP_ALIGNMENT - 1))
+#ifdef _WIN32
+#define SLP_ALIGNED_ALLOC(size) _aligned_malloc(SLP_ALIGN_SIZE(size), SLP_ALIGNMENT)
+#define SLP_ALIGNED_FREE(ptr) _aligned_free(ptr)
+#else
 #define SLP_ALIGNED_ALLOC(size) aligned_alloc(SLP_ALIGNMENT, SLP_ALIGN_SIZE(size))
+#define SLP_ALIGNED_FREE(ptr) free(ptr)
+#endif
 #else
 #define SLP_ALIGN_SIZE(size) (size)
 #define SLP_ALIGNED_ALLOC(size) malloc(size)
+#define SLP_ALIGNED_FREE(ptr) free(ptr)
 #endif
 
 #define bswap_u32(x) ((((x) & 0xFF000000u) >> 24) | (((x) & 0x00FF0000u) >>  8) | \
