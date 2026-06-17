@@ -112,7 +112,7 @@ jobs:
 
       - name: Install deps
         shell: msys2 {0}
-        run: pacman -Syyuu --needed --overwrite "*" --noconfirm gcc zlib-ng-compat make cmake base base-devel
+        run: pacman -Syuu --needed --overwrite "*" --noconfirm gcc make cmake base base-devel mingw-w64-ucrt-x86_64-zlib-ng-compat
 
       - name: Build Release
         shell: msys2 {0}
