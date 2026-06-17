@@ -105,19 +105,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       
-      - name: Set up MSYS2
+      - name: Set up MSYS2 and Install deps
         uses: msys2/setup-msys2@v2
+        update: true
+        path_type: inherit
         with:
           msystem: UCRT64
-
-      - name: Install deps
-        shell: msys2 {0}
-        run: pacman -Syuu --noconfirm gcc make cmake base base-devel zlib
+          install: >
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-make
+            mingw-w64-ucrt-x86_64-zlib
 
       - name: Build Release
         shell: msys2 {0}
         run: >
-          cmake -B build
+          cmake -B build -G "Ninja"
           -DCMAKE_C_COMPILER=gcc
           -DCMAKE_BUILD_TYPE=Release
           -DBUILD_EXAMPLE=ON -DSLP_IMAGE_TRANSFORM=ON
