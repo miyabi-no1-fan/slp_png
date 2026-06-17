@@ -97,3 +97,33 @@ jobs:
               exit 1
             fi
           done
+
+  test_windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+
+      - name: Install deps
+        shell: msys2 {0}
+        run: pacman -Syuu --needed --overwrite "*" --noconfirm gcc zlib-ng-compat make cmake base base-devel
+
+      - name: Build Release
+        shell: msys2 {0}
+        run: >
+          cmake -B build
+          -DCMAKE_C_COMPILER=gcc
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_EXAMPLE=ON -DSLP_IMAGE_TRANSFORM=ON
+          -S .
+          && cmake --build build --config Release
+
+      - name: Run example
+        shell: msys2 {0}
+        run: build/example && build/example-static
