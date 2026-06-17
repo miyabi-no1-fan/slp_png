@@ -48,7 +48,7 @@ typedef struct slp_image_t {
 #endif
 
 #ifndef SLP_USE_ALIGN_ALLOC
-#if defined(__unix__) || defined(__APPLE__)
+#if defined(__unix__) || defined(__APPLE__) || defined(_WIN32)
 #define SLP_USE_ALIGN_ALLOC 1
 #else
 #define SLP_USE_ALIGN_ALLOC 0
