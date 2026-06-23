@@ -124,7 +124,7 @@ slp_image_t slp_png_read(const char* path) {
         return slp_png_stream;
     }
 
-    const size_t image_size = slp_png_stream.image_size = div_round_up((size_t)height * width * channels * bit_depth, 8);
+    const size_t image_size = slp_png_stream.image_size = height * div_round_up((size_t)width * channels * bit_depth, 8);
     const size_t allocated_size = slp_png_stream.allocated_size = SLP_ALIGN_SIZE(image_size);
 
     slp_png_stream.buffer = (uint8_t*)SLP_ALIGNED_ALLOC(allocated_size);
