@@ -1,4 +1,4 @@
-# PNG codec library written in C
+# Simple PNG codec library written in C
 
 ## Support platforms
 - Linux
@@ -14,7 +14,7 @@ cmake -B build
 cmake --build build
 ```
 - If you want to run test, see CMakeLists.txt option
-- Or you can run this following line:
+- Or you could run this following line:
 ```bash
 gcc tests/example.c -Iinclude -Lbuild -lslp_png -Wl,-rpath,build -o build/example
 build/example
@@ -32,16 +32,6 @@ build/example
         - src/slp_png_write/*
     - dependencies:
         - zlib
-
-- slp_image_transform: (still experimental)
-    - include:
-        - include/slp_image.h
-        - include/slp_image_transform.h
-    - src:
-        - src/slp_image_transform/*
-    - dependencies:
-        - pthreads
-        - math
 
 
 ## Basic usage
@@ -95,6 +85,7 @@ int main(void)
         - Heuristic filtering is extremely cheap, if good filter is generated, deflate runtime will reduce significantly
 
 - For both slp_png_read and slp_png_write:
+    - Low memory spikes
     - SIMD optimizations (no AVX512)
     - Thread-safe: this function can call by any thread, but it does not automatically handle fileIO conflicts
     - The buffer in slp_image_t is allocated via aligned_alloc
@@ -115,28 +106,7 @@ cmake -S . -B build -DBUILD_EXAMPLE=ON
 cmake --build build
 build/example
 ```
-- For spng, I use a modified one of https://github.com/randy408/libspng/blob/master/examples/example.c for performance test:
-```C
-// in main:
-// for read time, the clock start here
-    start = clock();
-    png = fopen(path, "rb");
-// and end here
-    do
-    {
-        ret = spng_get_row_info(ctx, &row_info);
-        if(ret) break;
-
-        ret = spng_decode_row(ctx, image + row_info.row_num * image_width, image_width);
-    }
-    while(!ret);
-
-    end = clock();
-
-// in encode_image:
-// the clock is like this
-start = clock();ret = spng_encode_image(ctx, image, length, fmt, SPNG_ENCODE_FINALIZE);end = clock();
-```
+- For spng, I use https://github.com/randy408/libspng/blob/master/examples/example.c for the test
 
 - Results:
 - Read time:
@@ -154,7 +124,3 @@ start = clock();ret = spng_encode_image(ctx, image, length, fmt, SPNG_ENCODE_FIN
 - Peak RAM usage:
     - libspng: 33 MiB
     - slp_png: 33 MiB
-
-- slp_png read time is usually the same as spng, while slp_png write time is a little bit faster
-- The differences in performance is small
-- Though slp_png got simplier API, just a single slp_png_read/write call that have an equivalent performance is not bad right?
