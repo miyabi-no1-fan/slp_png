@@ -155,7 +155,7 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
         return_code = -1;
         goto cleanup;
     }
-    int8_t* filter_buffers[5];
+    int8_t* filter_buffers[5]; // trying to do align alloc but this doesn't help much
     filter_buffers[0] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*0;
     filter_buffers[1] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*1;
     filter_buffers[2] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*2;
@@ -180,8 +180,10 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
     strm.zalloc = Z_NULL;
     strm.zfree = Z_NULL;
     strm.opaque = Z_NULL;
-    int ret = deflateInit2(&strm, level, Z_DEFLATED, 15, 8, Z_FILTERED);
-    if (ret != Z_OK) {
+    int ret = deflateInit2(&strm, level, Z_DEFLATED, 15, 9, Z_FILTERED);
+    if (ret != Z_OK
+        || deflateTune(&strm, 8, 16, 64, 128) != Z_OK)
+    {
         return_code = 3;
         goto cleanup;
     }
