@@ -146,7 +146,7 @@ jobs:
         run: build/example && build/example-static
 
       - name: Run read_test
-        run: build/read_test && build/read_test-static
+        run: build/read_test.exe && build/read_test-static.exe
       
       - name: Run write test
-        run: build/test --no-thread_test && build/test-static --no-thread_test
+        run: build/test.exe --no-thread_test && build/test-static.exe --no-thread_test
