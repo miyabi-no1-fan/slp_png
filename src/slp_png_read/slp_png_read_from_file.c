@@ -30,12 +30,14 @@ limitations under the License.
 
 // constants
 #define CHUNK 65536
-#define CHUNK_TYPE(v) (v[0] << 24 | v[1] << 16 | v[2] << 8 | v[3])
-#define IHDR CHUNK_TYPE("IHDR")
-#define IDAT CHUNK_TYPE("IDAT")
-#define IEND CHUNK_TYPE("IEND")
-#define PLTE CHUNK_TYPE("PLTE")
-#define tRNS CHUNK_TYPE("tRNS")
+enum {
+    // needed for using switch case
+    IHDR = 'I' << 24 | 'H' << 16 | 'D' << 8 | 'R',
+    IDAT = 'I' << 24 | 'D' << 16 | 'A' << 8 | 'T',
+    IEND = 'I' << 24 | 'E' << 16 | 'N' << 8 | 'D',
+    PLTE = 'P' << 24 | 'L' << 16 | 'T' << 8 | 'E',
+    tRNS = 't' << 24 | 'R' << 16 | 'N' << 8 | 'S'
+};
 
 // helper
 // functions
