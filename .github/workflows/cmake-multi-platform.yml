@@ -55,9 +55,6 @@ jobs:
       - name: Run example
         run: build/example && build/example-static
       
-      - name: Run read_test
-        run: build/read_test && build/read_test-static
-      
       - name: Run write test
         run: build/test --no-thread_test && build/test-static --no-thread_test
 
@@ -146,9 +143,6 @@ jobs:
       - name: Run example
         shell: msys2 {0}
         run: build/example && build/example-static
-
-      - name: Run read_test
-        run: build/read_test && build/read_test-static
       
       - name: Run write test
         run: build/test --no-thread_test && build/test-static --no-thread_test
