@@ -58,7 +58,6 @@ int rw_test(const char* path, const char* path_out) {
     if (ret != 0) {printf("\nwrite failed: %d\n", ret);free(a.pixels);return 1;}
 
     // validate new saved image
-    #define DEBUG
     slp_image_t b = slp_png_read(path_out);
     if (b.pixels == NULL) {printf("\nread newly saved .png failed: %d\n", b.bit_depth);return 1;}
     const size_t size = (size_t)a.width * a.height * a.channels * (1 + (a.bit_depth == 16));
