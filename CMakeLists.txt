@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.19)
 
-project("slp" C)
+project("slp_png" C)
 
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -50,8 +50,19 @@ if (SLP_PNG_SHARED)
 
     if (BUILD_TEST)
         add_executable("test" tests/test.c)
+        add_executable("read_test" tests/read_test.c)
         find_package(Threads REQUIRED)
         target_link_libraries("test" PRIVATE "slp_png" Threads::Threads)
+
+        set(BUILD_EXAMPLES OFF)
+        include(FetchContent)
+            FetchContent_Declare(
+            libspng
+            GIT_REPOSITORY https://github.com/randy408/libspng.git
+        )
+        FetchContent_MakeAvailable(libspng)
+        unset(BUILD_EXAMPLES)
+        target_link_libraries("read_test" PRIVATE "slp_png" Threads::Threads spng)
     endif()
 endif()
 
@@ -93,7 +104,18 @@ if (SLP_PNG_STATIC)
 
     if (BUILD_TEST)
         add_executable("test-static" tests/test.c)
+        add_executable("read_test-static" tests/read_test.c)
         find_package(Threads REQUIRED)
         target_link_libraries("test-static" PRIVATE "slp_png-static" Threads::Threads)
+
+        set(BUILD_EXAMPLES OFF)
+        include(FetchContent)
+            FetchContent_Declare(
+            libspng
+            GIT_REPOSITORY https://github.com/randy408/libspng.git
+        )
+        FetchContent_MakeAvailable(libspng)
+        unset(BUILD_EXAMPLES)
+        target_link_libraries("read_test-static" PRIVATE "slp_png-static" Threads::Threads spng)
     endif()
 endif()
