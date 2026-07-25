@@ -1,9 +1,9 @@
+#include <pthread.h>
 #include <slp_png.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
-#include <pthread.h>
 #include <string.h>
 
 // test images name:
@@ -37,8 +37,10 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    if (thread_test) thread_safety_test(path);
-    else rw_test(path, path_out);
+    if (thread_test)
+        thread_safety_test(path);
+    else
+        rw_test(path, path_out);
 
     return 0;
 }
@@ -50,21 +52,21 @@ int main(int argc, char* argv[]) {
 
 int rw_test(const char* path, const char* path_out) {
     slp_image_t a = slp_png_read(path);
-    if (a.buffer == NULL) {printf("\nread failed: %d\n", a.bit_depth);return 1;}
+    if (a.pixels == NULL) {printf("\nread failed: %d\n", a.bit_depth);return 1;}
 
     int ret = slp_png_write(a, path_out);
-    if (ret != 0) {printf("\nwrite failed: %d\n", ret);free(a.buffer);return 1;}
-
+    if (ret != 0) {printf("\nwrite failed: %d\n", ret);free(a.pixels);return 1;}
 
     // validate new saved image
     #define DEBUG
     slp_image_t b = slp_png_read(path_out);
-    if (b.buffer == NULL) {printf("\nread newly saved .png failed: %d\n", b.bit_depth);return 1;}
+    if (b.pixels == NULL) {printf("\nread newly saved .png failed: %d\n", b.bit_depth);return 1;}
     const size_t size = (size_t)a.width * a.height * a.channels * (1 + (a.bit_depth == 16));
     for (size_t i = 0; i < size; i++) {
-        if (a.buffer[i] != b.buffer[i]) {
+        if (a.pixels[i] != b.pixels[i]) {
             printf("slp_png_write output error\n");
-            free(a.buffer);free(b.buffer);
+            free(a.pixels);
+            free(b.pixels);
             return 1;
         }
     }
@@ -87,17 +89,13 @@ void* thread_safety_test_task(void* arg) {
     enum {spam = 1};
 
     for (uint16_t i = 0; i < spam; i++) {
-
         struct thread_safety_test_arg data = *(struct thread_safety_test_arg*)arg;
         slp_image_t a = slp_png_read(data.in_path);
-        if (a.buffer == NULL) {
+        if (a.pixels == NULL) {
             abort();
         }
 
-
         // put more function here for thread safety check if needed
-
-
 
         int ret = slp_png_write(a, data.out_path);
         if (ret != 0) {
@@ -106,18 +104,18 @@ void* thread_safety_test_task(void* arg) {
 
         // validate new saved image
         slp_image_t b = slp_png_read(data.out_path);
-        if (b.buffer == NULL) {
+        if (b.pixels == NULL) {
             abort();
         }
         const size_t size = (size_t)a.width * a.height * a.channels * (1 + (a.bit_depth == 16));
         for (size_t i = 0; i < size; i++) {
-            if (a.buffer[i] != b.buffer[i]) {
+            if (a.pixels[i] != b.pixels[i]) {
                 abort();
             }
         }
 
-        free(a.buffer);
-        free(b.buffer);
+        free(a.pixels);
+        free(b.pixels);
     }
 
     return NULL;
@@ -143,12 +141,15 @@ int thread_safety_test(const char *path) {
         thread_arg[i].status = thread_status + i;
 
         if (pthread_create(threads + i, NULL, thread_safety_test_task, thread_arg + i) != 0) {
-            for (int j = 0; j <= i; j++) if (pthread_join(threads[j], NULL) != 0) abort();
+            for (int j = 0; j <= i; j++)
+                if (pthread_join(threads[j], NULL) != 0) abort();
             return -1;
         }
     }
-    for (uint16_t i = 0; i < thread_count; i++) if (pthread_join(threads[i], NULL) != 0) abort();
-    for (uint16_t i = 0; i < thread_count; i++) if (!thread_arg[i].status) return 1;
+    for (uint16_t i = 0; i < thread_count; i++)
+        if (pthread_join(threads[i], NULL) != 0) abort();
+    for (uint16_t i = 0; i < thread_count; i++)
+        if (!thread_arg[i].status) return 1;
 
     return 0;
 }

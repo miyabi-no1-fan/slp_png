@@ -1,6 +1,6 @@
 #pragma once
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -8,7 +8,7 @@
 #define SLP_IMAGE_H
 
 typedef struct slp_image_t {
-    uint8_t* buffer;
+    uint8_t* pixels;
     uint32_t height;
     uint32_t width;
     uint32_t channels;
@@ -23,7 +23,7 @@ typedef struct slp_image_t {
             case 2:   invalid file format ( file does not follow the PNG specification or Interlaced 1 )
             case 3:   inflate failure ( zlib inflate failure )
     */
-}slp_image_t;
+} slp_image_t;
 
 #ifndef SLP_MALLOC
 #define SLP_MALLOC(size) malloc(size)
@@ -73,18 +73,18 @@ typedef struct slp_image_t {
 #define SLP_ALIGNED_FREE(ptr) free(ptr)
 #endif
 
-#define bswap_u32(x) ((((x) & 0xFF000000u) >> 24) | (((x) & 0x00FF0000u) >>  8) | \
-                      (((x) & 0x0000FF00u) <<  8) | (((x) & 0x000000FFu) << 24))
+#define bswap_u32(x) ((((x) & 0xFF000000u) >> 24) | (((x) & 0x00FF0000u) >> 8) | \
+                      (((x) & 0x0000FF00u) << 8) | (((x) & 0x000000FFu) << 24))
 #define bswap_u64(x) ((((x) & 0xFF00000000000000ull) >> 56) | (((x) & 0x00FF000000000000ull) >> 40) | \
-                      (((x) & 0x0000FF0000000000ull) >> 24) | (((x) & 0x000000FF00000000ull) >>  8) | \
-                      (((x) & 0x00000000FF000000ull) <<  8) | (((x) & 0x0000000000FF0000ull) << 24) | \
+                      (((x) & 0x0000FF0000000000ull) >> 24) | (((x) & 0x000000FF00000000ull) >> 8) |  \
+                      (((x) & 0x00000000FF000000ull) << 8) | (((x) & 0x0000000000FF0000ull) << 24) |  \
                       (((x) & 0x000000000000FF00ull) << 40) | (((x) & 0x00000000000000FFull) << 56))
-#define big_edian_u32_in_mem(x, is_little_edian) ((is_little_edian) ? (bswap_u32(x)) : (x)) // return big edian in memory order
+#define big_edian_u32_in_mem(x, is_little_edian) ((is_little_edian) ? (bswap_u32(x)) : (x))  // return big edian in memory order
 #define big_edian_u64_in_mem(x, is_little_edian) ((is_little_edian) ? (bswap_u64(x)) : (x))
-#define big_edian_u32(x) (((uint32_t)((x)[0]) << 24) | ((uint32_t)((x)[1]) << 16) | ((uint32_t)((x)[2]) <<  8) | ((uint32_t)((x)[3]) <<  0)) // read x as big edian
+#define big_edian_u32(x) (((uint32_t)((x)[0]) << 24) | ((uint32_t)((x)[1]) << 16) | ((uint32_t)((x)[2]) << 8) | ((uint32_t)((x)[3]) << 0))  // read x as big edian
 #define big_edian_u64(x) (((uint64_t)((x)[0]) << 56) | ((uint64_t)((x)[1]) << 48) | ((uint64_t)((x)[2]) << 40) | ((uint64_t)((x)[3]) << 32) | \
-                          ((uint64_t)((x)[4]) << 24) | ((uint64_t)((x)[5]) << 16) | ((uint64_t)((x)[6]) <<  8) | ((uint64_t)((x)[7]) <<  0))
+                          ((uint64_t)((x)[4]) << 24) | ((uint64_t)((x)[5]) << 16) | ((uint64_t)((x)[6]) << 8) | ((uint64_t)((x)[7]) << 0))
 
-#define div_round_up(a, b) ((a)/(b) + ((a)%(b) != 0)) // == ceil(a / b) where a and b are interger
+#define div_round_up(a, b) ((a) / (b) + ((a) % (b) != 0))  // == ceil(a / b) where a and b are interger
 
 #endif

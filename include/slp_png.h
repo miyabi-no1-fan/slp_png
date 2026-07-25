@@ -3,10 +3,8 @@
 
 slp_image_t slp_png_read(const char* path);
 
-
 // only call free(image->buffer); and set image to 0
 void slp_image_destroy(slp_image_t* image);
-
 
 /*
 not support interlace and color type 3 imsave
