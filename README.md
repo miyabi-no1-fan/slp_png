@@ -55,7 +55,7 @@ int main(void)
     - See in include/slp_image.h for more details about the error code
 
 
-## Support
+## Features
 - For slp_png_read:
     - CHUNKS:
         - For color type 0/2/4/6: IHDR, IDAT, IEND
@@ -67,10 +67,6 @@ int main(void)
     - Compression method: 0
     - Filter method: 0
     - Interlace method: 0
-    - Full CRC32 validation for all supported chunks
-    - Use fixed size buffer for IDAT chunks decode
-        - No RAM spikes when decode PNG with big IDAT
-        - Buffer size = 65536 bytes
 
 - For slp_png_write:
     - CHUNKS: IHDR, IDAT, IEND
@@ -81,15 +77,10 @@ int main(void)
     - Filter method: 0
     - Interlace method: 0
     - Compression level: 6
-    - Heuristic filtering with all 5 filter type
-        - Heuristic filtering is extremely cheap, if good filter is generated, deflate runtime will reduce significantly
 
 - For both slp_png_read and slp_png_write:
-    - Low memory spikes
-    - SIMD optimizations (no AVX512)
-    - Thread-safe: this function can call by any thread, but it does not automatically handle fileIO conflicts
-    - The buffer in slp_image_t is allocated via aligned_alloc
-    - See include/slp_image.h if there are any #define you wanna change (aligned_alloc, memcpy, malloc,...)
+    - Thread-safety: this function can call by any thread, but it does not automatically handle fileIO conflicts
+    - The buffer in slp_image_t is allocated via aligned_alloc by default with 64 bytes alignment
 
 
 ## Performance
@@ -116,11 +107,4 @@ build/example
 - Write time:
     - slp_png: 0.717744s
     - libspng: 1.056884s
-
-- Output file size:
-    - slp_png: 10.6 MiB ( 11,161,849 bytes )
-    - libspng: 10.7 MiB ( 11,176,211 bytes )
-
-- Peak RAM usage:
-    - libspng: 33 MiB
-    - slp_png: 33 MiB
++ Somehow my encoder is a bit faster, correct me if I'm wrong
