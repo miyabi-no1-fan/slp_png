@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
     start = clock();
     slp_image_t a = slp_png_read(path);
     end = clock();
-    if (a.buffer == NULL) {printf("read failed: %d\n", a.bit_depth);return 1;}
+    if (a.pixels == NULL) {printf("read failed: %d\n", a.bit_depth);return 1;}
 
     read_time = (double)(end - start) / CLOCKS_PER_SEC;
     printf("read time: %.6fs\n", read_time);

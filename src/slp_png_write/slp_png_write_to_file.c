@@ -15,12 +15,12 @@ limitations under the License.
 */
 #include <slp_image.h>
 #include <slp_png.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdalign.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdalign.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
 
@@ -37,7 +37,7 @@ typedef struct __attribute__((packed)) {
     uint8_t compression_method;
     uint8_t filter_method;
     uint8_t interlace_method;
-}ihdr_t;
+} ihdr_t;
 
 // helper
 // functions
@@ -47,17 +47,15 @@ static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* res
 
 #ifdef __SSE2__
 __m128i _mm_abs_epi16_sse2(__m128i v) {
-    __m128i mask = _mm_srai_epi16(v, 15); // srai will shift in 1 or 0 depends on the msbit
-    v = _mm_xor_si128(v, mask); // do bit flips if signed
-    return _mm_sub_epi16(v, mask); // this is add 1 if signed, for signed number all1 = -1 so --1 = +1
+    __m128i mask = _mm_srai_epi16(v, 15);  // srai will shift in 1 or 0 depends on the msbit
+    v = _mm_xor_si128(v, mask);            // do bit flips if signed
+    return _mm_sub_epi16(v, mask);         // this is add 1 if signed, for signed number all1 = -1 so --1 = +1
 }
 #endif
 
 // constants
-enum {
-    level = 6, // level of compression
-    CHUNK = 65536 // sizeof 1 IDAT chunk
-};
+#define COMPRESSION_LEVEL 6
+#define CHUNK 65536  // sizeof 1 IDAT chunk
 
 
 
@@ -76,7 +74,7 @@ int slp_png_write(slp_image_t image, const char* path) {
     const bool is_little_edian = *(uint8_t*)(&random_value_for_edian_test);
     const uint64_t PNG_SIGNATURE = big_edian_u64_in_mem(0x89504E470D0A1A0Aull, is_little_edian);
 
-    FILE *file = fopen(path, "wb");
+    FILE* file = fopen(path, "wb");
     if (file == NULL) return 1;
 
     ihdr_t header = {
@@ -98,11 +96,11 @@ int slp_png_write(slp_image_t image, const char* path) {
     crc = big_edian_u32_in_mem(crc, is_little_edian);
     const uint32_t data_len = big_edian_u32_in_mem(13, is_little_edian);
 
-    if (fwrite(&PNG_SIGNATURE, 1,  8, file) != 8  ||
-        fwrite(&data_len     , 1,  4, file) != 4  ||
-        fwrite("IHDR"        , 1,  4, file) != 4  ||
-        fwrite(&header       , 1, 13, file) != 13 ||
-        fwrite(&crc          , 1,  4, file) != 4)
+    if (fwrite(&PNG_SIGNATURE, 1, 8, file) != 8 ||
+        fwrite(&data_len, 1, 4, file) != 4 ||
+        fwrite("IHDR", 1, 4, file) != 4 ||
+        fwrite(&header, 1, 13, file) != 13 ||
+        fwrite(&crc, 1, 4, file) != 4)
     {
         fclose(file);
         return 1;
@@ -143,25 +141,25 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
     const size_t bit_depth = image->bit_depth;
 
     const size_t bpp = channels * (1 + (bit_depth == 16));
-    const size_t bpr = div_round_up(width * channels * bit_depth, 8);// bytes per row
+    const size_t bpr = div_round_up(width * channels * bit_depth, 8);  // bytes per row
 
     size_t have = 0;
     size_t data_len = 0;
 
     uint8_t* mem_ptr = NULL;
 
-    mem_ptr = (uint8_t*)SLP_ALIGNED_ALLOC(SLP_ALIGN_SIZE(bpr + 1)*5 + CHUNK+12);
+    mem_ptr = (uint8_t*)SLP_ALIGNED_ALLOC(SLP_ALIGN_SIZE(bpr + 1) * 5 + CHUNK + 12);
     if (mem_ptr == NULL) {
         return_code = -1;
         goto cleanup;
     }
-    int8_t* filter_buffers[5]; // trying to do align alloc but this doesn't help much
-    filter_buffers[0] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*0;
-    filter_buffers[1] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*1;
-    filter_buffers[2] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*2;
-    filter_buffers[3] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*3;
-    filter_buffers[4] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*4;
-    uint8_t* out = mem_ptr + SLP_ALIGN_SIZE(bpr + 1)*5;
+    int8_t* filter_buffers[5];  // trying to do align alloc but this doesn't help much
+    filter_buffers[0] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 0;
+    filter_buffers[1] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 1;
+    filter_buffers[2] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 2;
+    filter_buffers[3] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 3;
+    filter_buffers[4] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 4;
+    uint8_t* out = mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 5;
 
     SLP_MEMCPY(out + 4, "IDAT", 4);
     filter_buffers[0][0] = 0;
@@ -171,18 +169,15 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
     filter_buffers[4][0] = 4;
     // end initialize variables
 
-
     // CHUNK BEFORE IDAT STAY HERE
-
 
     // writting IDAT
     z_stream strm = {0};
     strm.zalloc = Z_NULL;
     strm.zfree = Z_NULL;
     strm.opaque = Z_NULL;
-    int ret = deflateInit2(&strm, level, Z_DEFLATED, 15, 9, Z_FILTERED);
-    if (ret != Z_OK
-        || deflateTune(&strm, 8, 16, 64, 128) != Z_OK)
+    int ret = deflateInit2(&strm, COMPRESSION_LEVEL, Z_DEFLATED, 15, 9, Z_FILTERED);
+    if (ret != Z_OK || deflateTune(&strm, 8, 16, 64, 128) != Z_OK)
     {
         return_code = 3;
         goto cleanup;
@@ -191,7 +186,7 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
     for (size_t i = 0; i < height; i++)
     {
         uint64_t filter_scores[5] = {0};
-        slp_png_filter(image->buffer, filter_buffers, filter_scores, i, bpr, bpp);
+        slp_png_filter(image->pixels, filter_buffers, filter_scores, i, bpr, bpp);
         unsigned int filter_type = 0;
         for (unsigned int i = 0; i < 5; i++) filter_type = (filter_scores[i] < filter_scores[filter_type]) ? (i) : (filter_type);
 
@@ -267,9 +262,7 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
     deflateEnd(&strm);
     // finish writting IDAT
 
-
     // CHUNK AFTER IDAT STAY HERE
-
 
     // writting IEND
     const uint8_t IENDsig[12] = {0, 0, 0, 0, 'I', 'E', 'N', 'D', 0xAE, 0x42, 0x60, 0x82};
@@ -287,29 +280,28 @@ cleanup:
 static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp) {
     if (i == 0)
     {
-        uint8_t *raw = image_buffer;
-        for (size_t j =   0; j < bpp; j++) filter_buffers[1][j+1] = raw[j];
-        for (size_t j = bpp; j < bpr; j++) filter_buffers[1][j+1] = raw[j] - raw[j-bpp];
+        uint8_t* raw = image_buffer;
+        for (size_t j = 0; j < bpp; j++) filter_buffers[1][j + 1] = raw[j];
+        for (size_t j = bpp; j < bpr; j++) filter_buffers[1][j + 1] = raw[j] - raw[j - bpp];
         for (int j = 0; j < 5; j++) filter_scores[j] = 1000;
         filter_scores[1] = 0;
-    }
-    else
+    } else
     {
-        uint8_t *raw = image_buffer + i * bpr;
+        uint8_t* raw = image_buffer + i * bpr;
 
         size_t j = 0;
         for (; j < bpp; j++) {
-            filter_buffers[0][j+1] = raw[j];
-            filter_buffers[1][j+1] = raw[j];
-            filter_buffers[2][j+1] = raw[j] - raw[j - bpr];
-            filter_buffers[3][j+1] = raw[j] - (raw[j - bpr]>>1);
-            filter_buffers[4][j+1] = raw[j] - raw[j - bpr];
+            filter_buffers[0][j + 1] = raw[j];
+            filter_buffers[1][j + 1] = raw[j];
+            filter_buffers[2][j + 1] = raw[j] - raw[j - bpr];
+            filter_buffers[3][j + 1] = raw[j] - (raw[j - bpr] >> 1);
+            filter_buffers[4][j + 1] = raw[j] - raw[j - bpr];
 
-            filter_scores[0] += abs(filter_buffers[0][j+1]);
-            filter_scores[1] += abs(filter_buffers[1][j+1]);
-            filter_scores[2] += abs(filter_buffers[2][j+1]);
-            filter_scores[3] += abs(filter_buffers[3][j+1]);
-            filter_scores[4] += abs(filter_buffers[4][j+1]);
+            filter_scores[0] += abs(filter_buffers[0][j + 1]);
+            filter_scores[1] += abs(filter_buffers[1][j + 1]);
+            filter_scores[2] += abs(filter_buffers[2][j + 1]);
+            filter_scores[3] += abs(filter_buffers[3][j + 1]);
+            filter_scores[4] += abs(filter_buffers[4][j + 1]);
         }
 
         #ifdef __AVX2__
@@ -321,14 +313,12 @@ static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restri
             __m256i paethSum = _mm256_setzero_si256();
             __m256i zero = _mm256_setzero_si256();
 
-
             for (; j + 32 <= bpr; j += 32)
             {
-                const __m256i r  = _mm256_loadu_si256((const __m256i*)(raw + j));
+                const __m256i r = _mm256_loadu_si256((const __m256i*)(raw + j));
                 const __m256i va = _mm256_loadu_si256((const __m256i*)(raw + j - bpp));
                 const __m256i vb = _mm256_loadu_si256((const __m256i*)(raw + j - bpr));
                 const __m256i vc = _mm256_loadu_si256((const __m256i*)(raw + j - bpr - bpp));
-
 
                 const __m256i va_lo = _mm256_unpacklo_epi8(va, zero);
                 const __m256i va_hi = _mm256_unpackhi_epi8(va, zero);
@@ -338,7 +328,6 @@ static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restri
 
                 const __m256i vc_lo = _mm256_unpacklo_epi8(vc, zero);
                 const __m256i vc_hi = _mm256_unpackhi_epi8(vc, zero);
-
 
                 const __m256i p_lo = _mm256_add_epi16(va_lo, _mm256_sub_epi16(vb_lo, vc_lo));
                 const __m256i p_hi = _mm256_add_epi16(va_hi, _mm256_sub_epi16(vb_hi, vc_hi));
@@ -351,7 +340,6 @@ static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restri
 
                 const __m256i pc_lo = _mm256_abs_epi16(_mm256_sub_epi16(p_lo, vc_lo));
                 const __m256i pc_hi = _mm256_abs_epi16(_mm256_sub_epi16(p_hi, vc_hi));
-
 
                 const __m256i not_pa_le_pb_lo = _mm256_cmpgt_epi16(pa_lo, pb_lo);
                 const __m256i not_pa_le_pb_hi = _mm256_cmpgt_epi16(pa_hi, pb_hi);
@@ -373,24 +361,20 @@ static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restri
 
                 const __m256i d = _mm256_packus_epi16(d_lo, d_hi);
 
-
                 const __m256i tavg_lo = _mm256_srli_epi16(_mm256_add_epi16(va_lo, vb_lo), 1);
                 const __m256i tavg_hi = _mm256_srli_epi16(_mm256_add_epi16(va_hi, vb_hi), 1);
                 const __m256i tavg = _mm256_packus_epi16(tavg_lo, tavg_hi);
-
 
                 const __m256i vsub = _mm256_sub_epi8(r, va);
                 const __m256i vup = _mm256_sub_epi8(r, vb);
                 const __m256i vavg = _mm256_sub_epi8(r, tavg);
                 const __m256i vpaeth = _mm256_sub_epi8(r, d);
 
-
                 noneSum = _mm256_add_epi64(noneSum, _mm256_sad_epu8(r, zero));
                 subSum = _mm256_add_epi64(subSum, _mm256_sad_epu8(r, va));
                 upSum = _mm256_add_epi64(upSum, _mm256_sad_epu8(r, vb));
                 avgSum = _mm256_add_epi64(avgSum, _mm256_sad_epu8(r, tavg));
                 paethSum = _mm256_add_epi64(paethSum, _mm256_sad_epu8(r, d));
-
 
                 _mm256_storeu_si256((__m256i*)(filter_buffers[0] + j + 1), r);
                 _mm256_storeu_si256((__m256i*)(filter_buffers[1] + j + 1), vsub);
@@ -429,10 +413,9 @@ static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restri
             __m128i paethSum = _mm_setzero_si128();
             __m128i zero = _mm_setzero_si128();
 
-
             for (; j + 16 <= bpr; j += 16)
             {
-                const __m128i r  = _mm_loadu_si128((const __m128i*)(raw + j));
+                const __m128i r = _mm_loadu_si128((const __m128i*)(raw + j));
                 const __m128i va = _mm_loadu_si128((const __m128i*)(raw + j - bpp));
                 const __m128i vb = _mm_loadu_si128((const __m128i*)(raw + j - bpr));
                 const __m128i vc = _mm_loadu_si128((const __m128i*)(raw + j - bpr - bpp));
@@ -537,17 +520,17 @@ static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restri
             uint8_t d = (pb <= pc) ? raw[j - bpr] : raw[j - bpr - bpp];
             d = (pa <= pb && pa <= pc) ? raw[j - bpp] : d;
 
-            filter_buffers[0][j+1] = raw[j];
-            filter_buffers[1][j+1] = raw[j] - raw[j - bpp];
-            filter_buffers[2][j+1] = raw[j] - raw[j - bpr];
-            filter_buffers[3][j+1] = raw[j] - ((raw[j - bpp] + raw[j - bpr]) / 2);
-            filter_buffers[4][j+1] = raw[j] - d;
+            filter_buffers[0][j + 1] = raw[j];
+            filter_buffers[1][j + 1] = raw[j] - raw[j - bpp];
+            filter_buffers[2][j + 1] = raw[j] - raw[j - bpr];
+            filter_buffers[3][j + 1] = raw[j] - ((raw[j - bpp] + raw[j - bpr]) / 2);
+            filter_buffers[4][j + 1] = raw[j] - d;
 
-            filter_scores[0] += abs(filter_buffers[0][j+1]);
-            filter_scores[1] += abs(filter_buffers[1][j+1]);
-            filter_scores[2] += abs(filter_buffers[2][j+1]);
-            filter_scores[3] += abs(filter_buffers[3][j+1]);
-            filter_scores[4] += abs(filter_buffers[4][j+1]);
+            filter_scores[0] += abs(filter_buffers[0][j + 1]);
+            filter_scores[1] += abs(filter_buffers[1][j + 1]);
+            filter_scores[2] += abs(filter_buffers[2][j + 1]);
+            filter_scores[3] += abs(filter_buffers[3][j + 1]);
+            filter_scores[4] += abs(filter_buffers[4][j + 1]);
         }
     }
 }
