@@ -25,10 +25,11 @@ limitations under the License.
 #include <zlib.h>
 
 #if defined(__i386__) || defined(__x86_64__)
-#include <immintrin.h>
+    #include <immintrin.h>
 #endif
 
 // constants
+#define PNG_SIGNATURE 0x89504E470D0A1A0Aull
 #define CHUNK 65536
 enum {
     // needed for using switch case
@@ -49,8 +50,6 @@ static void slp_png_index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t
 
 // read png from file
 slp_image_t slp_png_read(const char* path) {
-    const uint64_t PNG_SIGNATURE = 0x89504E470D0A1A0A;
-
     slp_image_t image = {};
     FILE* file;
 
