@@ -46,12 +46,20 @@ jobs:
           cmake -B build
           -DCMAKE_C_COMPILER=gcc
           -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_EXAMPLE=ON -DSLP_IMAGE_TRANSFORM=ON
+          -DBUILD_EXAMPLE=ON
+          -DBUILD_TEST=ON
+          -DSLP_IMAGE_TRANSFORM=ON
           -S .
           && cmake --build build --config Release
 
       - name: Run example
         run: build/example && build/example-static
+      
+      - name: Run read_test
+        run: build/read_test && build/read_test-static
+      
+      - name: Run write test
+        run: build/test --no-thread_test && build/test-static --no-thread_test
 
   test_macOS:
     runs-on: macos-latest
@@ -135,4 +143,10 @@ jobs:
 
       - name: Run example
         shell: msys2 {0}
-        run: build/example && build/example-static 
+        run: build/example && build/example-static
+
+      - name: Run read_test
+        run: build/read_test && build/read_test-static
+      
+      - name: Run write test
+        run: build/test --no-thread_test && build/test-static --no-thread_test
