@@ -75,7 +75,7 @@ int slp_png_write(slp_image_t image, const char* path) {
     const uint64_t PNG_SIGNATURE = big_edian_u64_in_mem(0x89504E470D0A1A0Aull, is_little_edian);
 
     FILE* file = fopen(path, "wb");
-    if (file == NULL) return 1;
+    if (file == NULL) return FILE_ERR;
 
     ihdr_t header = {
         .width = big_edian_u32_in_mem(image.width, is_little_edian),
@@ -89,7 +89,7 @@ int slp_png_write(slp_image_t image, const char* path) {
 
     if (header.color_type == 0xFF) {
         fclose(file);
-        return 2;
+        return INVALID_INPUT;
     }
 
     uint32_t crc = crc32(0xA8A1AE0A, (unsigned char*)(&header), 13);
@@ -103,7 +103,7 @@ int slp_png_write(slp_image_t image, const char* path) {
         fwrite(&crc, 1, 4, file) != 4)
     {
         fclose(file);
-        return 1;
+        return INVALID_FILE;
     }
 
     int ret = slp_png_encode(&image, file);
@@ -150,7 +150,7 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
 
     mem_ptr = (uint8_t*)SLP_ALIGNED_ALLOC(SLP_ALIGN_SIZE(bpr + 1) * 5 + CHUNK + 12);
     if (mem_ptr == NULL) {
-        return_code = -1;
+        return_code = ALLOC_ERR;
         goto cleanup;
     }
     int8_t* filter_buffers[5];  // trying to do align alloc but this doesn't help much
@@ -179,7 +179,7 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
     int ret = deflateInit2(&strm, COMPRESSION_LEVEL, Z_DEFLATED, 15, 9, Z_FILTERED);
     if (ret != Z_OK || deflateTune(&strm, 8, 16, 64, 128) != Z_OK)
     {
-        return_code = 3;
+        return_code = ZLIB_ERR;
         goto cleanup;
     }
     strm.avail_out = CHUNK;
@@ -196,7 +196,7 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
             strm.next_out = out + 8 + have;
             ret = deflate(&strm, Z_NO_FLUSH);
             if (ret != Z_OK) {
-                return_code = 3;
+                return_code = ZLIB_ERR;
                 deflateEnd(&strm);
                 goto cleanup;
             }
@@ -211,7 +211,7 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
                 SLP_MEMCPY(out + 8 + have, &crc_, 4);
 
                 if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4) {
-                    return_code = 1;
+                    return_code = FILE_ERR;
                     deflateEnd(&strm);
                     goto cleanup;
                 }
@@ -226,7 +226,7 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
         strm.next_out = out + 8 + have;
         ret = deflate(&strm, Z_FINISH);
         if (ret != Z_OK && ret != Z_STREAM_END) {
-            return_code = 3;
+            return_code = ZLIB_ERR;
             deflateEnd(&strm);
             goto cleanup;
         }
@@ -239,7 +239,7 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
             crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
             SLP_MEMCPY(out + 8 + have, &crc_, 4);
             if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4) {
-                return_code = 1;
+                return_code = FILE_ERR;
                 deflateEnd(&strm);
                 goto cleanup;
             }
@@ -267,7 +267,7 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
     // writting IEND
     const uint8_t IENDsig[12] = {0, 0, 0, 0, 'I', 'E', 'N', 'D', 0xAE, 0x42, 0x60, 0x82};
     if (fwrite(IENDsig, 1, 12, file) != 12) {
-        return_code = 1;
+        return_code = FILE_ERR;
         goto cleanup;
     }
     // finish IEND
