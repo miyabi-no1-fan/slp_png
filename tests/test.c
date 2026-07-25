@@ -44,6 +44,10 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    #ifdef _WIN32
+    assert(false && "here");
+    #endif
+
     if (thread_test)
         thread_safety_test(path);
     else
