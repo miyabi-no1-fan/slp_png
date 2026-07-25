@@ -56,6 +56,7 @@ int main(int argc, char* argv[]) {
 int rw_test(const char* path, const char* path_out) {
     size_t spng_size = 0;
     uint8_t* spng_image = read_png(path, &spng_size);
+    assert(spng_image != NULL);
 
     slp_image_t a = slp_png_read(path);
     if (a.pixels == NULL) {printf("\nread failed: %d\n", a.bit_depth);return 1;}
