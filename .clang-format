@@ -1,0 +1,9 @@
+BasedOnStyle: Google
+IndentWidth: 4
+UseTab: Never
+ColumnLimit: 0
+Cpp11BracedListStyle: false
+BinPackArguments: false
+IndentPPDirectives: Leave
+AllowShortCaseLabelsOnASingleLine: true
+OneLineFormatOffRegex: '^\s*\{'
