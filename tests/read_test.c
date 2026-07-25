@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <slp_png.h>
 #include <spng.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <time.h>
 
