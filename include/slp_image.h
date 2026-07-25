@@ -25,6 +25,14 @@ typedef struct slp_image_t {
     */
 } slp_image_t;
 
+enum SLP_ERROR {
+    ALLOC_ERR = -1,
+    FILE_ERR = 1,
+    INVALID_FILE = 2,   // for slp_png_read
+    INVALID_INPUT = 2,  // for slp_png_write
+    ZLIB_ERR = 3,
+};
+
 #ifndef SLP_MALLOC
 #define SLP_MALLOC(size) malloc(size)
 #endif
