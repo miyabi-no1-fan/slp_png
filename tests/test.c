@@ -25,13 +25,17 @@ int main(int argc, char* argv[]) {
     char path[64] = "tests/test_images/10.4-MB.png";
     char path_out[64] = "TEST.png";
 
-    bool thread_test = true;
+    bool thread_test = false;
     for (int i = 1; i < argc; i++) {
+        if (argv[i] == NULL)
+            continue;
         switch (argv[i][0]) {
             case '-': {
+                if (strlen(argv[i]) < 2)
+                    continue;
                 switch (argv[i][1]) {
                     case '-': {
-                        thread_test = (strcmp(argv[i] + 2, "no-thread_test") == 0) ? false : thread_test;
+                        thread_test = (strcmp(argv[i] + 2, "thread_test") == 0) ? true : thread_test;
                         break;
                     }
                 }
@@ -59,29 +63,21 @@ int rw_test(const char* path, const char* path_out) {
     assert(spng_image != NULL);
 
     slp_image_t a = slp_png_read(path);
-    if (a.pixels == NULL) {printf("\nread failed: %d\n", a.bit_depth);return 1;}
-
+    assert(a.pixels != NULL && a.bit_depth == 8);
     assert(a.image_size == spng_size);
     for (size_t i = 0; i < a.image_size; i++)
         assert(a.pixels[i] == spng_image[i]);
     free(spng_image);
 
     int ret = slp_png_write(a, path_out);
-    if (ret != 0) {printf("\nwrite failed: %d\n", ret);free(a.pixels);return 1;}
+    assert(ret == 0);
 
     // validate new saved image
     slp_image_t b = slp_png_read(path_out);
-    if (b.pixels == NULL) {printf("\nread newly saved .png failed: %d\n", b.bit_depth);return 1;}
-    const size_t size = (size_t)a.width * a.height * a.channels * (1 + (a.bit_depth == 16));
-    for (size_t i = 0; i < size; i++) {
-        if (a.pixels[i] != b.pixels[i]) {
-            printf("slp_png_write output error\n");
-            free(a.pixels);
-            free(b.pixels);
-            return 1;
-        }
-    }
-
+    assert(b.pixels != NULL && b.bit_depth == 8);
+    assert(a.image_size == b.image_size);
+    for (size_t i = 0; i < a.image_size; i++)
+        assert(a.pixels[i] == b.pixels[i]);
     slp_image_destroy(&b);
     slp_image_destroy(&a);
     return 0;
