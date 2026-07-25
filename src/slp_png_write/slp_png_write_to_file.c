@@ -25,7 +25,7 @@ limitations under the License.
 #include <zlib.h>
 
 #if defined(__i386__) || defined(__x86_64__)
-#include <immintrin.h>
+    #include <immintrin.h>
 #endif
 
 // use to write IHDR

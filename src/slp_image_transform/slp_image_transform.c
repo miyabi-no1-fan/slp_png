@@ -25,15 +25,15 @@ limitations under the License.
 #include <string.h>
 
 #ifdef _WIN32
-#include <windows.h>
+    #include <windows.h>
 #endif
 
 #if defined(__unix__) || defined(__APPLE__)
-#include <unistd.h>
+    #include <unistd.h>
 #endif
 
 #if defined(__i386__) || defined(__x86_64__)
-#include <immintrin.h>
+    #include <immintrin.h>
 #endif
 
 static int get_nproc(void) {
