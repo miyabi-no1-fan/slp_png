@@ -50,10 +50,7 @@ if (SLP_PNG_SHARED)
 
     if (BUILD_TEST)
         add_executable("test" tests/test.c)
-        add_executable("read_test" tests/read_test.c)
         find_package(Threads REQUIRED)
-        target_link_libraries("test" PRIVATE "slp_png" Threads::Threads)
-
         set(BUILD_EXAMPLES OFF)
         include(FetchContent)
             FetchContent_Declare(
@@ -62,7 +59,7 @@ if (SLP_PNG_SHARED)
         )
         FetchContent_MakeAvailable(libspng)
         unset(BUILD_EXAMPLES)
-        target_link_libraries("read_test" PRIVATE "slp_png" Threads::Threads spng)
+        target_link_libraries("test" PRIVATE "slp_png" Threads::Threads spng)
     endif()
 endif()
 
@@ -104,10 +101,7 @@ if (SLP_PNG_STATIC)
 
     if (BUILD_TEST)
         add_executable("test-static" tests/test.c)
-        add_executable("read_test-static" tests/read_test.c)
         find_package(Threads REQUIRED)
-        target_link_libraries("test-static" PRIVATE "slp_png-static" Threads::Threads)
-
         set(BUILD_EXAMPLES OFF)
         include(FetchContent)
             FetchContent_Declare(
@@ -116,6 +110,6 @@ if (SLP_PNG_STATIC)
         )
         FetchContent_MakeAvailable(libspng)
         unset(BUILD_EXAMPLES)
-        target_link_libraries("read_test-static" PRIVATE "slp_png-static" Threads::Threads spng)
+        target_link_libraries("test-static" PRIVATE "slp_png-static" Threads::Threads spng)
     endif()
 endif()

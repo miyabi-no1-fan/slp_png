@@ -1,5 +1,7 @@
+#include <assert.h>
 #include <pthread.h>
 #include <slp_png.h>
+#include <spng.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -14,6 +16,7 @@
 // palette_4bit
 // 10.4-MB
 
+uint8_t* read_png(const char* filepath, size_t* out_size);
 int rw_test(const char* path, const char* path_out);
 int thread_safety_test(const char* path);
 
@@ -51,8 +54,16 @@ int main(int argc, char* argv[]) {
 
 
 int rw_test(const char* path, const char* path_out) {
+    size_t spng_size = 0;
+    uint8_t* spng_image = read_png(path, &spng_size);
+
     slp_image_t a = slp_png_read(path);
     if (a.pixels == NULL) {printf("\nread failed: %d\n", a.bit_depth);return 1;}
+
+    assert(a.image_size == spng_size);
+    for (size_t i = 0; i < a.image_size; i++)
+        assert(a.pixels[i] == spng_image[i]);
+    free(spng_image);
 
     int ret = slp_png_write(a, path_out);
     if (ret != 0) {printf("\nwrite failed: %d\n", ret);free(a.pixels);return 1;}
@@ -151,4 +162,56 @@ int thread_safety_test(const char *path) {
         if (!thread_arg[i].status) return 1;
 
     return 0;
+}
+
+uint8_t* read_png(const char *filepath, size_t *out_size) {
+    FILE* file = fopen(filepath, "rb");
+    if (!file) return NULL;
+
+    spng_ctx* ctx = spng_ctx_new(0);
+    if (!ctx) {
+        fclose(file);
+        return NULL;
+    }
+
+    if (spng_set_png_file(ctx, file) != 0) {
+        spng_ctx_free(ctx);
+        fclose(file);
+        return NULL;
+    }
+
+    struct spng_ihdr ihdr;
+    if (spng_get_ihdr(ctx, &ihdr) != 0) {
+        spng_ctx_free(ctx);
+        fclose(file);
+        return NULL;
+    }
+
+    assert(ihdr.color_type != SPNG_COLOR_TYPE_INDEXED);
+
+    size_t image_size;
+    if (spng_decoded_image_size(ctx, SPNG_FMT_PNG, &image_size) != 0) {
+        spng_ctx_free(ctx);
+        fclose(file);
+        return NULL;
+    }
+
+    uint8_t* image_buf = (uint8_t*)malloc(image_size);
+    if (!image_buf) {
+        spng_ctx_free(ctx);
+        fclose(file);
+        return NULL;
+    }
+
+    if (spng_decode_image(ctx, image_buf, image_size, SPNG_FMT_PNG, 0) != 0) {
+        free(image_buf);
+        image_buf = NULL;
+    } else if (out_size) {
+        *out_size = image_size;
+    }
+
+    spng_ctx_free(ctx);
+    fclose(file);
+
+    return image_buf;
 }
