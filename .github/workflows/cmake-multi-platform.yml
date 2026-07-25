@@ -39,7 +39,7 @@ jobs:
           --errors-for-leak-kinds=all
           --track-origins=yes
           --error-exitcode=1
-          build/test --no-thread_test
+          build/test
 
       - name: Build Release
         run: >
@@ -55,8 +55,8 @@ jobs:
       - name: Run example
         run: build/example && build/example-static
       
-      - name: Run write test
-        run: build/test --no-thread_test && build/test-static --no-thread_test
+      - name: Run test
+        run: build/test && build/test-static
 
   test_macOS:
     runs-on: macos-latest
@@ -98,7 +98,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          build/test
+          build/test --thread_test
           shopt -s nullglob
           set +e
           for file in CI_TEST-*.png; do
@@ -141,8 +141,7 @@ jobs:
           && cmake --build build --config Release
 
       - name: Run example
-        shell: msys2 {0}
         run: build/example && build/example-static
       
-      - name: Run write test
-        run: build/test --no-thread_test && build/test-static --no-thread_test
+      - name: Run test
+        run: build/test && build/test-static
