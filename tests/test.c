@@ -21,7 +21,7 @@
         fprintf(stderr, __VA_ARGS__);                                              \
         fprintf(stderr, "\n");                                                     \
         fflush(stderr);                                                            \
-        abort();                                                                   \
+        exit(-1);                                                                  \
     } while (0)
 
 uint8_t* read_png(const char* filepath, size_t* out_size);
