@@ -30,6 +30,9 @@ int thread_safety_test(const char* path);
 
 
 int main(int argc, char* argv[]) {
+    printf("idk1\n");
+    fflush(stdout);
+
     char path[64] = "tests/test_images/10.4-MB.png";
     char path_out[64] = "TEST.png";
 
@@ -66,14 +69,10 @@ int main(int argc, char* argv[]) {
 
 
 int rw_test(const char* path, const char* path_out) {
-    printf("idk1\n");
-    fflush(stdout);
     size_t spng_size = 0;
     uint8_t* spng_image = read_png(path, &spng_size);
     if (spng_image == NULL)
         panic("spng read failed");
-    printf("idk2\n");
-    fflush(stdout);
 
     slp_image_t a = slp_png_read(path);
     if (a.pixels == NULL)
