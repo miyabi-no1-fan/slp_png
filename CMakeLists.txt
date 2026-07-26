@@ -12,6 +12,27 @@ option(SLP_IMAGE_TRANSFORM "Build with expierimental module image transform (it 
 option(BUILD_TEST "Build test" OFF)
 option(BUILD_EXAMPLE "Build example" OFF)
 
+if (SLP_PNG_SHARED OR SLP_PNG_STATIC)
+    find_package(ZLIB REQUIRED)
+
+    if (SLP_IMAGE_TRANSFORM)
+        find_package(Threads REQUIRED)
+    endif()
+
+    if (BUILD_TEST)
+        find_package(Threads REQUIRED)
+        include(CMakeFindDependencyMacro)
+        find_package(SPNG CONFIG)
+        if (SPNG_FOUND)
+            set(SPNG_TARGET spng::spng)
+        else()
+            find_package(PkgConfig REQUIRED)
+            pkg_check_modules(SPNG REQUIRED IMPORTED_TARGET spng)
+            set(SPNG_TARGET PkgConfig::SPNG)
+        endif()
+    endif()
+endif()
+
 if (SLP_PNG_SHARED)
     if (SLP_IMAGE_TRANSFORM)
         add_library("slp_png" SHARED
@@ -19,7 +40,6 @@ if (SLP_PNG_SHARED)
             src/slp_png_write/slp_png_write_to_file.c
             src/slp_image_transform/slp_image_transform.c
         )
-        find_package(Threads REQUIRED)
         target_link_libraries("slp_png"
             PRIVATE Threads::Threads
             PRIVATE m
@@ -31,12 +51,11 @@ if (SLP_PNG_SHARED)
         )
     endif()
 
-    find_package(ZLIB REQUIRED)
     target_link_libraries("slp_png" PRIVATE ZLIB::ZLIB)
 
     if (ENABLE_OPT)
         target_compile_options("slp_png" PRIVATE -O3 -ffast-math -march=native -mtune=native -DNDEBUG)
-        if (!WIN32)
+        if (NOT WIN32)
             target_compile_options("slp_png" PRIVATE -flto=auto)
         endif()
     endif()
@@ -50,15 +69,10 @@ if (SLP_PNG_SHARED)
 
     if (BUILD_TEST)
         add_executable("test" tests/test.c)
-        find_package(Threads REQUIRED)
-        include(CMakeFindDependencyMacro)
-        find_package(SPNG CONFIG)
         if (SPNG_FOUND)
-            target_link_libraries("test" PRIVATE "slp_png" Threads::Threads spng::spng)
+            target_link_libraries("test" PRIVATE "slp_png" Threads::Threads ${SPNG_TARGET})
         else()
-            find_package(PkgConfig REQUIRED)
-            pkg_check_modules(SPNG REQUIRED IMPORTED_TARGET spng)
-            target_link_libraries("test" PRIVATE "slp_png" Threads::Threads PkgConfig::SPNG)
+            target_link_libraries("test" PRIVATE "slp_png" Threads::Threads ${SPNG_TARGET})
         endif()
     endif()
 endif()
@@ -70,7 +84,6 @@ if (SLP_PNG_STATIC)
             src/slp_png_write/slp_png_write_to_file.c
             src/slp_image_transform/slp_image_transform.c
         )
-        find_package(Threads REQUIRED)
         target_link_libraries("slp_png-static"
             PRIVATE Threads::Threads
             PRIVATE m
@@ -82,12 +95,11 @@ if (SLP_PNG_STATIC)
         )
     endif()
 
-    find_package(ZLIB REQUIRED)
     target_link_libraries("slp_png-static" PRIVATE ZLIB::ZLIB)
 
     if (ENABLE_OPT)
         target_compile_options("slp_png-static" PRIVATE -O3 -ffast-math -march=native -mtune=native -DNDEBUG)
-        if (!WIN32)
+        if (NOT WIN32)
             target_compile_options("slp_png-static" PRIVATE -flto=auto)
         endif()
     endif()
@@ -101,15 +113,10 @@ if (SLP_PNG_STATIC)
 
     if (BUILD_TEST)
         add_executable("test-static" tests/test.c)
-        find_package(Threads REQUIRED)
-        include(CMakeFindDependencyMacro)
-        find_package(SPNG CONFIG)
         if (SPNG_FOUND)
-            target_link_libraries("test-static" PRIVATE "slp_png-static" Threads::Threads spng::spng_static)
+            target_link_libraries("test-static" PRIVATE "slp_png-static" Threads::Threads ${SPNG_TARGET})
         else()
-            find_package(PkgConfig REQUIRED)
-            pkg_check_modules(SPNG REQUIRED IMPORTED_TARGET spng)
-            target_link_libraries("test-static" PRIVATE "slp_png-static" Threads::Threads PkgConfig::SPNG)
+            target_link_libraries("test-static" PRIVATE "slp_png-static" Threads::Threads ${SPNG_TARGET})
         endif()
     endif()
 endif()
