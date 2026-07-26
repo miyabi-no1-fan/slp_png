@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install deps
-        run: sudo apt install build-essential zlib1g-dev gcc clang valgrind llvm cmake make
+        run: sudo apt install build-essential zlib1g-dev gcc clang valgrind llvm cmake make libspng-dev
 
       - name: Build debug
         run: >
@@ -66,7 +66,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Install deps
-        run: brew install zlib-ng-compat llvm
+        run: brew install zlib-ng-compat llvm libspng
 
       - name: Build Release
         shell: bash
@@ -127,6 +127,7 @@ jobs:
             mingw-w64-ucrt-x86_64-make
             mingw-w64-ucrt-x86_64-zlib-ng-compat
             mingw-w64-ucrt-x86_64-libwinpthread
+            mingw-w64-ucrt-x86_64-libspng
 
       - name: Build Release
         shell: msys2 {0}
