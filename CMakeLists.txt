@@ -12,20 +12,6 @@ option(SLP_IMAGE_TRANSFORM "Build with expierimental module image transform (it 
 option(BUILD_TEST "Build test" OFF)
 option(BUILD_EXAMPLE "Build example" OFF)
 
-if (BUILD_TEST)
-    include(FetchContent)
-    FetchContent_Declare(
-        libspng
-        GIT_REPOSITORY https://github.com/randy408/libspng.git
-    )
-
-    set(BUILD_EXAMPLES OFF CACHE BOOL "Temp switch for libspng" FORCE)
-
-    FetchContent_MakeAvailable(libspng)
-
-    unset(BUILD_EXAMPLES CACHE)
-endif()
-
 if (SLP_PNG_SHARED)
     if (SLP_IMAGE_TRANSFORM)
         add_library("slp_png" SHARED
@@ -65,8 +51,8 @@ if (SLP_PNG_SHARED)
     if (BUILD_TEST)
         add_executable("test" tests/test.c)
         find_package(Threads REQUIRED)
-        target_link_libraries("test" PRIVATE "slp_png" Threads::Threads spng)
-        target_compile_options("test" PRIVATE -UNDEBUG)
+        find_package(SPNG CONFIG REQUIRED)
+        target_link_libraries("test" PRIVATE "slp_png" Threads::Threads spng::spng)
     endif()
 endif()
 
@@ -109,7 +95,7 @@ if (SLP_PNG_STATIC)
     if (BUILD_TEST)
         add_executable("test-static" tests/test.c)
         find_package(Threads REQUIRED)
-        target_link_libraries("test-static" PRIVATE "slp_png-static" Threads::Threads spng)
-        target_compile_options("test-static" PRIVATE -UNDEBUG)
+        find_package(SPNG CONFIG REQUIRED)
+        target_link_libraries("test-static" PRIVATE "slp_png-static" Threads::Threads spng::spng_static)
     endif()
 endif()
