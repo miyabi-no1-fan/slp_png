@@ -55,7 +55,9 @@ if (SLP_PNG_SHARED)
 
     if (ENABLE_OPT)
         target_compile_options("slp_png" PRIVATE -O3 -ffast-math -march=native -mtune=native -DNDEBUG)
-        set_target_properties("slp_png" PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+        if (NOT WIN32)
+            set_target_properties("slp_png" PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+        endif()
     endif()
 
     target_include_directories("slp_png" PUBLIC include)
@@ -93,7 +95,9 @@ if (SLP_PNG_STATIC)
 
     if (ENABLE_OPT)
         target_compile_options("slp_png-static" PRIVATE -O3 -ffast-math -march=native -mtune=native -DNDEBUG)
-        set_target_properties("slp_png-static" PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+        if (NOT WIN32)
+            set_target_properties("slp_png-static" PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+        endif()
     endif()
 
     target_include_directories("slp_png-static" PUBLIC include)
