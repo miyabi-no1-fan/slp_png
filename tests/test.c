@@ -22,6 +22,9 @@ int thread_safety_test(const char* path);
 
 
 int main(int argc, char* argv[]) {
+    #ifdef _WIN32
+    setvbuf(stderr, NULL, _IONBF, 0);
+    #endif
     assert(false);
     char path[64] = "tests/test_images/10.4-MB.png";
     char path_out[64] = "TEST.png";
