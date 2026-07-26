@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <pthread.h>
 #include <slp_png.h>
 #include <spng.h>
@@ -16,16 +15,21 @@
 // palette_4bit
 // 10.4-MB
 
+#define panic(...) \
+    do {                                                               \
+        fprintf(stderr, "panic at:\n File: %s\n  Line: %d\n", __FILE__, __LINE__); \
+        fprintf(stderr, __VA_ARGS__);                                              \
+        fprintf(stderr, "\n");                                                     \
+        fflush(stderr);                                                            \
+        abort();                                                                   \
+    } while (0)
+
 uint8_t* read_png(const char* filepath, size_t* out_size);
 int rw_test(const char* path, const char* path_out);
 int thread_safety_test(const char* path);
 
 
 int main(int argc, char* argv[]) {
-    #ifdef _WIN32
-    setvbuf(stderr, NULL, _IONBF, 0);
-    #endif
-    assert(false);
     char path[64] = "tests/test_images/10.4-MB.png";
     char path_out[64] = "TEST.png";
 
@@ -64,24 +68,37 @@ int main(int argc, char* argv[]) {
 int rw_test(const char* path, const char* path_out) {
     size_t spng_size = 0;
     uint8_t* spng_image = read_png(path, &spng_size);
-    assert(spng_image != NULL);
+    if (spng_image == NULL)
+        panic("spng read failed");
 
     slp_image_t a = slp_png_read(path);
-    assert(a.pixels != NULL && a.bit_depth == 8);
-    assert(a.image_size == spng_size);
+    if (a.pixels == NULL)
+        panic("slp_png_read failed: %u", a.bit_depth);
+
+    if (a.image_size != spng_size)
+        panic("slp_png_read image size mismatch");
+
     for (size_t i = 0; i < a.image_size; i++)
-        assert(a.pixels[i] == spng_image[i]);
+        if (a.pixels[i] != spng_image[i])
+            panic("slp_png_read image pixels mismatch");
     free(spng_image);
 
     int ret = slp_png_write(a, path_out);
-    assert(ret == 0);
+    if (ret != 0)
+        panic("slp_png_write failed: %d", ret);
 
     // validate new saved image
     slp_image_t b = slp_png_read(path_out);
-    assert(b.pixels != NULL && b.bit_depth == 8);
-    assert(a.image_size == b.image_size);
+    if (b.pixels == NULL)
+        panic("slp_png_read failed: %u", b.bit_depth);
+
+    if (b.image_size != a.image_size)
+        panic("slp_png_read image size mismatch");
+
     for (size_t i = 0; i < a.image_size; i++)
-        assert(a.pixels[i] == b.pixels[i]);
+        if (b.pixels[i] != a.pixels[i])
+            panic("slp_png_read image pixels mismatch");
+
     slp_image_destroy(&b);
     slp_image_destroy(&a);
     return 0;
@@ -188,7 +205,8 @@ uint8_t* read_png(const char *filepath, size_t *out_size) {
         return NULL;
     }
 
-    assert(ihdr.color_type != SPNG_COLOR_TYPE_INDEXED);
+    if (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED)
+        panic("Test read_png function can't handle color type 3");
 
     size_t image_size;
     if (spng_decoded_image_size(ctx, SPNG_FMT_PNG, &image_size) != 0) {
