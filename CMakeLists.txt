@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.19)
 
-project("slp" C)
+project("slp_png" C)
 
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -12,6 +12,28 @@ option(SLP_IMAGE_TRANSFORM "Build with expierimental module image transform (it 
 option(BUILD_TEST "Build test" OFF)
 option(BUILD_EXAMPLE "Build example" OFF)
 
+if (SLP_PNG_SHARED OR SLP_PNG_STATIC)
+    find_package(ZLIB REQUIRED)
+
+    if (SLP_IMAGE_TRANSFORM)
+        find_package(Threads REQUIRED)
+    endif()
+
+    if (BUILD_TEST)
+        find_package(Threads REQUIRED)
+        include(CMakeFindDependencyMacro)
+        find_package(SPNG CONFIG)
+        if (SPNG_FOUND)
+            set(SPNG_TARGET spng::spng_static)
+        else()
+            find_package(PkgConfig REQUIRED)
+            set(PKG_CONFIG_USE_STATIC_LIBS ON)
+            pkg_check_modules(SPNG REQUIRED IMPORTED_TARGET spng)
+            set(SPNG_TARGET PkgConfig::SPNG)
+        endif()
+    endif()
+endif()
+
 if (SLP_PNG_SHARED)
     if (SLP_IMAGE_TRANSFORM)
         add_library("slp_png" SHARED
@@ -19,7 +41,6 @@ if (SLP_PNG_SHARED)
             src/slp_png_write/slp_png_write_to_file.c
             src/slp_image_transform/slp_image_transform.c
         )
-        find_package(Threads REQUIRED)
         target_link_libraries("slp_png"
             PRIVATE Threads::Threads
             PRIVATE m
@@ -30,29 +51,6 @@ if (SLP_PNG_SHARED)
             src/slp_png_write/slp_png_write_to_file.c
         )
     endif()
-
-    find_package(ZLIB REQUIRED)
-    target_link_libraries("slp_png" PRIVATE ZLIB::ZLIB)
-
-    if (ENABLE_OPT)
-        target_compile_options("slp_png" PRIVATE -O3 -ffast-math -march=native -mtune=native -DNDEBUG)
-        if (!WIN32)
-            target_compile_options("slp_png" PRIVATE -flto=auto)
-        endif()
-    endif()
-
-    target_include_directories("slp_png" PUBLIC include)
-
-    if (BUILD_EXAMPLE)
-        add_executable("example" tests/example.c)
-        target_link_libraries("example" PRIVATE "slp_png")
-    endif()
-
-    if (BUILD_TEST)
-        add_executable("test" tests/test.c)
-        find_package(Threads REQUIRED)
-        target_link_libraries("test" PRIVATE "slp_png" Threads::Threads)
-    endif()
 endif()
 
 if (SLP_PNG_STATIC)
@@ -62,7 +60,6 @@ if (SLP_PNG_STATIC)
             src/slp_png_write/slp_png_write_to_file.c
             src/slp_image_transform/slp_image_transform.c
         )
-        find_package(Threads REQUIRED)
         target_link_libraries("slp_png-static"
             PRIVATE Threads::Threads
             PRIVATE m
@@ -73,27 +70,51 @@ if (SLP_PNG_STATIC)
             src/slp_png_write/slp_png_write_to_file.c
         )
     endif()
+endif()
 
-    find_package(ZLIB REQUIRED)
+if (TARGET "slp_png")
+    target_link_libraries("slp_png" PRIVATE ZLIB::ZLIB)
+    target_include_directories("slp_png" PUBLIC include)
+    if (ENABLE_OPT)
+        target_compile_options("slp_png" PRIVATE -O3 -ffast-math -march=native -mtune=native -DNDEBUG)
+    endif()
+endif()
+
+if (TARGET "slp_png-static")
     target_link_libraries("slp_png-static" PRIVATE ZLIB::ZLIB)
-
+    target_include_directories("slp_png-static" PUBLIC include)
     if (ENABLE_OPT)
         target_compile_options("slp_png-static" PRIVATE -O3 -ffast-math -march=native -mtune=native -DNDEBUG)
-        if (!WIN32)
-            target_compile_options("slp_png-static" PRIVATE -flto=auto)
-        endif()
     endif()
+endif()
 
-    target_include_directories("slp_png-static" PUBLIC include)
+if (ENABLE_OPT AND NOT WIN32)
+    if (TARGET "slp_png")
+        set_target_properties("slp_png" PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+    endif()
+    if (TARGET "slp_png-static")
+        set_target_properties("slp_png-static" PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+    endif()
+endif()
 
-    if (BUILD_EXAMPLE)
+if (BUILD_EXAMPLE)
+    if (TARGET "slp_png")
+        add_executable("example" tests/example.c)
+        target_link_libraries("example" PRIVATE "slp_png")
+    endif()
+    if (TARGET "slp_png-static")
         add_executable("example-static" tests/example.c)
         target_link_libraries("example-static" PRIVATE "slp_png-static")
     endif()
+endif()
 
-    if (BUILD_TEST)
+if (BUILD_TEST)
+    if (TARGET "slp_png")
+        add_executable("test" tests/test.c)
+        target_link_libraries("test" PRIVATE "slp_png" Threads::Threads ${SPNG_TARGET})
+    endif()
+    if (TARGET "slp_png-static")
         add_executable("test-static" tests/test.c)
-        find_package(Threads REQUIRED)
-        target_link_libraries("test-static" PRIVATE "slp_png-static" Threads::Threads)
+        target_link_libraries("test-static" PRIVATE "slp_png-static" Threads::Threads ${SPNG_TARGET})
     endif()
 endif()

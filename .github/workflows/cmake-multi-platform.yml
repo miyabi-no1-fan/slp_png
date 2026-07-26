@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install deps
-        run: sudo apt install build-essential zlib1g-dev gcc clang valgrind llvm cmake make
+        run: sudo apt install build-essential zlib1g-dev gcc clang valgrind llvm cmake make libspng-dev
 
       - name: Build debug
         run: >
@@ -39,19 +39,24 @@ jobs:
           --errors-for-leak-kinds=all
           --track-origins=yes
           --error-exitcode=1
-          build/test --no-thread_test
+          build/test
 
       - name: Build Release
         run: >
           cmake -B build
           -DCMAKE_C_COMPILER=gcc
           -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_EXAMPLE=ON -DSLP_IMAGE_TRANSFORM=ON
+          -DBUILD_EXAMPLE=ON
+          -DBUILD_TEST=ON
+          -DSLP_IMAGE_TRANSFORM=ON
           -S .
           && cmake --build build --config Release
 
       - name: Run example
         run: build/example && build/example-static
+      
+      - name: Run test
+        run: build/test && build/test-static
 
   test_macOS:
     runs-on: macos-latest
@@ -61,7 +66,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Install deps
-        run: brew install zlib-ng-compat llvm
+        run: brew install zlib-ng-compat llvm libspng
 
       - name: Build Release
         shell: bash
@@ -93,7 +98,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          build/test
+          build/test --thread_test
           shopt -s nullglob
           set +e
           for file in CI_TEST-*.png; do
@@ -122,6 +127,7 @@ jobs:
             mingw-w64-ucrt-x86_64-make
             mingw-w64-ucrt-x86_64-zlib-ng-compat
             mingw-w64-ucrt-x86_64-libwinpthread
+            mingw-w64-ucrt-x86_64-libspng
 
       - name: Build Release
         shell: msys2 {0}
@@ -129,10 +135,14 @@ jobs:
           cmake -B build
           -DCMAKE_C_COMPILER=gcc
           -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_EXAMPLE=ON -DSLP_IMAGE_TRANSFORM=ON
+          -DBUILD_EXAMPLE=ON
+          -DBUILD_TEST=ON
+          -DSLP_IMAGE_TRANSFORM=ON
           -S .
           && cmake --build build --config Release
 
       - name: Run example
-        shell: msys2 {0}
-        run: build/example && build/example-static 
+        run: build/example && build/example-static
+      
+      - name: Run test
+        run: build/test && build/test-static

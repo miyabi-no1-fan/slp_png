@@ -1,5 +1,6 @@
 #include <pthread.h>
 #include <slp_png.h>
+#include <spng.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -14,6 +15,16 @@
 // palette_4bit
 // 10.4-MB
 
+#define panic(...) \
+    do {                                                               \
+        fprintf(stderr, "panic at:\n File: %s\n  Line: %d\n", __FILE__, __LINE__); \
+        fprintf(stderr, __VA_ARGS__);                                              \
+        fprintf(stderr, "\n");                                                     \
+        fflush(stderr);                                                            \
+        exit(-1);                                                                  \
+    } while (0)
+
+uint8_t* read_png(const char* filepath, size_t* out_size);
 int rw_test(const char* path, const char* path_out);
 int thread_safety_test(const char* path);
 
@@ -22,13 +33,17 @@ int main(int argc, char* argv[]) {
     char path[64] = "tests/test_images/10.4-MB.png";
     char path_out[64] = "TEST.png";
 
-    bool thread_test = true;
+    bool thread_test = false;
     for (int i = 1; i < argc; i++) {
+        if (argv[i] == NULL)
+            continue;
         switch (argv[i][0]) {
             case '-': {
+                if (strlen(argv[i]) < 2)
+                    continue;
                 switch (argv[i][1]) {
                     case '-': {
-                        thread_test = (strcmp(argv[i] + 2, "no-thread_test") == 0) ? false : thread_test;
+                        thread_test = (strcmp(argv[i] + 2, "thread_test") == 0) ? true : thread_test;
                         break;
                     }
                 }
@@ -51,25 +66,38 @@ int main(int argc, char* argv[]) {
 
 
 int rw_test(const char* path, const char* path_out) {
+    size_t spng_size = 0;
+    uint8_t* spng_image = read_png(path, &spng_size);
+    if (spng_image == NULL)
+        panic("spng read failed");
+
     slp_image_t a = slp_png_read(path);
-    if (a.pixels == NULL) {printf("\nread failed: %d\n", a.bit_depth);return 1;}
+    if (a.pixels == NULL)
+        panic("slp_png_read failed: %u", a.bit_depth);
+
+    if (a.image_size != spng_size)
+        panic("slp_png_read image size mismatch");
+
+    for (size_t i = 0; i < a.image_size; i++)
+        if (a.pixels[i] != spng_image[i])
+            panic("slp_png_read image pixels mismatch");
+    free(spng_image);
 
     int ret = slp_png_write(a, path_out);
-    if (ret != 0) {printf("\nwrite failed: %d\n", ret);free(a.pixels);return 1;}
+    if (ret != 0)
+        panic("slp_png_write failed: %d", ret);
 
     // validate new saved image
-    #define DEBUG
     slp_image_t b = slp_png_read(path_out);
-    if (b.pixels == NULL) {printf("\nread newly saved .png failed: %d\n", b.bit_depth);return 1;}
-    const size_t size = (size_t)a.width * a.height * a.channels * (1 + (a.bit_depth == 16));
-    for (size_t i = 0; i < size; i++) {
-        if (a.pixels[i] != b.pixels[i]) {
-            printf("slp_png_write output error\n");
-            free(a.pixels);
-            free(b.pixels);
-            return 1;
-        }
-    }
+    if (b.pixels == NULL)
+        panic("slp_png_read failed: %u", b.bit_depth);
+
+    if (b.image_size != a.image_size)
+        panic("slp_png_read image size mismatch");
+
+    for (size_t i = 0; i < a.image_size; i++)
+        if (b.pixels[i] != a.pixels[i])
+            panic("slp_png_read image pixels mismatch");
 
     slp_image_destroy(&b);
     slp_image_destroy(&a);
@@ -152,4 +180,57 @@ int thread_safety_test(const char *path) {
         if (!thread_arg[i].status) return 1;
 
     return 0;
+}
+
+uint8_t* read_png(const char *filepath, size_t *out_size) {
+    FILE* file = fopen(filepath, "rb");
+    if (!file) return NULL;
+
+    spng_ctx* ctx = spng_ctx_new(0);
+    if (!ctx) {
+        fclose(file);
+        return NULL;
+    }
+
+    if (spng_set_png_file(ctx, file) != 0) {
+        spng_ctx_free(ctx);
+        fclose(file);
+        return NULL;
+    }
+
+    struct spng_ihdr ihdr;
+    if (spng_get_ihdr(ctx, &ihdr) != 0) {
+        spng_ctx_free(ctx);
+        fclose(file);
+        return NULL;
+    }
+
+    if (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED)
+        panic("Test read_png function can't handle color type 3");
+
+    size_t image_size;
+    if (spng_decoded_image_size(ctx, SPNG_FMT_PNG, &image_size) != 0) {
+        spng_ctx_free(ctx);
+        fclose(file);
+        return NULL;
+    }
+
+    uint8_t* image_buf = (uint8_t*)malloc(image_size);
+    if (!image_buf) {
+        spng_ctx_free(ctx);
+        fclose(file);
+        return NULL;
+    }
+
+    if (spng_decode_image(ctx, image_buf, image_size, SPNG_FMT_PNG, 0) != 0) {
+        free(image_buf);
+        image_buf = NULL;
+    } else if (out_size) {
+        *out_size = image_size;
+    }
+
+    spng_ctx_free(ctx);
+    fclose(file);
+
+    return image_buf;
 }
