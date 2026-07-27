@@ -7,6 +7,30 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+    #include <windows.h>
+#endif
+
+#if defined(__unix__) || defined(__APPLE__)
+    #include <unistd.h>
+#endif
+
+#if defined(__i386__) || defined(__x86_64__)
+    #include <immintrin.h>
+#endif
+
+static int get_nproc(void) {
+    #ifdef _WIN32
+    SYSTEM_INFO sysinfo;
+    GetSystemInfo(&sysinfo);
+    return sysinfo.dwNumberOfProcessors;
+    #endif
+    #if defined(__unix__) || defined(__APPLE__)
+    return sysconf(_SC_NPROCESSORS_ONLN);
+    #endif
+    return 2;
+}
+
 // test images name:
 // rover
 // gray16
@@ -25,8 +49,8 @@
     } while (0)
 
 uint8_t* read_png(const char* filepath, size_t* out_size);
-int rw_test(const char* path, const char* path_out);
-int thread_safety_test(const char* path);
+void rw_test(const char* path, const char* path_out);
+void thread_safety_test(const char* path);
 
 
 int main(int argc, char* argv[]) {
@@ -44,6 +68,7 @@ int main(int argc, char* argv[]) {
                 switch (argv[i][1]) {
                     case '-': {
                         thread_test = (strcmp(argv[i] + 2, "thread_test") == 0) ? true : thread_test;
+                        thread_test = (strcmp(argv[i] + 2, "thread-test") == 0) ? true : thread_test;
                         break;
                     }
                 }
@@ -61,11 +86,7 @@ int main(int argc, char* argv[]) {
 }
 
 
-
-
-
-
-int rw_test(const char* path, const char* path_out) {
+void rw_test(const char* path, const char* path_out) {
     size_t spng_size = 0;
     uint8_t* spng_image = read_png(path, &spng_size);
     if (spng_image == NULL)
@@ -101,86 +122,52 @@ int rw_test(const char* path, const char* path_out) {
 
     slp_image_destroy(&b);
     slp_image_destroy(&a);
-    return 0;
 }
 
 
 struct thread_safety_test_arg {
     const char* in_path;
     const char* out_path;
-    bool* status;
 };
 
-
 void* thread_safety_test_task(void* arg) {
-
-    enum {spam = 1};
+    const int spam = 10;
 
     for (uint16_t i = 0; i < spam; i++) {
         struct thread_safety_test_arg data = *(struct thread_safety_test_arg*)arg;
-        slp_image_t a = slp_png_read(data.in_path);
-        if (a.pixels == NULL) {
-            abort();
-        }
-
-        // put more function here for thread safety check if needed
-
-        int ret = slp_png_write(a, data.out_path);
-        if (ret != 0) {
-            abort();
-        }
-
-        // validate new saved image
-        slp_image_t b = slp_png_read(data.out_path);
-        if (b.pixels == NULL) {
-            abort();
-        }
-        const size_t size = (size_t)a.width * a.height * a.channels * (1 + (a.bit_depth == 16));
-        for (size_t i = 0; i < size; i++) {
-            if (a.pixels[i] != b.pixels[i]) {
-                abort();
-            }
-        }
-
-        free(a.pixels);
-        free(b.pixels);
+        rw_test(data.in_path, data.out_path);
     }
 
     return NULL;
 }
 
-
-int thread_safety_test(const char *path) {
+void thread_safety_test(const char *path) {
     const char out_paths_prefix[] = "TEST-%02u.png";
 
-    enum {thread_count = 50};
-    pthread_t threads[thread_count] = {0};
-    struct thread_safety_test_arg thread_arg[thread_count] = {0};
-    char out_paths_ptr[thread_count][32] = {0};
-    bool thread_status[thread_count] = {0};
+    const int thread_count = get_nproc();
+    printf("Number of threads: %d\n", thread_count);
 
-    for (uint16_t i = 0; i < thread_count; i++) thread_status[i] = true;
+    pthread_t threads[thread_count] = {};
+    struct thread_safety_test_arg thread_arg[thread_count] = {};
+    char out_paths_ptr[thread_count][32] = {};
 
     for (uint16_t i = 0; i < thread_count; i++) {
         snprintf(out_paths_ptr[i], 32, out_paths_prefix, i);
 
         thread_arg[i].in_path = path;
         thread_arg[i].out_path = out_paths_ptr[i];
-        thread_arg[i].status = thread_status + i;
 
-        if (pthread_create(threads + i, NULL, thread_safety_test_task, thread_arg + i) != 0) {
+        if (pthread_create(threads + i, NULL, thread_safety_test_task, thread_arg + i) != 0)
             for (int j = 0; j <= i; j++)
-                if (pthread_join(threads[j], NULL) != 0) abort();
-            return -1;
-        }
+                if (pthread_join(threads[j], NULL) != 0)
+                    panic("thread fail to join");
     }
-    for (uint16_t i = 0; i < thread_count; i++)
-        if (pthread_join(threads[i], NULL) != 0) abort();
-    for (uint16_t i = 0; i < thread_count; i++)
-        if (!thread_arg[i].status) return 1;
 
-    return 0;
+    for (uint16_t i = 0; i < thread_count; i++)
+        if (pthread_join(threads[i], NULL) != 0)
+            panic("thread fail to join");
 }
+
 
 uint8_t* read_png(const char *filepath, size_t *out_size) {
     FILE* file = fopen(filepath, "rb");
