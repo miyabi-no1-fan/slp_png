@@ -61,7 +61,7 @@ int main(void)
         - For color type 0/2/4/6: IHDR, IDAT, IEND
         - For color type 3: IHDR, PLTE, tRNS, IDAT, IEND
     - Color type: 0/2/3/4/6
-        - NOTICE that color type 3 will be force convert into RGBA32 ( color type 6, bit depth 8 )
+        - NOTICE: color type 3 will be converted into RGBA32 ( color type 6, bit depth 8 )
     - Bit depth: 1/2/4/8/16
         - NOTICE that for bit depth 16 format, output is always big-edian
     - Compression method: 0
@@ -72,7 +72,7 @@ int main(void)
     - CHUNKS: IHDR, IDAT, IEND
     - Color type: 0/2/4/6
     - Bit depth: 1/2/4/8/16
-        - NOTICE that for bit depth 16 format, input must be big-edian
+        - NOTICE: for bit depth 16, input must be big-edian
     - Compression method: 0
     - Filter method: 0
     - Interlace method: 0
