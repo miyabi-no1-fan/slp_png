@@ -13,8 +13,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <slp_image.h>
-#include <slp_png.h>
 #include <stdalign.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -28,46 +26,28 @@ limitations under the License.
     #include <immintrin.h>
 #endif
 
-// use to write IHDR
-typedef struct __attribute__((packed)) {
-    uint32_t width;
-    uint32_t height;
-    uint8_t bit_depth;
-    uint8_t color_type;
-    uint8_t compression_method;
-    uint8_t filter_method;
-    uint8_t interlace_method;
-} ihdr_t;
-
-// helper
-// functions
-static uint8_t slp_get_color_type(const uint8_t channels);
-static int slp_png_encode(slp_image_t* restrict image, FILE* restrict file);
-static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp);
-
-#ifdef __SSE2__
-__m128i _mm_abs_epi16_sse2(__m128i v) {
-    __m128i mask = _mm_srai_epi16(v, 15);  // srai will shift in 1 or 0 depends on the msbit
-    v = _mm_xor_si128(v, mask);            // do bit flips if signed
-    return _mm_sub_epi16(v, mask);         // this is add 1 if signed, for signed number all1 = -1 so --1 = +1
-}
-#endif
+#define SLP_IMAGE_HELPER_MACROS
+#include <slp_image.h>
+#include <slp_png.h>
 
 // constants
 #define COMPRESSION_LEVEL 6
 #define CHUNK 65536  // sizeof 1 IDAT chunk
 
-
+// helpers
+static uint8_t slp_get_color_type(const uint8_t channels);
+static int slp_png_encode(slp_image_t* restrict image, FILE* restrict file);
+static void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp);
 
 int slp_png_write(slp_image_t image, const char* path) {
-    if (image.height == 0 || image.width == 0 || image.channels == 0) return 2;
+    if (image.height == 0 || image.width == 0 || image.channels == 0) return INVALID_INPUT;
     switch (image.bit_depth) {
         case 1: break;
         case 2: break;
         case 4: break;
         case 8: break;
         case 16: break;
-        default: return 2;
+        default: return INVALID_INPUT;
     }
 
     const uint16_t random_value_for_edian_test = 1;
@@ -76,6 +56,19 @@ int slp_png_write(slp_image_t image, const char* path) {
 
     FILE* file = fopen(path, "wb");
     if (file == NULL) return FILE_ERR;
+
+    // use to write IHDR
+    #pragma pack(push, 1)
+    typedef struct {
+        uint32_t width;
+        uint32_t height;
+        uint8_t bit_depth;
+        uint8_t color_type;
+        uint8_t compression_method;
+        uint8_t filter_method;
+        uint8_t interlace_method;
+    } ihdr_t;
+    #pragma pack(pop)
 
     ihdr_t header = {
         .width = big_edian_u32_in_mem(image.width, is_little_edian),
@@ -116,8 +109,6 @@ int slp_png_write(slp_image_t image, const char* path) {
     return 0;
 }
 
-
-
 static inline uint8_t slp_get_color_type(const uint8_t channels) {
     switch (channels) {
         case 1: return 0;
@@ -131,6 +122,7 @@ static inline uint8_t slp_get_color_type(const uint8_t channels) {
 static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict file) {
     // initialize variables
     int return_code = 0;
+    #define Err(v) do { return_code = v; goto cleanup; } while(0)
 
     const uint16_t random_value_for_edian_test = 1;
     const bool is_little_edian = *(uint8_t*)(&random_value_for_edian_test);
@@ -141,7 +133,7 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
     const size_t bit_depth = image->bit_depth;
 
     const size_t bpp = channels * (1 + (bit_depth == 16));
-    const size_t bpr = div_round_up(width * channels * bit_depth, 8);  // bytes per row
+    const size_t bpr = div_ceil(width * channels * bit_depth, 8);  // bytes per row
 
     size_t have = 0;
     size_t data_len = 0;
@@ -149,10 +141,9 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
     uint8_t* mem_ptr = NULL;
 
     mem_ptr = (uint8_t*)SLP_ALIGNED_ALLOC(SLP_ALIGN_SIZE(bpr + 1) * 5 + CHUNK + 12);
-    if (mem_ptr == NULL) {
-        return_code = ALLOC_ERR;
-        goto cleanup;
-    }
+    if (mem_ptr == NULL)
+        Err(ALLOC_ERR);
+
     int8_t* filter_buffers[5];  // trying to do align alloc but this doesn't help much
     filter_buffers[0] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 0;
     filter_buffers[1] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 1;
@@ -176,19 +167,21 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
     strm.zalloc = Z_NULL;
     strm.zfree = Z_NULL;
     strm.opaque = Z_NULL;
+
     int ret = deflateInit2(&strm, COMPRESSION_LEVEL, Z_DEFLATED, 15, 9, Z_FILTERED);
     if (ret != Z_OK || deflateTune(&strm, 8, 16, 64, 128) != Z_OK)
-    {
-        return_code = ZLIB_ERR;
-        goto cleanup;
-    }
+        Err(ZLIB_ERR);
+
     strm.avail_out = CHUNK;
+
     for (size_t i = 0; i < height; i++)
     {
         uint64_t filter_scores[5] = {0};
         slp_png_filter(image->pixels, filter_buffers, filter_scores, i, bpr, bpp);
+
         unsigned int filter_type = 0;
-        for (unsigned int i = 0; i < 5; i++) filter_type = (filter_scores[i] < filter_scores[filter_type]) ? (i) : (filter_type);
+        for (unsigned int i = 0; i < 5; i++)
+            filter_type = (filter_scores[i] < filter_scores[filter_type]) ? i : filter_type;
 
         strm.next_in = (uint8_t*)filter_buffers[filter_type];
         strm.avail_in = bpr + 1;
@@ -196,9 +189,8 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
             strm.next_out = out + 8 + have;
             ret = deflate(&strm, Z_NO_FLUSH);
             if (ret != Z_OK) {
-                return_code = ZLIB_ERR;
                 deflateEnd(&strm);
-                goto cleanup;
+                Err(ZLIB_ERR);
             }
             have = CHUNK - strm.avail_out;
             if (strm.avail_out == 0) {
@@ -211,9 +203,8 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
                 SLP_MEMCPY(out + 8 + have, &crc_, 4);
 
                 if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4) {
-                    return_code = FILE_ERR;
                     deflateEnd(&strm);
-                    goto cleanup;
+                    Err(FILE_ERR);
                 }
 
                 strm.avail_out = CHUNK;
@@ -226,9 +217,8 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
         strm.next_out = out + 8 + have;
         ret = deflate(&strm, Z_FINISH);
         if (ret != Z_OK && ret != Z_STREAM_END) {
-            return_code = ZLIB_ERR;
             deflateEnd(&strm);
-            goto cleanup;
+            Err(ZLIB_ERR);
         }
         have = CHUNK - strm.avail_out;
         if (strm.avail_out == 0) {
@@ -239,14 +229,14 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
             crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
             SLP_MEMCPY(out + 8 + have, &crc_, 4);
             if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4) {
-                return_code = FILE_ERR;
                 deflateEnd(&strm);
-                goto cleanup;
+                Err(FILE_ERR);
             }
             strm.avail_out = CHUNK;
             have = 0;
         }
     } while (ret != Z_STREAM_END);
+    deflateEnd(&strm);
 
     data_len = (uint32_t)(have);
     data_len = big_edian_u32_in_mem(data_len, is_little_edian);
@@ -254,28 +244,29 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
     uint32_t crc_ = crc32(0, out + 4, 4 + have);
     crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
     SLP_MEMCPY(out + 8 + have, &crc_, 4);
-    if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4) {
-        return_code = 1;
-        deflateEnd(&strm);
-        goto cleanup;
-    }
-    deflateEnd(&strm);
+    if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4)
+        Err(FILE_ERR);
     // finish writting IDAT
 
     // CHUNK AFTER IDAT STAY HERE
 
     // writting IEND
     const uint8_t IENDsig[12] = {0, 0, 0, 0, 'I', 'E', 'N', 'D', 0xAE, 0x42, 0x60, 0x82};
-    if (fwrite(IENDsig, 1, 12, file) != 12) {
-        return_code = FILE_ERR;
-        goto cleanup;
-    }
-    // finish IEND
-
+    if (fwrite(IENDsig, 1, 12, file) != 12)
+        Err(FILE_ERR);
 cleanup:
     SLP_ALIGNED_FREE(mem_ptr);
     return return_code;
 }
+
+#ifdef __SSE2__
+// fallback abs_epi16 for sse2
+__m128i _mm_abs_epi16_sse2(__m128i v) {
+    __m128i mask = _mm_srai_epi16(v, 15);  // srai will shift in 1 or 0 depends on the msbit
+    v = _mm_xor_si128(v, mask);            // do bit flips if signed
+    return _mm_sub_epi16(v, mask);         // this is add 1 if signed, for signed number all1 = -1 so --1 = +1
+}
+#endif
 
 static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp) {
     if (i == 0)
@@ -283,7 +274,7 @@ static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restri
         uint8_t* raw = image_buffer;
         for (size_t j = 0; j < bpp; j++) filter_buffers[1][j + 1] = raw[j];
         for (size_t j = bpp; j < bpr; j++) filter_buffers[1][j + 1] = raw[j] - raw[j - bpp];
-        for (int j = 0; j < 5; j++) filter_scores[j] = 1000;
+        for (int j = 0; j < 5; j++) filter_scores[j] = 1;
         filter_scores[1] = 0;
     } else
     {
