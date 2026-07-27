@@ -6,6 +6,10 @@
 - Windows
 
 
+## Dependencies
+- zlib
+
+
 ## Install
 ```bash
 git clone https://github.com/slp-c/slp_png.git
@@ -22,27 +26,14 @@ build/example
 - Replace tests/example.c with the file you wanna test with
 
 
-## Project structure
-- slp_png: PNG codec
-    - include:
-        - include/slp_image.h
-        - include/slp_png.h
-    - src:
-        - src/slp_png_read/*
-        - src/slp_png_write/*
-    - dependencies:
-        - zlib
-
-
 ## Basic usage
 ```C
 #include <slp_png.h>
-#include <stdio.h>
 
 int main(void)
 {
     slp_image_t your_image = slp_png_read("/path/to/your/image");
-    if (your_image.buffer == NULL) return 1;
+    if (!your_image.buffer) return 1;
 
     int ret = slp_png_write(your_image, "/path/to/where/to/write");
     if (ret != 0) return 1;
