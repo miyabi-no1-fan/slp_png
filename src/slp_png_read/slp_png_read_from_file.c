@@ -14,8 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <assert.h>
-#include <slp_image.h>
-#include <slp_png.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -28,33 +26,34 @@ limitations under the License.
     #include <immintrin.h>
 #endif
 
+#define SLP_IMAGE_HELPER_MACROS
+#include <slp_image.h>
+#include <slp_png.h>
+
 // constants
 #define PNG_SIGNATURE 0x89504E470D0A1A0Aull
 #define CHUNK 65536
-enum {
-    // needed for using switch case
-    IHDR = 'I' << 24 | 'H' << 16 | 'D' << 8 | 'R',
-    IDAT = 'I' << 24 | 'D' << 16 | 'A' << 8 | 'T',
-    IEND = 'I' << 24 | 'E' << 16 | 'N' << 8 | 'D',
-    PLTE = 'P' << 24 | 'L' << 16 | 'T' << 8 | 'E',
-    tRNS = 't' << 24 | 'R' << 16 | 'N' << 8 | 'S'
-};
+#define __CHUNK_TYPE(x0, x1, x2, x3) ((((uint32_t)x0) << 24) | (((uint32_t)x1) << 16) | (((uint32_t)x2) << 8) | (((uint32_t)x3) << 0))
+#define IHDR __CHUNK_TYPE('I', 'H', 'D', 'R')
+#define IDAT __CHUNK_TYPE('I', 'D', 'A', 'T')
+#define IEND __CHUNK_TYPE('I', 'E', 'N', 'D')
+#define PLTE __CHUNK_TYPE('P', 'L', 'T', 'E')
+#define tRNS __CHUNK_TYPE('t', 'R', 'N', 'S')
 
-// helper functions
+// helpers
 static int slp_png_get_channels(const int color_type, const int bit_depth);
-static int slp_png_defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker);  // defilter, using scanline[0] as the up scanline and scanline[1] as the stream scanline each time
+static int slp_png_defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker);
 static void slp_png_decode(slp_image_t* restrict image, FILE* restrict file, const size_t file_size, const int color_type);
 static void slp_png_colortype3_unpack(uint8_t* restrict buffer, slp_image_t* restrict image, const size_t bpr, const size_t imtrker);
 static void slp_png_index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restrict palette);
 
-// read png from file
+// read png from a file
 slp_image_t slp_png_read(const char* path) {
     slp_image_t image = {};
-    FILE* file;
 
-    file = fopen(path, "rb");
+    FILE* file = fopen(path, "rb");
     if (file == NULL) {
-        image.bit_depth = 1;
+        image.bit_depth = FILE_ERR;
         image.pixels = NULL;
         return image;
     }
@@ -62,7 +61,7 @@ slp_image_t slp_png_read(const char* path) {
     int ret = fseek(file, 0, SEEK_END);
     if (ret != 0) {
         fclose(file);
-        image.bit_depth = 1;
+        image.bit_depth = FILE_ERR;
         image.pixels = NULL;
         return image;
     }
@@ -70,7 +69,7 @@ slp_image_t slp_png_read(const char* path) {
     size_t file_size = ftell(file);
     if (file_size < 57) {  // minimal size required for PNGSIG + IHDR + IDAT(with data len = 0) + IEND
         fclose(file);
-        image.bit_depth = 2;
+        image.bit_depth = INVALID_FILE;
         image.pixels = NULL;
         return image;
     }
@@ -78,7 +77,7 @@ slp_image_t slp_png_read(const char* path) {
     ret = fseek(file, 0, SEEK_SET);
     if (ret != 0) {
         fclose(file);
-        image.bit_depth = 1;
+        image.bit_depth = FILE_ERR;
         image.pixels = NULL;
         return image;
     }
@@ -87,7 +86,7 @@ slp_image_t slp_png_read(const char* path) {
 
     if (fread(worker, 1, 33, file) < 33) {
         fclose(file);
-        image.bit_depth = 1;
+        image.bit_depth = FILE_ERR;
         image.pixels = NULL;
         return image;
     }
@@ -101,7 +100,7 @@ slp_image_t slp_png_read(const char* path) {
         big_edian_u32(worker + 29) != crc_)
     {
         fclose(file);
-        image.bit_depth = 2;
+        image.bit_depth = INVALID_FILE;
         image.pixels = NULL;
         return image;
     }
@@ -117,18 +116,18 @@ slp_image_t slp_png_read(const char* path) {
 
     if (compression_method != 0 || filter_method != 0 || interlace_method != 0 || channels == 0) {
         fclose(file);
-        image.bit_depth = 2;
+        image.bit_depth = INVALID_FILE;
         image.pixels = NULL;
         return image;
     }
 
-    const size_t image_size = image.image_size = height * div_round_up((size_t)width * channels * bit_depth, 8);
+    const size_t image_size = image.image_size = height * div_ceil((size_t)width * channels * bit_depth, 8);
     const size_t allocated_size = image.allocated_size = SLP_ALIGN_SIZE(image_size);
 
     image.pixels = (uint8_t*)SLP_ALIGNED_ALLOC(allocated_size);
     if (image.pixels == NULL) {
         fclose(file);
-        image.bit_depth = 255;
+        image.bit_depth = ALLOC_ERR;
         image.pixels = NULL;
         return image;
     }
@@ -147,10 +146,8 @@ slp_image_t slp_png_read(const char* path) {
 }
 
 static inline int slp_png_get_channels(const int color_type, const int bit_depth) {
-    int channels;
     switch (color_type) {
         case 0: {
-            channels = 1;
             switch (bit_depth) {
                 case 1: break;
                 case 2: break;
@@ -159,19 +156,17 @@ static inline int slp_png_get_channels(const int color_type, const int bit_depth
                 case 16: break;
                 default: return 0;
             }
-            break;
+            return 1;
         }
         case 2: {
-            channels = 3;
             switch (bit_depth) {
                 case 8: break;
                 case 16: break;
                 default: return 0;
             }
-            break;
+            return 3;
         }
         case 3: {
-            channels = 4;
             switch (bit_depth) {
                 case 1: break;
                 case 2: break;
@@ -179,29 +174,27 @@ static inline int slp_png_get_channels(const int color_type, const int bit_depth
                 case 8: break;
                 default: return 0;
             }
-            break;
+            return 4;
         }
         case 4: {
-            channels = 2;
             switch (bit_depth) {
                 case 8: break;
                 case 16: break;
                 default: return 0;
             }
-            break;
+            return 2;
         }
         case 6: {
-            channels = 4;
             switch (bit_depth) {
                 case 8: break;
                 case 16: break;
                 default: return 0;
             }
-            break;
+            return 4;
         }
         default: return 0;
     }
-    return channels;
+    assert(false);
 }
 
 static inline void slp_png_decode(slp_image_t* restrict image, FILE* restrict file, const size_t file_size, const int color_type) {
@@ -214,19 +207,19 @@ static inline void slp_png_decode(slp_image_t* restrict image, FILE* restrict fi
     uint8_t* in = NULL;
 
     size_t data_len = 0;
-    int plte_check = 0;
-    int tRNS_check = 0;
-    int idat_check = 0;
-    int iend_check = 0;
+    bool plte_check = false;
+    bool tRNS_check = false;
+    bool idat_check = false;
+    bool iend_check = false;
 
     uint8_t* palette = NULL;
 
     uint8_t* scanline[2] = { NULL, NULL };
 
     const size_t bpp = is_color_type3 ? 1 : (image->channels * (1 + (image->bit_depth == 16)));
-    const size_t bpr = div_round_up(image->width * (is_color_type3 ? 1 : image->channels) * image->bit_depth, 8);
+    const size_t bpr = div_ceil(image->width * (is_color_type3 ? 1 : image->channels) * image->bit_depth, 8);
 
-    do {
+    while (!iend_check) {
         if (fread(worker, 1, 8, file) != 8)
             Err(FILE_ERR);
 
@@ -234,13 +227,10 @@ static inline void slp_png_decode(slp_image_t* restrict image, FILE* restrict fi
         data_len = big_edian_u32(worker);
 
         switch (chunk_type) {
-            // ADD MORE CASES HERE
-
-            // IDAT
             case IDAT: {
-                idat_check++;
-                if (idat_check > 1)
+                if (idat_check)
                     Err(INVALID_FILE);
+                idat_check = true;
 
                 z_stream strm = { 0 };
                 strm.zalloc = Z_NULL;
@@ -252,7 +242,7 @@ static inline void slp_png_decode(slp_image_t* restrict image, FILE* restrict fi
                 if (ret != Z_OK)
                     Err(ZLIB_ERR);
 
-                size_t imtrker = 0;
+                size_t imtrker = 0;  // track the total row produced
                 size_t ai = CHUNK;   // available input
                 size_t intrker = 0;  // the 'in' buffer tracker
                 size_t offset = 0;   // the 'out' buffer tracker
@@ -422,15 +412,11 @@ static inline void slp_png_decode(slp_image_t* restrict image, FILE* restrict fi
                 } while (ret != Z_STREAM_END);
                 inflateEnd(&strm);
 
-                if (offset != 0) {
-                    inflateEnd(&strm);
+                if (offset != 0)
                     Err(INVALID_FILE);
-                }
 
-                if (fseek(file, -8, SEEK_CUR) != 0) {
-                    inflateEnd(&strm);
+                if (fseek(file, -8, SEEK_CUR) != 0)
                     Err(FILE_ERR);
-                }
 
                 SLP_FREE(out);
                 out = NULL;
@@ -446,18 +432,14 @@ static inline void slp_png_decode(slp_image_t* restrict image, FILE* restrict fi
 
                 break;
             }
-
-            // PLTE
             case PLTE: {
-                plte_check++;
-                if (plte_check > 1) {
+                if (plte_check)
                     Err(INVALID_FILE);
-                }
+                plte_check = true;
 
                 uint8_t* plte = (uint8_t*)SLP_MALLOC(data_len);
-                if (plte == NULL) {
+                if (plte == NULL)
                     Err(ALLOC_ERR);
-                }
 
                 if (fread(plte, 1, data_len, file) != data_len) {
                     SLP_FREE(plte);
@@ -501,18 +483,14 @@ static inline void slp_png_decode(slp_image_t* restrict image, FILE* restrict fi
 
                 break;
             }
-
-            // tRNS
             case tRNS: {
-                tRNS_check++;
-                if (tRNS_check > 1) {
+                if (tRNS_check)
                     Err(INVALID_FILE);
-                }
+                tRNS_check = true;
 
                 uint8_t* trns = (uint8_t*)SLP_MALLOC(data_len);
-                if (trns == NULL) {
+                if (trns == NULL)
                     Err(ALLOC_ERR);
-                }
 
                 if (fread(trns, 1, data_len, file) != data_len) {
                     SLP_FREE(trns);
@@ -534,6 +512,7 @@ static inline void slp_png_decode(slp_image_t* restrict image, FILE* restrict fi
 
                 if (is_color_type3) {
                     if (plte_check == 0 || data_len > 256) {
+                        SLP_FREE(trns);
                         Err(INVALID_FILE);
                     }
                     for (size_t i = 0; i < data_len; i++) palette[i * 4 + 3] = trns[i];
@@ -543,34 +522,34 @@ static inline void slp_png_decode(slp_image_t* restrict image, FILE* restrict fi
 
                 break;
             }
-
-            // IEND
             case IEND: {
-                if (idat_check == 0 || (is_color_type3 && plte_check == 0)) {
+                if (!idat_check || (is_color_type3 && !plte_check))
                     Err(INVALID_FILE);
-                }
-                iend_check = 1;
+
+                uint32_t crc_ = crc32(0, worker + 4, 4);
+                if (fread(worker + 8, 1, 4, file) != 4)
+                    Err(FILE_ERR);
+                if (big_edian_u32(worker + 8) != crc_)
+                    Err(INVALID_FILE);
+
+                iend_check = true;
                 break;
             }
-
             // else = skip
             default: {
                 fseek(file, data_len + 4, SEEK_CUR);
+                // we don't have to check for fseek error here,
+                // the fread follow after it will fail anyway
                 break;
             }
         }
-
-    } while ((size_t)ftell(file) <= (file_size - 12) && iend_check == 0);
-
-    if (iend_check == 0) {
-        Err(INVALID_FILE);
     }
 
-    if ((size_t)(ftell(file) + 4) != file_size) {  // IEND != EOF
-        Err(INVALID_FILE);
-    }
+    if ((size_t)ftell(file) != file_size)
+        Err(INVALID_FILE);  // IEND != EOF
 
-    if (is_color_type3) slp_png_index_u32_to_RGBA(image, palette);
+    if (is_color_type3)
+        slp_png_index_u32_to_RGBA(image, palette);
 
 cleanup:
     if (is_color_type3) {
@@ -583,6 +562,7 @@ cleanup:
     return;
 }
 
+// scanline[0] is up, scanline[1] is output
 static inline int slp_png_defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker) {
     uint8_t filter = *buffer++;
     switch (filter) {
@@ -637,13 +617,17 @@ static inline int slp_png_defilter(uint8_t* restrict buffer, uint8_t* restrict* 
                 size_t i = 0;
                 for (; i < bpp; i++) scanline[1][i] = buffer[i] + scanline[0][i];
                 for (; i < bpr; i++) {
-                    const int p = scanline[1][i - bpp] + scanline[0][i] - scanline[0][i - bpp];
-                    const int pa = abs(p - scanline[1][i - bpp]);
-                    const int pb = abs(p - scanline[0][i]);
-                    const int pc = abs(p - scanline[0][i - bpp]);
+                    const int a = scanline[1][i - bpp];
+                    const int b = scanline[0][i];
+                    const int c = scanline[0][i - bpp];
 
-                    uint8_t d = (pb <= pc) ? (scanline[0][i]) : (scanline[0][i - bpp]);
-                    d = (pa <= pb && pa <= pc) ? (scanline[1][i - bpp]) : (d);
+                    const int p = a + b - c;
+                    const int pa = abs(p - a);
+                    const int pb = abs(p - b);
+                    const int pc = abs(p - c);
+
+                    uint8_t d = (pb <= pc) ? b : c;
+                    d = (pa <= pb && pa <= pc) ? a : d;
 
                     scanline[1][i] = buffer[i] + d;
                 }
@@ -1027,6 +1011,9 @@ static inline void slp_png_index_u32_to_RGBA(slp_image_t* restrict image, const 
 }
 
 void slp_image_destroy(slp_image_t* image) {
-    SLP_ALIGNED_FREE(image->pixels);
-    SLP_MEMSET(image, 0, sizeof(*image));
+    if (image != NULL) {
+        if (image->pixels != NULL)
+            SLP_ALIGNED_FREE(image->pixels);
+        SLP_MEMSET(image, 0, sizeof(*image));
+    }
 }
