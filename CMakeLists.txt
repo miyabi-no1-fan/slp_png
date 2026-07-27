@@ -12,6 +12,8 @@ option(SLP_IMAGE_TRANSFORM "Build with expierimental module image transform (it 
 option(BUILD_TEST "Build test" OFF)
 option(BUILD_EXAMPLE "Build example" OFF)
 
+set(OPTIMIZE_FLAGS -O3 -ffast-math -march=native -mtune=native -DNDEBUG)
+
 if (SLP_PNG_SHARED OR SLP_PNG_STATIC)
     find_package(ZLIB REQUIRED)
 
@@ -76,7 +78,7 @@ if (TARGET "slp_png")
     target_link_libraries("slp_png" PRIVATE ZLIB::ZLIB)
     target_include_directories("slp_png" PUBLIC include)
     if (ENABLE_OPT)
-        target_compile_options("slp_png" PRIVATE -O3 -ffast-math -march=native -mtune=native -DNDEBUG)
+        target_compile_options("slp_png" PRIVATE ${OPTIMIZE_FLAGS})
     endif()
 endif()
 
@@ -84,7 +86,7 @@ if (TARGET "slp_png-static")
     target_link_libraries("slp_png-static" PRIVATE ZLIB::ZLIB)
     target_include_directories("slp_png-static" PUBLIC include)
     if (ENABLE_OPT)
-        target_compile_options("slp_png-static" PRIVATE -O3 -ffast-math -march=native -mtune=native -DNDEBUG)
+        target_compile_options("slp_png-static" PRIVATE ${OPTIMIZE_FLAGS})
     endif()
 endif()
 
