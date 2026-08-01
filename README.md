@@ -92,7 +92,14 @@ cmake --build build
 build/example
 ```
 
-For spng, I use https://github.com/randy408/libspng/blob/master/examples/example.c (modified - add some clock() to measure runtime) for the test
+For spng:
+```bash
+git clone https://github.com/slp-c/slp_png.git
+cd slp_png
+cmake -S . -B build -DBUILD_TEST=ON
+cmake --build build
+build/test --spng-benchmark
+```
 
 Test image: tests/test_images/10.4-MB.png
 
