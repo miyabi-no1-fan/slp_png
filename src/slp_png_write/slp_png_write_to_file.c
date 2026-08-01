@@ -256,7 +256,7 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
     if (fwrite(IENDsig, 1, 12, file) != 12)
         Err(FILE_ERR);
 cleanup:
-    SLP_ALIGNED_FREE(mem_ptr);
+    SLP_FREE(mem_ptr);
     return return_code;
 }
 
