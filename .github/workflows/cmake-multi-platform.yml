@@ -58,7 +58,7 @@ jobs:
         run: build/example && build/example-static
       
       - name: Run test
-        run: build/test && build/test-static
+        run: build/test tests/test_images/4bit3.png && build/test-static tests/test_images/gray16.png
 
   test_macOS:
     runs-on: macos-latest
@@ -147,4 +147,7 @@ jobs:
         run: build/example && build/example-static
       
       - name: Run test
-        run: build/test && build/test-static
+        run: >
+          build/test tests/test_images/grayscale_4bit.png &&
+          build/test-static tests/test_images/palette_4bit.png &&
+          build/test tests/test_images/rover.png
