@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+#include <emmintrin.h>
 #include <stdalign.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -140,17 +141,17 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
 
     uint8_t* mem_ptr = NULL;
 
-    mem_ptr = (uint8_t*)SLP_ALIGNED_ALLOC(SLP_ALIGN_SIZE(bpr + 1) * 5 + CHUNK + 12);
+    mem_ptr = (uint8_t*)SLP_MALLOC((bpr + 1) * 5 + CHUNK + 12);
     if (mem_ptr == NULL)
         Err(ALLOC_ERR);
 
-    int8_t* filter_buffers[5];  // trying to do align alloc but this doesn't help much
-    filter_buffers[0] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 0;
-    filter_buffers[1] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 1;
-    filter_buffers[2] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 2;
-    filter_buffers[3] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 3;
-    filter_buffers[4] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 4;
-    uint8_t* out = mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 5;
+    int8_t* filter_buffers[5];
+    filter_buffers[0] = (int8_t*)mem_ptr + (bpr + 1) * 0;
+    filter_buffers[1] = (int8_t*)mem_ptr + (bpr + 1) * 1;
+    filter_buffers[2] = (int8_t*)mem_ptr + (bpr + 1) * 2;
+    filter_buffers[3] = (int8_t*)mem_ptr + (bpr + 1) * 3;
+    filter_buffers[4] = (int8_t*)mem_ptr + (bpr + 1) * 4;
+    uint8_t* out = mem_ptr + (bpr + 1) * 5;
 
     SLP_MEMCPY(out + 4, "IDAT", 4);
     filter_buffers[0][0] = 0;
@@ -361,11 +362,11 @@ static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restri
                 const __m256i vavg = _mm256_sub_epi8(r, tavg);
                 const __m256i vpaeth = _mm256_sub_epi8(r, d);
 
-                noneSum = _mm256_add_epi64(noneSum, _mm256_sad_epu8(r, zero));
-                subSum = _mm256_add_epi64(subSum, _mm256_sad_epu8(r, va));
-                upSum = _mm256_add_epi64(upSum, _mm256_sad_epu8(r, vb));
-                avgSum = _mm256_add_epi64(avgSum, _mm256_sad_epu8(r, tavg));
-                paethSum = _mm256_add_epi64(paethSum, _mm256_sad_epu8(r, d));
+                noneSum = _mm256_add_epi64(noneSum, _mm256_sad_epu8(_mm256_abs_epi8(r), zero));
+                subSum = _mm256_add_epi64(subSum, _mm256_sad_epu8(_mm256_abs_epi8(vsub), zero));
+                upSum = _mm256_add_epi64(upSum, _mm256_sad_epu8(_mm256_abs_epi8(vup), zero));
+                avgSum = _mm256_add_epi64(avgSum, _mm256_sad_epu8(_mm256_abs_epi8(vavg), zero));
+                paethSum = _mm256_add_epi64(paethSum, _mm256_sad_epu8(_mm256_abs_epi8(vpaeth), zero));
 
                 _mm256_storeu_si256((__m256i*)(filter_buffers[0] + j + 1), r);
                 _mm256_storeu_si256((__m256i*)(filter_buffers[1] + j + 1), vsub);
@@ -466,11 +467,11 @@ static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restri
                 const __m128i vavg = _mm_sub_epi8(r, tavg);
                 const __m128i vpaeth = _mm_sub_epi8(r, d);
 
-                noneSum = _mm_add_epi64(noneSum, _mm_sad_epu8(r, zero));
-                subSum = _mm_add_epi64(subSum, _mm_sad_epu8(r, va));
-                upSum = _mm_add_epi64(upSum, _mm_sad_epu8(r, vb));
-                avgSum = _mm_add_epi64(avgSum, _mm_sad_epu8(r, tavg));
-                paethSum = _mm_add_epi64(paethSum, _mm_sad_epu8(r, d));
+                noneSum = _mm_add_epi64(noneSum, _mm_sad_epu8(_mm_abs_epi8(r), zero));
+                subSum = _mm_add_epi64(subSum, _mm_sad_epu8(_mm_abs_epi8(vsub), zero));
+                upSum = _mm_add_epi64(upSum, _mm_sad_epu8(_mm_abs_epi8(vup), zero));
+                avgSum = _mm_add_epi64(avgSum, _mm_sad_epu8(_mm_abs_epi8(vavg), zero));
+                paethSum = _mm_add_epi64(paethSum, _mm_sad_epu8(_mm_abs_epi8(vpaeth), zero));
 
                 _mm_storeu_si128((__m128i*)(filter_buffers[0] + j + 1), r);
                 _mm_storeu_si128((__m128i*)(filter_buffers[1] + j + 1), vsub);
