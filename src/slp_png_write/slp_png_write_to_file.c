@@ -262,10 +262,25 @@ cleanup:
 
 #ifdef __SSE2__
 // fallback abs_epi16 for sse2
-__m128i _mm_abs_epi16_sse2(__m128i v) {
+__m128i _mm_abs_epi16_compat(__m128i v) {
+    #ifdef __SSSE3__
+    return _mm_abs_epi16(v);
+    #else
     __m128i mask = _mm_srai_epi16(v, 15);  // srai will shift in 1 or 0 depends on the msbit
     v = _mm_xor_si128(v, mask);            // do bit flips if signed
     return _mm_sub_epi16(v, mask);         // this is add 1 if signed, for signed number all1 = -1 so --1 = +1
+    #endif
+}
+
+// fallback abs_epi8 for sse2
+__m128i _mm_abs_epi8_compat(__m128i v) {
+    #ifdef __SSSE3__
+    return _mm_abs_epi8(v);
+    #else
+    __m128i mask = _mm_cmpgt_epi8(_mm_setzero_si128(), v);
+    v = _mm_xor_si128(v, mask);
+    return _mm_sub_epi8(v, mask);
+    #endif
 }
 #endif
 
@@ -421,21 +436,13 @@ static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restri
 
                 const __m128i p_lo = _mm_add_epi16(va_lo, _mm_sub_epi16(vb_lo, vc_lo));
                 const __m128i p_hi = _mm_add_epi16(va_hi, _mm_sub_epi16(vb_hi, vc_hi));
-                #ifdef __SSSE3__
-                const __m128i pa_lo = _mm_abs_epi16(_mm_sub_epi16(p_lo, va_lo));
-                const __m128i pa_hi = _mm_abs_epi16(_mm_sub_epi16(p_hi, va_hi));
-                const __m128i pb_lo = _mm_abs_epi16(_mm_sub_epi16(p_lo, vb_lo));
-                const __m128i pb_hi = _mm_abs_epi16(_mm_sub_epi16(p_hi, vb_hi));
-                const __m128i pc_lo = _mm_abs_epi16(_mm_sub_epi16(p_lo, vc_lo));
-                const __m128i pc_hi = _mm_abs_epi16(_mm_sub_epi16(p_hi, vc_hi));
-                #else
-                const __m128i pa_lo = _mm_abs_epi16_sse2(_mm_sub_epi16(p_lo, va_lo));
-                const __m128i pa_hi = _mm_abs_epi16_sse2(_mm_sub_epi16(p_hi, va_hi));
-                const __m128i pb_lo = _mm_abs_epi16_sse2(_mm_sub_epi16(p_lo, vb_lo));
-                const __m128i pb_hi = _mm_abs_epi16_sse2(_mm_sub_epi16(p_hi, vb_hi));
-                const __m128i pc_lo = _mm_abs_epi16_sse2(_mm_sub_epi16(p_lo, vc_lo));
-                const __m128i pc_hi = _mm_abs_epi16_sse2(_mm_sub_epi16(p_hi, vc_hi));
-                #endif
+
+                const __m128i pa_lo = _mm_abs_epi16_compat(_mm_sub_epi16(p_lo, va_lo));
+                const __m128i pa_hi = _mm_abs_epi16_compat(_mm_sub_epi16(p_hi, va_hi));
+                const __m128i pb_lo = _mm_abs_epi16_compat(_mm_sub_epi16(p_lo, vb_lo));
+                const __m128i pb_hi = _mm_abs_epi16_compat(_mm_sub_epi16(p_hi, vb_hi));
+                const __m128i pc_lo = _mm_abs_epi16_compat(_mm_sub_epi16(p_lo, vc_lo));
+                const __m128i pc_hi = _mm_abs_epi16_compat(_mm_sub_epi16(p_hi, vc_hi));
 
                 const __m128i not_pa_le_pb_lo = _mm_cmpgt_epi16(pa_lo, pb_lo);
                 const __m128i not_pa_le_pb_hi = _mm_cmpgt_epi16(pa_hi, pb_hi);
@@ -467,11 +474,11 @@ static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restri
                 const __m128i vavg = _mm_sub_epi8(r, tavg);
                 const __m128i vpaeth = _mm_sub_epi8(r, d);
 
-                noneSum = _mm_add_epi64(noneSum, _mm_sad_epu8(_mm_abs_epi8(r), zero));
-                subSum = _mm_add_epi64(subSum, _mm_sad_epu8(_mm_abs_epi8(vsub), zero));
-                upSum = _mm_add_epi64(upSum, _mm_sad_epu8(_mm_abs_epi8(vup), zero));
-                avgSum = _mm_add_epi64(avgSum, _mm_sad_epu8(_mm_abs_epi8(vavg), zero));
-                paethSum = _mm_add_epi64(paethSum, _mm_sad_epu8(_mm_abs_epi8(vpaeth), zero));
+                noneSum = _mm_add_epi64(noneSum, _mm_sad_epu8(_mm_abs_epi8_compat(r), zero));
+                subSum = _mm_add_epi64(subSum, _mm_sad_epu8(_mm_abs_epi8_compat(vsub), zero));
+                upSum = _mm_add_epi64(upSum, _mm_sad_epu8(_mm_abs_epi8_compat(vup), zero));
+                avgSum = _mm_add_epi64(avgSum, _mm_sad_epu8(_mm_abs_epi8_compat(vavg), zero));
+                paethSum = _mm_add_epi64(paethSum, _mm_sad_epu8(_mm_abs_epi8_compat(vpaeth), zero));
 
                 _mm_storeu_si128((__m128i*)(filter_buffers[0] + j + 1), r);
                 _mm_storeu_si128((__m128i*)(filter_buffers[1] + j + 1), vsub);
