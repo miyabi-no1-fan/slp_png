@@ -144,10 +144,7 @@ jobs:
           && cmake --build build --config Release
 
       - name: Run example
-        run: build/example
-
-      - name: Run SPNG benchmark for diagnostic
-        run: build/test --spng-benchmark
+        run: build/example && build/example-static
 
       - name: Run test
         run: >
