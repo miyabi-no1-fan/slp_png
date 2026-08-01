@@ -30,6 +30,18 @@ limitations under the License.
 #include <slp_image.h>
 #include <slp_png.h>
 
+#ifndef SLP_DEBUG
+#define SLP_DEBUG 0
+#endif
+
+#if SLP_DEBUG
+    #undef SLP_DEBUG
+    #define SLP_DEBUG(err) image.bit_depth = err
+#else
+    #undef SLP_DEBUG
+    #define SLP_DEBUG(err) do { int e = err; } while(0)
+#endif
+
 // constants
 #define PNG_SIGNATURE 0x89504E470D0A1A0Aull
 #define CHUNK 65536
@@ -43,7 +55,7 @@ limitations under the License.
 // helpers
 static int slp_png_get_channels(const int color_type, const int bit_depth);
 static int slp_png_defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker);
-static void slp_png_decode(slp_image_t* restrict image, FILE* restrict file, const size_t file_size, const int color_type);
+static int slp_png_decode(slp_image_t* restrict image, FILE* restrict file, const size_t file_size, const int color_type);
 static void slp_png_colortype3_unpack(uint8_t* restrict buffer, slp_image_t* restrict image, const size_t bpr, const size_t imtrker);
 static void slp_png_index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restrict palette);
 
@@ -53,7 +65,7 @@ slp_image_t slp_png_read(const char* path) {
 
     FILE* file = fopen(path, "rb");
     if (file == NULL) {
-        image.bit_depth = FILE_ERR;
+        SLP_DEBUG(FILE_ERR);
         image.pixels = NULL;
         return image;
     }
@@ -61,7 +73,7 @@ slp_image_t slp_png_read(const char* path) {
     int ret = fseek(file, 0, SEEK_END);
     if (ret != 0) {
         fclose(file);
-        image.bit_depth = FILE_ERR;
+        SLP_DEBUG(FILE_ERR);
         image.pixels = NULL;
         return image;
     }
@@ -69,7 +81,7 @@ slp_image_t slp_png_read(const char* path) {
     size_t file_size = ftell(file);
     if (file_size < 57) {  // minimal size required for PNGSIG + IHDR + IDAT(with data len = 0) + IEND
         fclose(file);
-        image.bit_depth = INVALID_FILE;
+        SLP_DEBUG(INVALID_FILE);
         image.pixels = NULL;
         return image;
     }
@@ -77,7 +89,7 @@ slp_image_t slp_png_read(const char* path) {
     ret = fseek(file, 0, SEEK_SET);
     if (ret != 0) {
         fclose(file);
-        image.bit_depth = FILE_ERR;
+        SLP_DEBUG(FILE_ERR);
         image.pixels = NULL;
         return image;
     }
@@ -86,7 +98,7 @@ slp_image_t slp_png_read(const char* path) {
 
     if (fread(worker, 1, 33, file) < 33) {
         fclose(file);
-        image.bit_depth = FILE_ERR;
+        SLP_DEBUG(FILE_ERR);
         image.pixels = NULL;
         return image;
     }
@@ -100,7 +112,7 @@ slp_image_t slp_png_read(const char* path) {
         big_edian_u32(worker + 29) != crc_)
     {
         fclose(file);
-        image.bit_depth = INVALID_FILE;
+        SLP_DEBUG(INVALID_FILE);
         image.pixels = NULL;
         return image;
     }
@@ -116,9 +128,13 @@ slp_image_t slp_png_read(const char* path) {
 
     if (compression_method != 0 || filter_method != 0 || interlace_method != 0 || channels == 0) {
         fclose(file);
-        image.bit_depth = INVALID_FILE;
+        SLP_DEBUG(INVALID_FILE);
         image.pixels = NULL;
         return image;
+    }
+
+    if (color_type == 3) {
+        assert(channels == 4);
     }
 
     const size_t image_size = image.image_size = height * div_ceil((size_t)width * channels * ((color_type == 3) ? 8 : bit_depth), 8);
@@ -127,15 +143,16 @@ slp_image_t slp_png_read(const char* path) {
     image.pixels = (uint8_t*)SLP_ALIGNED_ALLOC(allocated_size);
     if (image.pixels == NULL) {
         fclose(file);
-        image.bit_depth = ALLOC_ERR;
+        SLP_DEBUG(ALLOC_ERR);
         image.pixels = NULL;
         return image;
     }
 
-    slp_png_decode(&image, file, file_size, color_type);
-    if (image.bit_depth != bit_depth) {
+    ret = slp_png_decode(&image, file, file_size, color_type);
+    if (ret != 0) {
         fclose(file);
         SLP_ALIGNED_FREE(image.pixels);
+        SLP_DEBUG(ret);
         image.pixels = NULL;
         return image;
     }
@@ -197,10 +214,11 @@ static inline int slp_png_get_channels(const int color_type, const int bit_depth
     assert(false);
 }
 
-static inline void slp_png_decode(slp_image_t* restrict image, FILE* restrict file, const size_t file_size, const int color_type) {
+static inline int slp_png_decode(slp_image_t* restrict image, FILE* restrict file, const size_t file_size, const int color_type) {
+    int return_code = 0;
     const bool is_color_type3 = (color_type == 3);
 
-    #define Err(error) do { image->bit_depth = error; goto cleanup; } while(0)
+#define Err(error) do { return_code = error; goto cleanup; } while(0)
 
     uint8_t worker[12];
     uint8_t* out = NULL;
@@ -217,7 +235,7 @@ static inline void slp_png_decode(slp_image_t* restrict image, FILE* restrict fi
     uint8_t* scanline[2] = { NULL, NULL };
 
     const size_t bpp = is_color_type3 ? 1 : (image->channels * (1 + (image->bit_depth == 16)));
-    const size_t bpr = div_ceil(image->width * (is_color_type3 ? 1 : image->channels) * image->bit_depth, 8);
+    const size_t bpr = div_ceil((size_t)image->width * (is_color_type3 ? 1 : image->channels) * image->bit_depth, 8);
 
     while (!iend_check) {
         if (fread(worker, 1, 8, file) != 8)
@@ -551,6 +569,7 @@ static inline void slp_png_decode(slp_image_t* restrict image, FILE* restrict fi
     if (is_color_type3)
         slp_png_index_u32_to_RGBA(image, palette);
 
+#undef Err
 cleanup:
     if (is_color_type3) {
         SLP_FREE(scanline[0]);
@@ -559,11 +578,12 @@ cleanup:
     SLP_FREE(palette);
     SLP_FREE(out);
     SLP_FREE(in);
-    return;
+    return return_code;
 }
 
 // scanline[0] is up, scanline[1] is output
 static inline int slp_png_defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker) {
+    assert(bpp < bpr);
     uint8_t filter = *buffer++;
     switch (filter) {
         case 0: {
@@ -642,13 +662,29 @@ static inline int slp_png_defilter(uint8_t* restrict buffer, uint8_t* restrict* 
 static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, slp_image_t* restrict image, const size_t bpr, const size_t imtrker) {
     assert(image->channels == 4);
     uint8_t* src = buffer;
-    uint8_t* dest = image->pixels + imtrker * (size_t)image->width * image->channels;
+    uint8_t* dest = image->pixels + imtrker * image->width * image->channels;
+
+#ifdef __SSE2__
+// convert into u32 and store
+#define store(indx, src) do {                                                                       \
+        const __m128i zeroes = _mm_setzero_si128();                                                 \
+        const __m128i x0 = _mm_unpacklo_epi8(src, zeroes);                                          \
+        const __m128i x1 = _mm_unpackhi_epi8(src, zeroes);                                          \
+        const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);                                          \
+        const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);                                          \
+        const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);                                          \
+        const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);                                          \
+        _mm_storeu_si128((__m128i*)(dest + i * (32 / image->bit_depth) + (indx * 4 + 0) * 16), p0); \
+        _mm_storeu_si128((__m128i*)(dest + i * (32 / image->bit_depth) + (indx * 4 + 1) * 16), p1); \
+        _mm_storeu_si128((__m128i*)(dest + i * (32 / image->bit_depth) + (indx * 4 + 2) * 16), p2); \
+        _mm_storeu_si128((__m128i*)(dest + i * (32 / image->bit_depth) + (indx * 4 + 3) * 16), p3); \
+    } while (0)
+#endif
+
     size_t i = 0;
     switch (image->bit_depth) {
         case 1: {
             #ifdef __SSE2__
-            const __m128i zeroes = _mm_setzero_si128();
-
             for (; i + 16 <= bpr; i += 16) {
                 const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
 
@@ -688,133 +724,14 @@ static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, slp_image
                 const __m128i a01234567hi_hi_lo = _mm_unpacklo_epi32(a0123hi_hi, a4567hi_hi);
                 const __m128i a01234567hi_hi_hi = _mm_unpackhi_epi32(a0123hi_hi, a4567hi_hi);
 
-                //_mm_storeu_si128((__m128i *)(dest + 0 * 16), a01234567lo_lo_lo);
-                {
-                    const __m128i x0 = _mm_unpacklo_epi8(a01234567lo_lo_lo, zeroes);
-                    const __m128i x1 = _mm_unpackhi_epi8(a01234567lo_lo_lo, zeroes);
-
-                    const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);
-                    const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);
-                    const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);
-                    const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);
-
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 0 * 16), p0);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 1 * 16), p1);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 2 * 16), p2);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 3 * 16), p3);
-                }
-
-                //_mm_storeu_si128((__m128i *)(dest + 1 * 16), a01234567lo_lo_hi);
-                {
-                    const __m128i x0 = _mm_unpacklo_epi8(a01234567lo_lo_hi, zeroes);
-                    const __m128i x1 = _mm_unpackhi_epi8(a01234567lo_lo_hi, zeroes);
-
-                    const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);
-                    const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);
-                    const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);
-                    const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);
-
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 4 * 16), p0);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 5 * 16), p1);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 6 * 16), p2);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 7 * 16), p3);
-                }
-
-                //_mm_storeu_si128((__m128i *)(dest + 2 * 16), a01234567lo_hi_lo);
-                {
-                    const __m128i x0 = _mm_unpacklo_epi8(a01234567lo_hi_lo, zeroes);
-                    const __m128i x1 = _mm_unpackhi_epi8(a01234567lo_hi_lo, zeroes);
-
-                    const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);
-                    const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);
-                    const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);
-                    const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);
-
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 8 * 16), p0);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 9 * 16), p1);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 10 * 16), p2);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 11 * 16), p3);
-                }
-
-                //_mm_storeu_si128((__m128i *)(dest + 3 * 16), a01234567lo_hi_hi);
-                {
-                    const __m128i x0 = _mm_unpacklo_epi8(a01234567lo_hi_hi, zeroes);
-                    const __m128i x1 = _mm_unpackhi_epi8(a01234567lo_hi_hi, zeroes);
-
-                    const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);
-                    const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);
-                    const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);
-                    const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);
-
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 12 * 16), p0);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 13 * 16), p1);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 14 * 16), p2);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 15 * 16), p3);
-                }
-
-                //_mm_storeu_si128((__m128i *)(dest + 4 * 16), a01234567hi_lo_lo);
-                {
-                    const __m128i x0 = _mm_unpacklo_epi8(a01234567hi_lo_lo, zeroes);
-                    const __m128i x1 = _mm_unpackhi_epi8(a01234567hi_lo_lo, zeroes);
-
-                    const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);
-                    const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);
-                    const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);
-                    const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);
-
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 16 * 16), p0);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 17 * 16), p1);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 18 * 16), p2);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 19 * 16), p3);
-                }
-
-                //_mm_storeu_si128((__m128i *)(dest + 5 * 16), a01234567hi_lo_hi);
-                {
-                    const __m128i x0 = _mm_unpacklo_epi8(a01234567hi_lo_hi, zeroes);
-                    const __m128i x1 = _mm_unpackhi_epi8(a01234567hi_lo_hi, zeroes);
-
-                    const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);
-                    const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);
-                    const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);
-                    const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);
-
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 20 * 16), p0);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 21 * 16), p1);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 22 * 16), p2);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 23 * 16), p3);
-                }
-
-                //_mm_storeu_si128((__m128i *)(dest + 6 * 16), a01234567hi_hi_lo);
-                {
-                    const __m128i x0 = _mm_unpacklo_epi8(a01234567hi_hi_lo, zeroes);
-                    const __m128i x1 = _mm_unpackhi_epi8(a01234567hi_hi_lo, zeroes);
-
-                    const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);
-                    const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);
-                    const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);
-                    const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);
-
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 24 * 16), p0);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 25 * 16), p1);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 26 * 16), p2);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 27 * 16), p3);
-                }
-
-                //_mm_storeu_si128((__m128i *)(dest + 7 * 16), a01234567hi_hi_hi);
-                {
-                    const __m128i x0 = _mm_unpacklo_epi8(a01234567hi_hi_hi, zeroes);
-                    const __m128i x1 = _mm_unpackhi_epi8(a01234567hi_hi_hi, zeroes);
-
-                    const __m128i p0 = _mm_unpacklo_epi16(x0, zeroes);
-                    const __m128i p1 = _mm_unpackhi_epi16(x0, zeroes);
-                    const __m128i p2 = _mm_unpacklo_epi16(x1, zeroes);
-                    const __m128i p3 = _mm_unpackhi_epi16(x1, zeroes);
-
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 28 * 16), p0);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 29 * 16), p1);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 30 * 16), p2);
-                    _mm_storeu_si128((__m128i*)(dest + i * 32 + 31 * 16), p3);
-                }
+                store(0, a01234567lo_lo_lo);
+                store(1, a01234567lo_lo_hi);
+                store(2, a01234567lo_hi_lo);
+                store(3, a01234567lo_hi_hi);
+                store(4, a01234567hi_lo_lo);
+                store(5, a01234567hi_lo_hi);
+                store(6, a01234567hi_hi_lo);
+                store(7, a01234567hi_hi_hi);
             }
             #endif
             for (; i < bpr; i++) {
@@ -831,8 +748,6 @@ static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, slp_image
         }
         case 2: {
             #ifdef __SSE2__
-            const __m128i zeroes = _mm_setzero_si128();
-
             for (; i + 16 <= bpr; i += 16) {
                 const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
 
@@ -851,69 +766,10 @@ static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, slp_image
                 const __m128i in0123hi_lo = _mm_unpacklo_epi16(in01_hi, in23_hi);
                 const __m128i in0123hi_hi = _mm_unpackhi_epi16(in01_hi, in23_hi);
 
-                //_mm_storeu_si128((__m128i *)(dest + 0 * 16), in0123lo_lo);
-                {
-                    const __m128i a0 = _mm_unpacklo_epi8(in0123lo_lo, zeroes);
-                    __m128i a1 = _mm_unpackhi_epi8(in0123lo_lo, zeroes);
-
-                    const __m128i p0 = _mm_unpacklo_epi16(a0, zeroes);
-                    const __m128i p1 = _mm_unpackhi_epi16(a0, zeroes);
-                    const __m128i p2 = _mm_unpacklo_epi16(a1, zeroes);
-                    const __m128i p3 = _mm_unpackhi_epi16(a1, zeroes);
-
-                    _mm_storeu_si128((__m128i*)(dest + i * 16 + 0 * 16), p0);
-                    _mm_storeu_si128((__m128i*)(dest + i * 16 + 1 * 16), p1);
-                    _mm_storeu_si128((__m128i*)(dest + i * 16 + 2 * 16), p2);
-                    _mm_storeu_si128((__m128i*)(dest + i * 16 + 3 * 16), p3);
-                }
-
-                //_mm_storeu_si128((__m128i *)(dest + 1 * 16), in0123lo_hi);
-                {
-                    const __m128i a0 = _mm_unpacklo_epi8(in0123lo_hi, zeroes);
-                    __m128i a1 = _mm_unpackhi_epi8(in0123lo_hi, zeroes);
-
-                    const __m128i p0 = _mm_unpacklo_epi16(a0, zeroes);
-                    const __m128i p1 = _mm_unpackhi_epi16(a0, zeroes);
-                    const __m128i p2 = _mm_unpacklo_epi16(a1, zeroes);
-                    const __m128i p3 = _mm_unpackhi_epi16(a1, zeroes);
-
-                    _mm_storeu_si128((__m128i*)(dest + i * 16 + 4 * 16), p0);
-                    _mm_storeu_si128((__m128i*)(dest + i * 16 + 5 * 16), p1);
-                    _mm_storeu_si128((__m128i*)(dest + i * 16 + 6 * 16), p2);
-                    _mm_storeu_si128((__m128i*)(dest + i * 16 + 7 * 16), p3);
-                }
-
-                //_mm_storeu_si128((__m128i *)(dest + 2 * 16), in0123hi_lo);
-                {
-                    const __m128i a0 = _mm_unpacklo_epi8(in0123hi_lo, zeroes);
-                    __m128i a1 = _mm_unpackhi_epi8(in0123hi_lo, zeroes);
-
-                    const __m128i p0 = _mm_unpacklo_epi16(a0, zeroes);
-                    const __m128i p1 = _mm_unpackhi_epi16(a0, zeroes);
-                    const __m128i p2 = _mm_unpacklo_epi16(a1, zeroes);
-                    const __m128i p3 = _mm_unpackhi_epi16(a1, zeroes);
-
-                    _mm_storeu_si128((__m128i*)(dest + i * 16 + 8 * 16), p0);
-                    _mm_storeu_si128((__m128i*)(dest + i * 16 + 9 * 16), p1);
-                    _mm_storeu_si128((__m128i*)(dest + i * 16 + 10 * 16), p2);
-                    _mm_storeu_si128((__m128i*)(dest + i * 16 + 11 * 16), p3);
-                }
-
-                //_mm_storeu_si128((__m128i *)(dest + 3 * 16), in0123hi_hi);
-                {
-                    const __m128i a0 = _mm_unpacklo_epi8(in0123hi_hi, zeroes);
-                    __m128i a1 = _mm_unpackhi_epi8(in0123hi_hi, zeroes);
-
-                    const __m128i p0 = _mm_unpacklo_epi16(a0, zeroes);
-                    const __m128i p1 = _mm_unpackhi_epi16(a0, zeroes);
-                    const __m128i p2 = _mm_unpacklo_epi16(a1, zeroes);
-                    const __m128i p3 = _mm_unpackhi_epi16(a1, zeroes);
-
-                    _mm_storeu_si128((__m128i*)(dest + i * 16 + 12 * 16), p0);
-                    _mm_storeu_si128((__m128i*)(dest + i * 16 + 13 * 16), p1);
-                    _mm_storeu_si128((__m128i*)(dest + i * 16 + 14 * 16), p2);
-                    _mm_storeu_si128((__m128i*)(dest + i * 16 + 15 * 16), p3);
-                }
+                store(0, in0123lo_lo);
+                store(1, in0123lo_hi);
+                store(2, in0123hi_lo);
+                store(3, in0123hi_hi);
             }
             #endif
             for (; i < bpr; i++) {
@@ -926,8 +782,6 @@ static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, slp_image
         }
         case 4: {
             #ifdef __SSE2__
-            const __m128i zeroes = _mm_setzero_si128();
-
             for (; i + 16 <= bpr; i += 16) {
                 const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
 
@@ -937,37 +791,8 @@ static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, slp_image
                 const __m128i out_lo = _mm_unpacklo_epi8(in0, in1);
                 const __m128i out_hi = _mm_unpackhi_epi8(in0, in1);
 
-                //_mm_storeu_si128((__m128i *)(dest + 0 * 16), out_lo);
-                {
-                    const __m128i a0 = _mm_unpacklo_epi8(out_lo, zeroes);
-                    const __m128i a1 = _mm_unpackhi_epi8(out_lo, zeroes);
-
-                    const __m128i p0 = _mm_unpacklo_epi16(a0, zeroes);
-                    const __m128i p1 = _mm_unpackhi_epi16(a0, zeroes);
-                    const __m128i p2 = _mm_unpacklo_epi16(a1, zeroes);
-                    const __m128i p3 = _mm_unpackhi_epi16(a1, zeroes);
-
-                    _mm_storeu_si128((__m128i*)(dest + i * 8 + 0 * 16), p0);
-                    _mm_storeu_si128((__m128i*)(dest + i * 8 + 1 * 16), p1);
-                    _mm_storeu_si128((__m128i*)(dest + i * 8 + 2 * 16), p2);
-                    _mm_storeu_si128((__m128i*)(dest + i * 8 + 3 * 16), p3);
-                }
-
-                //_mm_storeu_si128((__m128i *)(dest + 1 * 16), out_hi);
-                {
-                    const __m128i a0 = _mm_unpacklo_epi8(out_hi, zeroes);
-                    const __m128i a1 = _mm_unpackhi_epi8(out_hi, zeroes);
-
-                    const __m128i p0 = _mm_unpacklo_epi16(a0, zeroes);
-                    const __m128i p1 = _mm_unpackhi_epi16(a0, zeroes);
-                    const __m128i p2 = _mm_unpacklo_epi16(a1, zeroes);
-                    const __m128i p3 = _mm_unpackhi_epi16(a1, zeroes);
-
-                    _mm_storeu_si128((__m128i*)(dest + i * 8 + 4 * 16), p0);
-                    _mm_storeu_si128((__m128i*)(dest + i * 8 + 5 * 16), p1);
-                    _mm_storeu_si128((__m128i*)(dest + i * 8 + 6 * 16), p2);
-                    _mm_storeu_si128((__m128i*)(dest + i * 8 + 7 * 16), p3);
-                }
+                store(0, out_lo);
+                store(1, out_hi);
             }
             #endif
             for (; i < bpr; i++) {
@@ -978,33 +803,19 @@ static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, slp_image
         }
         case 8: {
             #ifdef __SSE2__
-            const __m128i zeroes = _mm_setzero_si128();
-
-            for (; i + 16 <= bpr; i += 16) {
-                const __m128i in = _mm_loadu_si128((const __m128i*)(src + i));
-
-                const __m128i in_lo = _mm_unpacklo_epi8(in, zeroes);
-                const __m128i in_hi = _mm_unpackhi_epi8(in, zeroes);
-
-                const __m128i p0 = _mm_unpacklo_epi16(in_lo, zeroes);
-                const __m128i p1 = _mm_unpackhi_epi16(in_lo, zeroes);
-                const __m128i p2 = _mm_unpacklo_epi16(in_hi, zeroes);
-                const __m128i p3 = _mm_unpackhi_epi16(in_hi, zeroes);
-
-                _mm_storeu_si128((__m128i*)(dest + i * 4 + 0 * 16), p0);
-                _mm_storeu_si128((__m128i*)(dest + i * 4 + 1 * 16), p1);
-                _mm_storeu_si128((__m128i*)(dest + i * 4 + 2 * 16), p2);
-                _mm_storeu_si128((__m128i*)(dest + i * 4 + 3 * 16), p3);
-            }
+            for (; i + 16 <= bpr; i += 16) store(0, _mm_loadu_si128((const __m128i*)(src + i)));
             #endif
             for (; i < bpr; i++) dest[i * 4] = src[i];
             break;
         }
         default: assert(false);
     }
+
+#undef store
 }
 
 static inline void slp_png_index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restrict palette) {
+    assert(image->channels == 4);
     for (size_t i = 0; i + image->channels <= image->image_size; i += image->channels) {
         int index = image->pixels[i] * image->channels;
         for (size_t k = 0; k < image->channels; k++) image->pixels[i + k] = palette[index + k];
