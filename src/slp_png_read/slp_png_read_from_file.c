@@ -121,7 +121,7 @@ slp_image_t slp_png_read(const char* path) {
         return image;
     }
 
-    const size_t image_size = image.image_size = height * div_ceil((size_t)width * channels * bit_depth, 8);
+    const size_t image_size = image.image_size = height * div_ceil((size_t)width * channels * ((color_type == 3) ? 8 : bit_depth), 8);
     const size_t allocated_size = image.allocated_size = SLP_ALIGN_SIZE(image_size);
 
     image.pixels = (uint8_t*)SLP_ALIGNED_ALLOC(allocated_size);
@@ -640,6 +640,7 @@ static inline int slp_png_defilter(uint8_t* restrict buffer, uint8_t* restrict* 
 }
 
 static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, slp_image_t* restrict image, const size_t bpr, const size_t imtrker) {
+    assert(image->channels == 4);
     uint8_t* src = buffer;
     uint8_t* dest = image->pixels + imtrker * (size_t)image->width * image->channels;
     size_t i = 0;

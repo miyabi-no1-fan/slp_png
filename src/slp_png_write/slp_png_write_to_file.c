@@ -140,17 +140,17 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
 
     uint8_t* mem_ptr = NULL;
 
-    mem_ptr = (uint8_t*)SLP_ALIGNED_ALLOC(SLP_ALIGN_SIZE(bpr + 1) * 5 + CHUNK + 12);
+    mem_ptr = (uint8_t*)SLP_MALLOC((bpr + 1) * 5 + CHUNK + 12);
     if (mem_ptr == NULL)
         Err(ALLOC_ERR);
 
-    int8_t* filter_buffers[5];  // trying to do align alloc but this doesn't help much
-    filter_buffers[0] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 0;
-    filter_buffers[1] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 1;
-    filter_buffers[2] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 2;
-    filter_buffers[3] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 3;
-    filter_buffers[4] = (int8_t*)mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 4;
-    uint8_t* out = mem_ptr + SLP_ALIGN_SIZE(bpr + 1) * 5;
+    int8_t* filter_buffers[5];
+    filter_buffers[0] = (int8_t*)mem_ptr + (bpr + 1) * 0;
+    filter_buffers[1] = (int8_t*)mem_ptr + (bpr + 1) * 1;
+    filter_buffers[2] = (int8_t*)mem_ptr + (bpr + 1) * 2;
+    filter_buffers[3] = (int8_t*)mem_ptr + (bpr + 1) * 3;
+    filter_buffers[4] = (int8_t*)mem_ptr + (bpr + 1) * 4;
+    uint8_t* out = mem_ptr + (bpr + 1) * 5;
 
     SLP_MEMCPY(out + 4, "IDAT", 4);
     filter_buffers[0][0] = 0;
@@ -255,16 +255,31 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
     if (fwrite(IENDsig, 1, 12, file) != 12)
         Err(FILE_ERR);
 cleanup:
-    SLP_ALIGNED_FREE(mem_ptr);
+    SLP_FREE(mem_ptr);
     return return_code;
 }
 
 #ifdef __SSE2__
 // fallback abs_epi16 for sse2
-__m128i _mm_abs_epi16_sse2(__m128i v) {
+static inline __m128i _mm_abs_epi16_compat(__m128i v) {
+    #ifdef __SSSE3__
+    return _mm_abs_epi16(v);
+    #else
     __m128i mask = _mm_srai_epi16(v, 15);  // srai will shift in 1 or 0 depends on the msbit
     v = _mm_xor_si128(v, mask);            // do bit flips if signed
     return _mm_sub_epi16(v, mask);         // this is add 1 if signed, for signed number all1 = -1 so --1 = +1
+    #endif
+}
+
+// fallback abs_epi8 for sse2
+static inline __m128i _mm_abs_epi8_compat(__m128i v) {
+    #ifdef __SSSE3__
+    return _mm_abs_epi8(v);
+    #else
+    __m128i mask = _mm_cmpgt_epi8(_mm_setzero_si128(), v);
+    v = _mm_xor_si128(v, mask);
+    return _mm_sub_epi8(v, mask);
+    #endif
 }
 #endif
 
@@ -361,11 +376,11 @@ static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restri
                 const __m256i vavg = _mm256_sub_epi8(r, tavg);
                 const __m256i vpaeth = _mm256_sub_epi8(r, d);
 
-                noneSum = _mm256_add_epi64(noneSum, _mm256_sad_epu8(r, zero));
-                subSum = _mm256_add_epi64(subSum, _mm256_sad_epu8(r, va));
-                upSum = _mm256_add_epi64(upSum, _mm256_sad_epu8(r, vb));
-                avgSum = _mm256_add_epi64(avgSum, _mm256_sad_epu8(r, tavg));
-                paethSum = _mm256_add_epi64(paethSum, _mm256_sad_epu8(r, d));
+                noneSum = _mm256_add_epi64(noneSum, _mm256_sad_epu8(_mm256_abs_epi8(r), zero));
+                subSum = _mm256_add_epi64(subSum, _mm256_sad_epu8(_mm256_abs_epi8(vsub), zero));
+                upSum = _mm256_add_epi64(upSum, _mm256_sad_epu8(_mm256_abs_epi8(vup), zero));
+                avgSum = _mm256_add_epi64(avgSum, _mm256_sad_epu8(_mm256_abs_epi8(vavg), zero));
+                paethSum = _mm256_add_epi64(paethSum, _mm256_sad_epu8(_mm256_abs_epi8(vpaeth), zero));
 
                 _mm256_storeu_si256((__m256i*)(filter_buffers[0] + j + 1), r);
                 _mm256_storeu_si256((__m256i*)(filter_buffers[1] + j + 1), vsub);
@@ -420,21 +435,13 @@ static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restri
 
                 const __m128i p_lo = _mm_add_epi16(va_lo, _mm_sub_epi16(vb_lo, vc_lo));
                 const __m128i p_hi = _mm_add_epi16(va_hi, _mm_sub_epi16(vb_hi, vc_hi));
-                #ifdef __SSSE3__
-                const __m128i pa_lo = _mm_abs_epi16(_mm_sub_epi16(p_lo, va_lo));
-                const __m128i pa_hi = _mm_abs_epi16(_mm_sub_epi16(p_hi, va_hi));
-                const __m128i pb_lo = _mm_abs_epi16(_mm_sub_epi16(p_lo, vb_lo));
-                const __m128i pb_hi = _mm_abs_epi16(_mm_sub_epi16(p_hi, vb_hi));
-                const __m128i pc_lo = _mm_abs_epi16(_mm_sub_epi16(p_lo, vc_lo));
-                const __m128i pc_hi = _mm_abs_epi16(_mm_sub_epi16(p_hi, vc_hi));
-                #else
-                const __m128i pa_lo = _mm_abs_epi16_sse2(_mm_sub_epi16(p_lo, va_lo));
-                const __m128i pa_hi = _mm_abs_epi16_sse2(_mm_sub_epi16(p_hi, va_hi));
-                const __m128i pb_lo = _mm_abs_epi16_sse2(_mm_sub_epi16(p_lo, vb_lo));
-                const __m128i pb_hi = _mm_abs_epi16_sse2(_mm_sub_epi16(p_hi, vb_hi));
-                const __m128i pc_lo = _mm_abs_epi16_sse2(_mm_sub_epi16(p_lo, vc_lo));
-                const __m128i pc_hi = _mm_abs_epi16_sse2(_mm_sub_epi16(p_hi, vc_hi));
-                #endif
+
+                const __m128i pa_lo = _mm_abs_epi16_compat(_mm_sub_epi16(p_lo, va_lo));
+                const __m128i pa_hi = _mm_abs_epi16_compat(_mm_sub_epi16(p_hi, va_hi));
+                const __m128i pb_lo = _mm_abs_epi16_compat(_mm_sub_epi16(p_lo, vb_lo));
+                const __m128i pb_hi = _mm_abs_epi16_compat(_mm_sub_epi16(p_hi, vb_hi));
+                const __m128i pc_lo = _mm_abs_epi16_compat(_mm_sub_epi16(p_lo, vc_lo));
+                const __m128i pc_hi = _mm_abs_epi16_compat(_mm_sub_epi16(p_hi, vc_hi));
 
                 const __m128i not_pa_le_pb_lo = _mm_cmpgt_epi16(pa_lo, pb_lo);
                 const __m128i not_pa_le_pb_hi = _mm_cmpgt_epi16(pa_hi, pb_hi);
@@ -466,11 +473,11 @@ static inline void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restri
                 const __m128i vavg = _mm_sub_epi8(r, tavg);
                 const __m128i vpaeth = _mm_sub_epi8(r, d);
 
-                noneSum = _mm_add_epi64(noneSum, _mm_sad_epu8(r, zero));
-                subSum = _mm_add_epi64(subSum, _mm_sad_epu8(r, va));
-                upSum = _mm_add_epi64(upSum, _mm_sad_epu8(r, vb));
-                avgSum = _mm_add_epi64(avgSum, _mm_sad_epu8(r, tavg));
-                paethSum = _mm_add_epi64(paethSum, _mm_sad_epu8(r, d));
+                noneSum = _mm_add_epi64(noneSum, _mm_sad_epu8(_mm_abs_epi8_compat(r), zero));
+                subSum = _mm_add_epi64(subSum, _mm_sad_epu8(_mm_abs_epi8_compat(vsub), zero));
+                upSum = _mm_add_epi64(upSum, _mm_sad_epu8(_mm_abs_epi8_compat(vup), zero));
+                avgSum = _mm_add_epi64(avgSum, _mm_sad_epu8(_mm_abs_epi8_compat(vavg), zero));
+                paethSum = _mm_add_epi64(paethSum, _mm_sad_epu8(_mm_abs_epi8_compat(vpaeth), zero));
 
                 _mm_storeu_si128((__m128i*)(filter_buffers[0] + j + 1), r);
                 _mm_storeu_si128((__m128i*)(filter_buffers[1] + j + 1), vsub);
