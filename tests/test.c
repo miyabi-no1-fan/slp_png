@@ -94,6 +94,10 @@ int main(int argc, char* argv[]) {
     else
         rw_test(path, path_out);
 
+    #ifdef _WIN32
+    panic("here: 4");
+    #endif
+
     return 0;
 }
 
@@ -358,10 +362,6 @@ void spng_bench(const char* path, const char* path_out) {
     slp_image_t spng_image = spng_read_png(path);
     end = clock();
     if (spng_image.pixels == NULL) panic("spng read failed");
-
-    #ifdef _WIN32
-    panic("here: 2");
-    #endif
 
     read_time = (double)(end - start) / CLOCKS_PER_SEC;
     printf("read time: %.3fs\n", read_time);
