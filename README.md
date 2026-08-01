@@ -42,36 +42,39 @@ int main(void)
     return 0;
 }
 ```
-- NOTICE: if slp_png_read fail, your_image.bit_depth will be overwitten with a specified error code.
-    - See in include/slp_image.h for more details about the error code
+- The output image format is raw format except for color type 3 which will be converted to RGBA32.
+
+It is equivalent to this spng format:
+```C
+(color_type == SPNG_COLOR_TYPE_INDEXED) ? SPNG_FMT_RGBA8 : SPNG_FMT_RAW
+```
+we have our test to ensure slp_png_read output match every single byte of spng output using that format
 
 
 ## Features
-- For slp_png_read:
-    - CHUNKS:
-        - For color type 0/2/4/6: IHDR, IDAT, IEND
-        - For color type 3: IHDR, PLTE, tRNS, IDAT, IEND
-    - Color type: 0/2/3/4/6
-        - NOTICE: color type 3 will be converted into RGBA32 ( color type 6, bit depth 8 )
-    - Bit depth: 1/2/4/8/16
-        - NOTICE that for bit depth 16 format, output is always big-edian
-    - Compression method: 0
-    - Filter method: 0
-    - Interlace method: 0
+For slp_png_read:
+- CHUNKS:
+    - For color type 0/2/4/6: IHDR, IDAT, IEND
+    - For color type 3: IHDR, IDAT, IEND, PLTE, tRNS
+- Color type: 0/2/3/4/6
+    - NOTICE: color type 3 will be converted into RGBA32 ( color type 6, bit depth 8 )
+- Bit depth: 1/2/4/8/16 (big-edian)
+- Compression method: 0
+- Filter method: 0
+- Interlace method: 0
 
-- For slp_png_write:
-    - CHUNKS: IHDR, IDAT, IEND
-    - Color type: 0/2/4/6
-    - Bit depth: 1/2/4/8/16
-        - NOTICE: for bit depth 16, input must be big-edian
-    - Compression method: 0
-    - Filter method: 0
-    - Interlace method: 0
-    - Compression level: 6
+For slp_png_write:
+- CHUNKS: IHDR, IDAT, IEND
+- Color type: 0/2/4/6
+- Bit depth: 1/2/4/8/16
+    - NOTICE: for bit depth 16, input must be big-edian
+- Compression method: 0
+- Filter method: 0
+- Interlace method: 0
 
-- For both slp_png_read and slp_png_write:
-    - Thread-safety: this function can call by any thread, but it does not automatically handle fileIO conflicts
-    - The buffer in slp_image_t is allocated via aligned_alloc by default with 64 bytes alignment
+For both slp_png_read and slp_png_write:
+- Thread-safety: this function can call by any thread, but it does not automatically handle fileIO conflicts
+- The buffer in slp_image_t is allocated via aligned_alloc by default with 64 bytes alignment
 
 
 ## Performance
@@ -80,7 +83,7 @@ int main(void)
 - RAM: 16GB DDR5
 - Compare with https://github.com/randy408/libspng
 
-- For slp_png:
+For slp_png:
 ```bash
 git clone https://github.com/slp-c/slp_png.git
 cd slp_png
@@ -88,14 +91,22 @@ cmake -S . -B build -DBUILD_EXAMPLE=ON
 cmake --build build
 build/example
 ```
-- For spng, I use https://github.com/randy408/libspng/blob/master/examples/example.c for the test
 
-- Results:
+For spng, I use https://github.com/randy408/libspng/blob/master/examples/example.c (modified - add some clock() to measure runtime) for the test
+
+Test image: tests/test_images/10.4-MB.png
+
+Results:
 - Read time:
-    - slp_png: 0.104468s
+    - slp_png: 0.105432s
     - libspng: 0.105065s
 
 - Write time:
-    - slp_png: 0.717744s
+    - slp_png: 0.693217s
     - libspng: 1.056884s
-+ Somehow my encoder is a bit faster, correct me if I'm wrong
+
+- Output file size:
+    - slp_png: 10.63MB
+    - libspng: 10.66MB
+
+Somehow my encoder is a bit faster, correct me if I'm wrong
