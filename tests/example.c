@@ -56,8 +56,6 @@ int main(int argc, char* argv[]) {
     write_time = (double)(end - start) / CLOCKS_PER_SEC;
     printf("write time: %.3fs\n", write_time);
 
-    printf("total time: %.3fs\n", read_time + write_time);
-
     slp_image_destroy(&a);
     return 0;
 }
