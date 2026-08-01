@@ -44,7 +44,7 @@ limitations under the License.
 
 // constants
 #define PNG_SIGNATURE 0x89504E470D0A1A0Aull
-#define CHUNK 65536
+#define PREFERED_IO_BUF_SIZE 65536
 #define __CHUNK_TYPE(x0, x1, x2, x3) ((((uint32_t)x0) << 24) | (((uint32_t)x1) << 16) | (((uint32_t)x2) << 8) | (((uint32_t)x3) << 0))
 #define IHDR __CHUNK_TYPE('I', 'H', 'D', 'R')
 #define IDAT __CHUNK_TYPE('I', 'D', 'A', 'T')
@@ -236,6 +236,8 @@ static inline int slp_png_decode(slp_image_t* restrict image, FILE* restrict fil
 
     const size_t bpp = is_color_type3 ? 1 : (image->channels * (1 + (image->bit_depth == 16)));
     const size_t bpr = div_ceil((size_t)image->width * (is_color_type3 ? 1 : image->channels) * image->bit_depth, 8);
+
+    const size_t CHUNK = (PREFERED_IO_BUF_SIZE >= bpr + 1) ? PREFERED_IO_BUF_SIZE : bpr + 1;
 
     while (!iend_check) {
         if (fread(worker, 1, 8, file) != 8)
