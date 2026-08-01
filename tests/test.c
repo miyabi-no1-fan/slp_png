@@ -54,8 +54,8 @@ void thread_safety_test(const char* path);
 
 
 int main(int argc, char* argv[]) {
-    char path[64] = "tests/test_images/10.4-MB.png";
-    char path_out[64] = "TEST.png";
+    char* path = "tests/test_images/10.4-MB.png";
+    char* path_out = "TEST.png";
 
     bool thread_test = false;
     for (int i = 1; i < argc; i++) {
@@ -73,6 +73,9 @@ int main(int argc, char* argv[]) {
                     }
                 }
                 break;
+            }
+            default: {
+                path = argv[i];
             }
         }
     }
@@ -101,7 +104,7 @@ void rw_test(const char* path, const char* path_out) {
 
     for (size_t i = 0; i < a.image_size; i++)
         if (a.pixels[i] != spng_image[i])
-            panic("slp_png_read image pixels mismatch");
+            panic("slp_png_read image pixels mismatch at %lu / %lu, value: %u vs %u", i, a.image_size, a.pixels[i], spng_image[i]);
     free(spng_image);
 
     int ret = slp_png_write(a, path_out);
@@ -192,11 +195,10 @@ uint8_t* read_png(const char *filepath, size_t *out_size) {
         return NULL;
     }
 
-    if (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED)
-        panic("Test read_png function can't handle color type 3");
+    const int target_fmt = (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED) ? SPNG_FMT_RGBA8 : SPNG_FMT_RAW;
 
     size_t image_size;
-    if (spng_decoded_image_size(ctx, SPNG_FMT_PNG, &image_size) != 0) {
+    if (spng_decoded_image_size(ctx, target_fmt, &image_size) != 0) {
         spng_ctx_free(ctx);
         fclose(file);
         return NULL;
@@ -209,15 +211,19 @@ uint8_t* read_png(const char *filepath, size_t *out_size) {
         return NULL;
     }
 
-    if (spng_decode_image(ctx, image_buf, image_size, SPNG_FMT_PNG, 0) != 0) {
+    if (spng_decode_image(ctx, image_buf, image_size, target_fmt, 0) != 0) {
         free(image_buf);
         image_buf = NULL;
-    } else if (out_size) {
+        spng_ctx_free(ctx);
+        fclose(file);
+        return NULL;
+    }
+    
+    if (out_size) {
         *out_size = image_size;
     }
 
     spng_ctx_free(ctx);
     fclose(file);
-
     return image_buf;
 }
