@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
     if (a.pixels == NULL) {printf("read failed\n");return 1;}
 
     read_time = (double)(end - start) / CLOCKS_PER_SEC;
-    printf("read time: %.6fs\n", read_time);
+    printf("read time: %.3fs\n", read_time);
 
     start = clock();
     int ret = slp_png_write(a, path_out);
@@ -54,9 +54,7 @@ int main(int argc, char* argv[]) {
     if (ret != 0) {printf("save failed: %d\n", ret);return 1;}
 
     write_time = (double)(end - start) / CLOCKS_PER_SEC;
-    printf("write time: %.6fs\n", write_time);
-
-    printf("total time: %.6fs\n", read_time + write_time);
+    printf("write time: %.3fs\n", write_time);
 
     slp_image_destroy(&a);
     return 0;
