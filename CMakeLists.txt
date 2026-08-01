@@ -31,7 +31,19 @@ if (SLP_PNG_SHARED OR SLP_PNG_STATIC)
             find_package(PkgConfig REQUIRED)
             set(PKG_CONFIG_USE_STATIC_LIBS ON)
             pkg_check_modules(SPNG REQUIRED IMPORTED_TARGET spng)
-            set(SPNG_TARGET PkgConfig::SPNG)
+            if (SPNG_FOUND)
+                set(SPNG_TARGET PkgConfig::SPNG)
+            else()
+                set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+                include(FetchContent)
+                FetchContent_Declare(
+                    libspng
+                    GIT_REPOSITORY https://github.com/randy408/libspng.git
+                    GIT_TAG v0.7.4
+                )
+                FetchContent_MakeAvailable(libspng)
+                set(SPNG_TARGET spng_static)
+            endif()
         endif()
     endif()
 endif()
