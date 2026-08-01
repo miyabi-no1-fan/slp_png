@@ -100,7 +100,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          build/test --thread_test
+          build/test --thread-test
           shopt -s nullglob
           set +e
           for file in CI_TEST-*.png; do
