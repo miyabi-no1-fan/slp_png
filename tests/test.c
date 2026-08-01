@@ -94,10 +94,6 @@ int main(int argc, char* argv[]) {
     else
         rw_test(path, path_out);
 
-    #ifdef _WIN32
-    panic("here: 4");
-    #endif
-
     return 0;
 }
 
@@ -117,7 +113,7 @@ void rw_test(const char* path, const char* path_out) {
     for (size_t i = 0; i < a.image_size; i++)
         if (a.pixels[i] != spng_image.pixels[i])
             panic("slp_png_read image pixels mismatch at %lu / %lu, value: %u vs %u", i, a.image_size, a.pixels[i], spng_image.pixels[i]);
-    slp_image_destroy(&spng_image);
+    free(spng_image.pixels);
 
     int ret = slp_png_write(a, path_out);
     if (ret != 0)
@@ -371,12 +367,8 @@ void spng_bench(const char* path, const char* path_out) {
     end = clock();
     if (ret != 0) panic("spng save failed");
 
-    #ifdef _WIN32
-    panic("here: 3");
-    #endif
-
     write_time = (double)(end - start) / CLOCKS_PER_SEC;
     printf("write time: %.3fs\n", write_time);
 
-    slp_image_destroy(&spng_image);
+    free(spng_image.pixels);
 }
