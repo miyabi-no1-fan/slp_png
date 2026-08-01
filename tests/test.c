@@ -87,6 +87,10 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    #ifdef _WIN32
+    panic("here: 0");
+    #endif
+
     if (thread_test)
         thread_safety_test(path);
     else if (spng_benchmark)
@@ -350,6 +354,10 @@ int spng_write_png(const char *filepath, const slp_image_t image) {
 }
 
 void spng_bench(const char* path, const char* path_out) {
+    #ifdef _WIN32
+    panic("here: 1");
+    #endif
+
     clock_t start, end;
     double read_time = 0;
     double write_time = 0;
@@ -359,6 +367,10 @@ void spng_bench(const char* path, const char* path_out) {
     end = clock();
     if (spng_image.pixels == NULL) panic("spng read failed");
 
+    #ifdef _WIN32
+    panic("here: 2");
+    #endif
+
     read_time = (double)(end - start) / CLOCKS_PER_SEC;
     printf("read time: %.3fs\n", read_time);
 
@@ -366,6 +378,10 @@ void spng_bench(const char* path, const char* path_out) {
     int ret = spng_write_png(path_out, spng_image);
     end = clock();
     if (ret != 0) panic("spng save failed");
+
+    #ifdef _WIN32
+    panic("here: 3");
+    #endif
 
     write_time = (double)(end - start) / CLOCKS_PER_SEC;
     printf("write time: %.3fs\n", write_time);
