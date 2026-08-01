@@ -350,10 +350,6 @@ int spng_write_png(const char *filepath, const slp_image_t image) {
 }
 
 void spng_bench(const char* path, const char* path_out) {
-    #ifdef _WIN32
-    panic("here: 1");
-    #endif
-
     clock_t start, end;
     double read_time = 0;
     double write_time = 0;
