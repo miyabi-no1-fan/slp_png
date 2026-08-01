@@ -262,7 +262,7 @@ cleanup:
 
 #ifdef __SSE2__
 // fallback abs_epi16 for sse2
-__m128i _mm_abs_epi16_compat(__m128i v) {
+static inline __m128i _mm_abs_epi16_compat(__m128i v) {
     #ifdef __SSSE3__
     return _mm_abs_epi16(v);
     #else
@@ -273,7 +273,7 @@ __m128i _mm_abs_epi16_compat(__m128i v) {
 }
 
 // fallback abs_epi8 for sse2
-__m128i _mm_abs_epi8_compat(__m128i v) {
+static inline __m128i _mm_abs_epi8_compat(__m128i v) {
     #ifdef __SSSE3__
     return _mm_abs_epi8(v);
     #else
