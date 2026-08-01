@@ -105,12 +105,12 @@ Test image: tests/test_images/10.4-MB.png
 
 Results:
 - Read time:
-    - slp_png: 0.105432s
-    - libspng: 0.105065s
+    - slp_png: 0.105s
+    - libspng: 0.105s
 
 - Write time:
-    - slp_png: 0.693217s
-    - libspng: 1.056884s
+    - slp_png: 0.693s
+    - libspng: 1.056s
 
 - Output file size:
     - slp_png: 10.63MB
