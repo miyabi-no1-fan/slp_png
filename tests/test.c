@@ -87,10 +87,6 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    #ifdef _WIN32
-    panic("here: 0");
-    #endif
-
     if (thread_test)
         thread_safety_test(path);
     else if (spng_benchmark)
