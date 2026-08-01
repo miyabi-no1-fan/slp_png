@@ -59,8 +59,6 @@ void thread_safety_test(const char* path);
 
 
 int main(int argc, char* argv[]) {
-    panic("it's windows again");
-
     char* path = "tests/test_images/10.4-MB.png";
     char* path_out = "TEST.png";
 
