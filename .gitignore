@@ -1,8 +1,5 @@
-build/
-exe/
-.vscode/
-.cache/
+build
+build_old
+.vscode
+.cache
 compile_commands.json
-include/slpz.h
-src/slpz/
-tests/spng_test.c

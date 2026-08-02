@@ -16,6 +16,11 @@ option(SLP_IMAGE_TRANSFORM "Build with expierimental module image transform (it 
 option(BUILD_TEST "Build test" OFF)
 option(BUILD_EXAMPLE "Build example" OFF)
 
+set(SRC 
+    src/slp_png_read/slp_png_read_from_file.c
+    src/slp_png_write/slp_png_write_to_file.c
+    src/slp_png_write/slp_png_filter.c
+)
 set(OPTIMIZE_FLAGS -O3 -ffast-math -march=native -mtune=native -DNDEBUG)
 
 if (SLP_PNG_SHARED OR SLP_PNG_STATIC)
@@ -64,9 +69,7 @@ endif()
 
 if (SLP_PNG_SHARED)
     if (SLP_IMAGE_TRANSFORM)
-        add_library("slp_png" SHARED
-            src/slp_png_read/slp_png_read_from_file.c
-            src/slp_png_write/slp_png_write_to_file.c
+        add_library("slp_png" SHARED ${SRC}
             src/slp_image_transform/slp_image_transform.c
         )
         target_link_libraries("slp_png"
@@ -74,18 +77,14 @@ if (SLP_PNG_SHARED)
             PRIVATE m
         )
     else()
-        add_library("slp_png" SHARED
-            src/slp_png_read/slp_png_read_from_file.c
-            src/slp_png_write/slp_png_write_to_file.c
-        )
+        add_library("slp_png" SHARED ${SRC})
     endif()
 endif()
 
 if (SLP_PNG_STATIC)
     if (SLP_IMAGE_TRANSFORM)
         add_library("slp_png-static" STATIC
-            src/slp_png_read/slp_png_read_from_file.c
-            src/slp_png_write/slp_png_write_to_file.c
+            ${SRC}
             src/slp_image_transform/slp_image_transform.c
         )
         target_link_libraries("slp_png-static"
@@ -93,10 +92,7 @@ if (SLP_PNG_STATIC)
             PRIVATE m
         )
     else()
-        add_library("slp_png-static" STATIC
-            src/slp_png_read/slp_png_read_from_file.c
-            src/slp_png_write/slp_png_write_to_file.c
-        )
+        add_library("slp_png-static" STATIC ${SRC})
     endif()
 endif()
 
@@ -140,6 +136,9 @@ if (BUILD_TEST)
     if (TARGET "slp_png")
         add_executable("test" tests/test.c)
         target_link_libraries("test" PRIVATE "slp_png" Threads::Threads ${SPNG_TARGET})
+
+        add_executable("slp_benchmark" benches/slp_rw.c)
+        target_link_libraries("slp_benchmark" PRIVATE "slp_png")
     endif()
     if (TARGET "slp_png-static")
         add_executable("test-static" tests/test.c)
