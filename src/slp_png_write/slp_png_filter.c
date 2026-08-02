@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdalign.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #if defined(__i386__) || defined(__x86_64__)
