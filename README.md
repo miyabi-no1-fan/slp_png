@@ -116,4 +116,4 @@ Results:
     - slp_png: 10.63MB
     - libspng: 10.66MB
 
-Somehow my encoder is a bit faster, correct me if I'm wrong
+Somehow my encoder is a bit faster, correct me if I'm wrong cause I have no idea how is mine faster
