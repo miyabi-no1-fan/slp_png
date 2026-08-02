@@ -2,6 +2,7 @@
 #include <stdalign.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #if defined(__i386__) || defined(__x86_64__)
     #include <immintrin.h>
