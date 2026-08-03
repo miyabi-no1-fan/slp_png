@@ -53,11 +53,11 @@ limitations under the License.
 #define tRNS __CHUNK_TYPE('t', 'R', 'N', 'S')
 
 // helpers
-static int slp_png_get_channels(const int color_type, const int bit_depth);
-static int slp_png_defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker);
-static int slp_png_decode(slp_image_t* restrict image, FILE* restrict file, const size_t file_size, const int color_type);
-static void slp_png_colortype3_unpack(uint8_t* restrict buffer, slp_image_t* restrict image, const size_t bpr, const size_t imtrker);
-static void slp_png_index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restrict palette);
+static int get_channels(const int color_type, const int bit_depth);
+static int defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker);
+static int decode(slp_image_t* restrict image, FILE* restrict file, const size_t file_size, const int color_type);
+static void colortype3_unpack(uint8_t* restrict buffer, slp_image_t* restrict image, const size_t bpr, const size_t imtrker);
+static void index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restrict palette);
 
 // read png from a file
 slp_image_t slp_png_read(const char* path) {
@@ -121,7 +121,7 @@ slp_image_t slp_png_read(const char* path) {
     const uint32_t height = image.height = big_edian_u32(worker + 20);
     const int bit_depth = image.bit_depth = worker[24];
     const int color_type = worker[25];
-    const int channels = image.channels = slp_png_get_channels(color_type, bit_depth);
+    const int channels = image.channels = get_channels(color_type, bit_depth);
     const int compression_method = worker[26];
     const int filter_method = worker[27];
     const int interlace_method = worker[28];
@@ -148,7 +148,7 @@ slp_image_t slp_png_read(const char* path) {
         return image;
     }
 
-    ret = slp_png_decode(&image, file, file_size, color_type);
+    ret = decode(&image, file, file_size, color_type);
     if (ret != 0) {
         fclose(file);
         SLP_ALIGNED_FREE(image.pixels);
@@ -162,7 +162,7 @@ slp_image_t slp_png_read(const char* path) {
     return image;
 }
 
-static inline int slp_png_get_channels(const int color_type, const int bit_depth) {
+static inline int get_channels(const int color_type, const int bit_depth) {
     switch (color_type) {
         case 0: {
             switch (bit_depth) {
@@ -214,7 +214,7 @@ static inline int slp_png_get_channels(const int color_type, const int bit_depth
     assert(false);
 }
 
-static inline int slp_png_decode(slp_image_t* restrict image, FILE* restrict file, const size_t file_size, const int color_type) {
+static inline int decode(slp_image_t* restrict image, FILE* restrict file, const size_t file_size, const int color_type) {
     int return_code = 0;
     const bool is_color_type3 = (color_type == 3);
 
@@ -322,13 +322,13 @@ static inline int slp_png_decode(slp_image_t* restrict image, FILE* restrict fil
                                 offset = have % (bpr + 1);
                                 for (size_t i = 0; i < row_produced; i++) {
                                     // defilter to scanline[1] from buffer as raw and scanline[0] as up
-                                    if (slp_png_defilter(out + i * (bpr + 1), scanline, bpp, bpr, imtrker) != 0) {
+                                    if (defilter(out + i * (bpr + 1), scanline, bpp, bpr, imtrker) != 0) {
                                         inflateEnd(&strm);
                                         Err(INVALID_FILE);
                                     }
 
                                     if (is_color_type3) {
-                                        slp_png_colortype3_unpack(scanline[1], image, bpr, imtrker);
+                                        colortype3_unpack(scanline[1], image, bpr, imtrker);
 
                                         // swap scanline for the next process
                                         uint8_t* temp = scanline[0];
@@ -408,13 +408,13 @@ static inline int slp_png_decode(slp_image_t* restrict image, FILE* restrict fil
                     offset = have % (bpr + 1);
                     for (size_t i = 0; i < row_produced; i++) {
                         // defilter to scanline[1] from buffer and scanline[0]
-                        if (slp_png_defilter(out + i * (bpr + 1), scanline, bpp, bpr, imtrker) != 0) {
+                        if (defilter(out + i * (bpr + 1), scanline, bpp, bpr, imtrker) != 0) {
                             inflateEnd(&strm);
                             Err(INVALID_FILE);
                         }
 
                         if (is_color_type3) {
-                            slp_png_colortype3_unpack(scanline[1], image, bpr, imtrker);
+                            colortype3_unpack(scanline[1], image, bpr, imtrker);
 
                             // swap scanline for the next process
                             uint8_t* temp = scanline[0];
@@ -569,7 +569,7 @@ static inline int slp_png_decode(slp_image_t* restrict image, FILE* restrict fil
         Err(INVALID_FILE);  // IEND != EOF
 
     if (is_color_type3)
-        slp_png_index_u32_to_RGBA(image, palette);
+        index_u32_to_RGBA(image, palette);
 
 #undef Err
 cleanup:
@@ -584,7 +584,7 @@ cleanup:
 }
 
 // scanline[0] is up, scanline[1] is output
-static inline int slp_png_defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker) {
+static inline int defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker) {
     assert(bpp < bpr);
     uint8_t filter = *buffer++;
     switch (filter) {
@@ -661,7 +661,7 @@ static inline int slp_png_defilter(uint8_t* restrict buffer, uint8_t* restrict* 
     return 0;
 }
 
-static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, slp_image_t* restrict image, const size_t bpr, const size_t imtrker) {
+static inline void colortype3_unpack(uint8_t* restrict buffer, slp_image_t* restrict image, const size_t bpr, const size_t imtrker) {
     assert(image->channels == 4);
     uint8_t* src = buffer;
     uint8_t* dest = image->pixels + imtrker * image->width * image->channels;
@@ -816,7 +816,7 @@ static inline void slp_png_colortype3_unpack(uint8_t* restrict buffer, slp_image
 #undef store
 }
 
-static inline void slp_png_index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restrict palette) {
+static inline void index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restrict palette) {
     assert(image->channels == 4);
     for (size_t i = 0; i + image->channels <= image->image_size; i += image->channels) {
         int index = image->pixels[i] * image->channels;

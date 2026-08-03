@@ -41,7 +41,7 @@ static inline __m128i _mm_paeth(const __m128i a, const __m128i b, const __m128i 
 static inline __m256i _mm256_paeth(const __m256i a, const __m256i b, const __m256i c);
 #endif
 
-void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp) {
+void filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp) {
     if (i == 0) {
         uint8_t* src = image_buffer;
         for (size_t j = 0; j < bpp; j++) filter_buffers[1][j + 1] = src[j];

@@ -31,9 +31,9 @@ limitations under the License.
 #define CHUNK 65536  // sizeof 1 IDAT chunk
 
 // helpers
-static uint8_t slp_get_color_type(const uint8_t channels);
-static int slp_png_encode(slp_image_t* restrict image, FILE* restrict file);
-extern void slp_png_filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp);
+static uint8_t get_color_type(const uint8_t channels);
+static int encode(slp_image_t* restrict image, FILE* restrict file);
+extern void filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp);
 
 int slp_png_write(slp_image_t image, const char* path) {
     if (image.height == 0 || image.width == 0 || image.channels == 0) return INVALID_INPUT;
@@ -70,7 +70,7 @@ int slp_png_write(slp_image_t image, const char* path) {
         .width = big_edian_u32_in_mem(image.width, is_little_edian),
         .height = big_edian_u32_in_mem(image.height, is_little_edian),
         .bit_depth = image.bit_depth,
-        .color_type = slp_get_color_type(image.channels),
+        .color_type = get_color_type(image.channels),
         .compression_method = 0,
         .filter_method = 0,
         .interlace_method = 0
@@ -95,7 +95,7 @@ int slp_png_write(slp_image_t image, const char* path) {
         return INVALID_FILE;
     }
 
-    int ret = slp_png_encode(&image, file);
+    int ret = encode(&image, file);
     if (ret != 0) {
         fclose(file);
         return ret;
@@ -105,7 +105,7 @@ int slp_png_write(slp_image_t image, const char* path) {
     return 0;
 }
 
-static inline uint8_t slp_get_color_type(const uint8_t channels) {
+static inline uint8_t get_color_type(const uint8_t channels) {
     switch (channels) {
         case 1: return 0;
         case 2: return 4;
@@ -115,7 +115,7 @@ static inline uint8_t slp_get_color_type(const uint8_t channels) {
     }
 }
 
-static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict file) {
+static inline int encode(slp_image_t* restrict image, FILE* restrict file) {
     // initialize variables
     int return_code = 0;
     #define Err(v) do { return_code = v; goto cleanup; } while(0)
@@ -172,7 +172,7 @@ static inline int slp_png_encode(slp_image_t* restrict image, FILE* restrict fil
 
     for (size_t i = 0; i < height; i++) {
         uint64_t filter_scores[5] = {0};
-        slp_png_filter(image->pixels, filter_buffers, filter_scores, i, bpr, bpp);
+        filter(image->pixels, filter_buffers, filter_scores, i, bpr, bpp);
 
         unsigned int filter_type = 0;
         for (unsigned int i = 0; i < 5; i++)

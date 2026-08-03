@@ -342,7 +342,7 @@ bool slp_image_convert_to_16bit(slp_image_t* image) {
 
 
 
-struct slp_image_crop_thread_data {
+struct image_crop_thread_data {
     size_t c;
     size_t src_stride;
     size_t dest_stride;
@@ -356,8 +356,8 @@ struct slp_image_crop_thread_data {
     int P;
 };
 
-static void* slp_image_crop_thread_task(void* arg) {
-    struct slp_image_crop_thread_data data = *(struct slp_image_crop_thread_data*)arg;
+static void* image_crop_thread_task(void* arg) {
+    struct image_crop_thread_data data = *(struct image_crop_thread_data*)arg;
     uint8_t* src = data.image->pixels + (size_t)(data.offset_height + data.s * data.block) * data.src_stride + (size_t)data.offset_width * data.c;
     uint8_t* dest = data.new_buffer + data.s * data.block * data.dest_stride;
     for (size_t i = data.s * data.block; i < data.s * data.block + ((data.s == data.P - 1) ? data.last_block : data.block); i++) SLP_MEMCPY(dest + i * data.dest_stride, src + i * data.src_stride, data.dest_stride);
@@ -377,7 +377,7 @@ bool image_crop(slp_image_t* image, const uint32_t new_width, const uint32_t new
 
     const int P = (get_nproc() <= 1) ? (2) : (get_nproc());
 
-    struct slp_image_crop_thread_data* threads_arg = (struct slp_image_crop_thread_data*)SLP_MALLOC(P * sizeof(*threads_arg));
+    struct image_crop_thread_data* threads_arg = (struct image_crop_thread_data*)SLP_MALLOC(P * sizeof(*threads_arg));
     if (threads_arg == NULL) {
         SLP_ALIGNED_FREE(new_buffer);
         return false;
@@ -407,7 +407,7 @@ bool image_crop(slp_image_t* image, const uint32_t new_width, const uint32_t new
         threads_arg[s].s = s;
         threads_arg[s].P = P;
 
-        if (pthread_create(threads + s, NULL, slp_image_crop_thread_task, threads_arg + s) != 0) {
+        if (pthread_create(threads + s, NULL, image_crop_thread_task, threads_arg + s) != 0) {
             for (int i = 0; i < s; i++) {
                 pthread_join(threads[i], NULL);
             }
@@ -430,7 +430,7 @@ bool image_crop(slp_image_t* image, const uint32_t new_width, const uint32_t new
     threads_arg[s].s = s;
     threads_arg[s].P = P;
 
-    if (pthread_create(threads + s, NULL, slp_image_crop_thread_task, threads_arg + s) != 0) {
+    if (pthread_create(threads + s, NULL, image_crop_thread_task, threads_arg + s) != 0) {
         for (int i = 0; i < s; i++) {
             pthread_join(threads[i], NULL);
         }
@@ -467,7 +467,7 @@ void slp_image_fill(uint8_t* buffer, const size_t buffer_size, const uint8_t* pi
 
 
 
-struct slp_image_linear_transform_thread_arg {
+struct linear_transform_thread_arg {
     slp_image_t* image;
     uint8_t* background;
     double* inverseA;
@@ -489,8 +489,8 @@ struct slp_image_linear_transform_thread_arg {
     bool* start_exec;
 };
 
-static void* slp_image_linear_transform_thread_task(void* arg) {
-    struct slp_image_linear_transform_thread_arg data = *(struct slp_image_linear_transform_thread_arg*)arg;
+static void* linear_transform_thread_task(void* arg) {
+    struct linear_transform_thread_arg data = *(struct linear_transform_thread_arg*)arg;
 
     size_t i = data.s * data.block;
 
@@ -631,7 +631,7 @@ bool slp_image_linear_transform(slp_image_t* restrict image, const double* restr
     bool return_code = true;
     uint8_t* new_buffer = NULL;
     pthread_t* threads = NULL;
-    struct slp_image_linear_transform_thread_arg* threads_arg = NULL;
+    struct linear_transform_thread_arg* threads_arg = NULL;
     pthread_mutex_t* mtx = NULL;
 
     pthread_mutexattr_t mtxattr;
@@ -640,7 +640,7 @@ bool slp_image_linear_transform(slp_image_t* restrict image, const double* restr
 
     new_buffer = (uint8_t*)SLP_ALIGNED_ALLOC(new_size);
     threads = (pthread_t*)SLP_MALLOC(P * sizeof(*threads));
-    threads_arg = (struct slp_image_linear_transform_thread_arg*)SLP_MALLOC(P * sizeof(*threads_arg));
+    threads_arg = (struct linear_transform_thread_arg*)SLP_MALLOC(P * sizeof(*threads_arg));
     mtx = (pthread_mutex_t*)SLP_MALLOC(P * sizeof(*mtx));
     if (new_buffer == NULL ||
         threads == NULL ||
@@ -681,7 +681,7 @@ bool slp_image_linear_transform(slp_image_t* restrict image, const double* restr
 
         if (pthread_mutex_init(mtx + s, &mtxattr) != 0 ||
             pthread_mutex_lock(mtx + s) != 0 ||
-            pthread_create(threads + s, NULL, slp_image_linear_transform_thread_task, threads_arg + s) != 0)
+            pthread_create(threads + s, NULL, linear_transform_thread_task, threads_arg + s) != 0)
         {
             return_code = false;
             for (int i = 0; i < s; i++) {
@@ -713,7 +713,7 @@ bool slp_image_linear_transform(slp_image_t* restrict image, const double* restr
 
     if (pthread_mutex_init(mtx + s, &mtxattr) != 0 ||
         pthread_mutex_lock(mtx + s) != 0 ||
-        pthread_create(threads + s, NULL, slp_image_linear_transform_thread_task, threads_arg + s) != 0)
+        pthread_create(threads + s, NULL, linear_transform_thread_task, threads_arg + s) != 0)
     {
         return_code = false;
         for (int i = 0; i < s; i++) {
