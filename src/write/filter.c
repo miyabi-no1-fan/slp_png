@@ -23,21 +23,23 @@ limitations under the License.
     #include <immintrin.h>
 #endif
 
-#if defined(__i386__) || defined(__x86_64__)
+#ifdef __SSE2__
 static inline __m128i _mm_abs_epi16_compat(__m128i v);
 static inline __m128i _mm_abs_epi8_compat(__m128i v);
 static inline __m128i _mm_blendv_epi8_compat(__m128i V1, __m128i V2, __m128i M);  // assume mask is -1 for true and 0 for false
 
 static inline __m128i _mm_cmple_epu8(const __m128i a, const __m128i b);
-static inline __m256i _mm256_cmple_epu8(const __m256i a, const __m256i b);
-
 static inline __m128i _mm_srli_epi8(__m128i v, const int count);
-static inline __m256i _mm256_srli_epi8(__m256i v, const int count);
 
 static inline __m128i _mm_avg(const __m128i a, const __m128i b);
-static inline __m256i _mm256_avg(const __m256i a, const __m256i b);
-
 static inline __m128i _mm_paeth(const __m128i a, const __m128i b, const __m128i c);
+#endif
+
+#ifdef __AVX2__
+static inline __m256i _mm256_cmple_epu8(const __m256i a, const __m256i b);
+static inline __m256i _mm256_srli_epi8(__m256i v, const int count);
+
+static inline __m256i _mm256_avg(const __m256i a, const __m256i b);
 static inline __m256i _mm256_paeth(const __m256i a, const __m256i b, const __m256i c);
 #endif
 
@@ -209,15 +211,10 @@ void filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_bu
     }
 }
 
-#ifdef __SSE2__
+#ifdef __AVX2__
 static inline __m256i _mm256_avg(const __m256i a, const __m256i b) {
     // average of two integers without converting to a wider bit-width
     return _mm256_add_epi8(_mm256_and_si256(a, b), _mm256_srli_epi8(_mm256_xor_si256(a, b), 1));
-}
-
-static inline __m128i _mm_avg(const __m128i a, const __m128i b) {
-    // average of two integers without converting to a wider bit-width
-    return _mm_add_epi8(_mm_and_si128(a, b), _mm_srli_epi8(_mm_xor_si128(a, b), 1));
 }
 
 static inline __m256i _mm256_paeth(const __m256i a, const __m256i b, const __m256i c) {
@@ -254,6 +251,23 @@ static inline __m256i _mm256_paeth(const __m256i a, const __m256i b, const __m25
     return _mm256_blendv_epi8(d, a, cond1);
 }
 
+static inline __m256i _mm256_srli_epi8(__m256i v, const int count) {
+    const __m256i mask = _mm256_xor_si256(_mm256_set1_epi8((1ul << count) - 1), _mm256_set1_epi8(-1));
+    v = _mm256_and_si256(v, mask);
+    return _mm256_srli_epi64(v, count);
+}
+
+static inline __m256i _mm256_cmple_epu8(const __m256i a, const __m256i b) {
+    return _mm256_cmpeq_epi8(_mm256_min_epu8(a, b), a);
+}
+#endif
+
+#ifdef __SSE2__
+static inline __m128i _mm_avg(const __m128i a, const __m128i b) {
+    // average of two integers without converting to a wider bit-width
+    return _mm_add_epi8(_mm_and_si128(a, b), _mm_srli_epi8(_mm_xor_si128(a, b), 1));
+}
+
 static inline __m128i _mm_paeth(const __m128i a, const __m128i b, const __m128i c) {
     // fpnge
     // https://www.lucaversari.it/FJXL_and_FPNGE.pdf
@@ -276,7 +290,17 @@ static inline __m128i _mm_paeth(const __m128i a, const __m128i b, const __m128i 
     const __m128i cond2 = _mm_cmple_epu8(pb, pc);
 
     __m128i d = _mm_blendv_epi8_compat(c, b, cond2);
-    return _mm_blendv_epi8(d, a, cond1);
+    return _mm_blendv_epi8_compat(d, a, cond1);
+}
+
+static inline __m128i _mm_srli_epi8(__m128i v, const int count) {
+    const __m128i mask = _mm_xor_si128(_mm_set1_epi8((1ul << count) - 1), _mm_set1_epi8(-1));
+    v = _mm_and_si128(v, mask);
+    return _mm_srli_epi64(v, count);
+}
+
+static inline __m128i _mm_cmple_epu8(const __m128i a, const __m128i b) {
+    return _mm_cmpeq_epi8(_mm_min_epu8(a, b), a);
 }
 
 static inline __m128i _mm_abs_epi16_compat(__m128i v) {
@@ -305,25 +329,5 @@ static inline __m128i _mm_blendv_epi8_compat(__m128i V1, __m128i V2, __m128i M) 
     #else
     return _mm_or_si128(_mm_andnot_si128(M, V1), _mm_and_si128(M, V2));
     #endif
-}
-
-static inline __m128i _mm_srli_epi8(__m128i v, const int count) {
-    const __m128i mask = _mm_xor_si128(_mm_set1_epi8((1ul << count) - 1), _mm_set1_epi8(-1));
-    v = _mm_and_si128(v, mask);
-    return _mm_srli_epi64(v, count);
-}
-
-static inline __m256i _mm256_srli_epi8(__m256i v, const int count) {
-    const __m256i mask = _mm256_xor_si256(_mm256_set1_epi8((1ul << count) - 1), _mm256_set1_epi8(-1));
-    v = _mm256_and_si256(v, mask);
-    return _mm256_srli_epi64(v, count);
-}
-
-static inline __m128i _mm_cmple_epu8(const __m128i a, const __m128i b) {
-    return _mm_cmpeq_epi8(_mm_min_epu8(a, b), a);
-}
-
-static inline __m256i _mm256_cmple_epu8(const __m256i a, const __m256i b) {
-    return _mm256_cmpeq_epi8(_mm256_min_epu8(a, b), a);
 }
 #endif
