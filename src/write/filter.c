@@ -13,7 +13,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <assert.h>
 #include <stdalign.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -24,7 +23,6 @@ limitations under the License.
 #endif
 
 #ifdef __SSE2__
-static inline __m128i _mm_abs_epi16_compat(__m128i v);
 static inline __m128i _mm_abs_epi8_compat(__m128i v);
 static inline __m128i _mm_blendv_epi8_compat(__m128i V1, __m128i V2, __m128i M);  // assume mask is -1 for true and 0 for false
 
@@ -203,10 +201,10 @@ void filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_bu
             In order to overflow, bpr must be at least UINT64_MAX / UINT8_MAX
             The biggest image format support is RGBA64, which has 4 channels and bit_depth of 16
             bpr = width * 4 * 2
-            So, width must be at least UINT64_MAX / (UINT8_MAX * 4 * 2)
+            So, width must be at least UINT64_MAX / (INT8_MAX * 4 * 2) in order to overflow filter_scores
             But width is uint32_t.
             So there's no overflow as long as
-            `UINT32_MAX < UINT64_MAX / (UINT8_MAX * 4 * 2))` */
+            `UINT32_MAX < UINT64_MAX / (INT8_MAX * 4 * 2))` */
         }
     }
 }
@@ -303,23 +301,13 @@ static inline __m128i _mm_cmple_epu8(const __m128i a, const __m128i b) {
     return _mm_cmpeq_epi8(_mm_min_epu8(a, b), a);
 }
 
-static inline __m128i _mm_abs_epi16_compat(__m128i v) {
-    #ifdef __SSSE3__
-    return _mm_abs_epi16(v);
-    #else
-    __m128i mask = _mm_srai_epi16(v, 15);  // srai will shift in 1 or 0 depends on the msbit
-    v = _mm_xor_si128(v, mask);            // do bit flips if signed
-    return _mm_sub_epi16(v, mask);         // this is add 1 if signed, for signed number all1 = -1 so --1 = +1
-    #endif
-}
-
 static inline __m128i _mm_abs_epi8_compat(__m128i v) {
     #ifdef __SSSE3__
     return _mm_abs_epi8(v);
     #else
-    __m128i mask = _mm_cmpgt_epi8(_mm_setzero_si128(), v);
-    v = _mm_xor_si128(v, mask);
-    return _mm_sub_epi8(v, mask);
+    __m128i mask = _mm_cmpgt_epi8(_mm_setzero_si128(), v);  // if (v < 0) mask = -1 else mask = 0
+    v = _mm_xor_si128(v, mask);                             // if (mask != 0) v = ~v
+    return _mm_sub_epi8(v, mask);                           // if (mask != 0) v += 1
     #endif
 }
 
