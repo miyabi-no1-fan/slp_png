@@ -60,6 +60,11 @@ jobs:
       - name: Run test
         run: build/test tests/test_images/4bit3.png && build/test-static tests/test_images/gray16.png
 
+      - name: Build (no test)
+        run: |
+          cmake -B build
+          cmake --build build
+
   test_macOS:
     runs-on: macos-latest
 
@@ -111,6 +116,11 @@ jobs:
           done
           echo "pass"
 
+      - name: Build (no test)
+        run: |
+          cmake -B build
+          cmake --build build
+
   test_windows:
     runs-on: windows-latest
 
@@ -157,7 +167,6 @@ jobs:
           cmake -B build
           -DCMAKE_C_COMPILER=clang
           -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_EXAMPLE=ON
           -DBUILD_TEST=ON
           -DCMAKE_C_FLAGS="-msse2"
           -S .
@@ -170,7 +179,6 @@ jobs:
           cmake -B build
           -DCMAKE_C_COMPILER=clang
           -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_EXAMPLE=ON
           -DBUILD_TEST=ON
           -DCMAKE_C_FLAGS="-mssse3"
           -S .
@@ -183,7 +191,6 @@ jobs:
           cmake -B build
           -DCMAKE_C_COMPILER=clang
           -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_EXAMPLE=ON
           -DBUILD_TEST=ON
           -DCMAKE_C_FLAGS="-msse3"
           -S .
@@ -196,7 +203,6 @@ jobs:
           cmake -B build
           -DCMAKE_C_COMPILER=clang
           -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_EXAMPLE=ON
           -DBUILD_TEST=ON
           -DCMAKE_C_FLAGS="-msse4.1"
           -S .
@@ -209,7 +215,6 @@ jobs:
           cmake -B build
           -DCMAKE_C_COMPILER=clang
           -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_EXAMPLE=ON
           -DBUILD_TEST=ON
           -DCMAKE_C_FLAGS="-msse4.2"
           -S .
@@ -222,9 +227,14 @@ jobs:
           cmake -B build
           -DCMAKE_C_COMPILER=clang
           -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_EXAMPLE=ON
           -DBUILD_TEST=ON
           -DCMAKE_C_FLAGS="-mavx2"
           -S .
           && cmake --build build --config Release
           && build/test tests/test_images/4bit3.png
+
+      - name: Build (no test)
+        shell: msys2 {0}
+        run: |
+          cmake -B build
+          cmake --build build
