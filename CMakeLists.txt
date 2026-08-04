@@ -44,9 +44,6 @@ if (SLP_PNG_SHARED OR SLP_PNG_STATIC)
 
                 if (ENABLE_OPTS)
                     target_compile_options(${SPNG_TARGET} PRIVATE ${OPTIMIZE_FLAGS})
-                    if (NOT WIN32)
-                        set_target_properties(${SPNG_TARGET} PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
-                    endif()
                 endif()
 
                 unset(BUILD_EXAMPLES)
@@ -66,6 +63,12 @@ if (SLP_PNG_SHARED)
     target_include_directories("slp_png" PUBLIC include)
     if (ENABLE_OPTS)
         target_compile_options("slp_png" PRIVATE ${OPTIMIZE_FLAGS})
+
+        include(CheckIPOSupported)
+        check_ipo_supported(RESULT ipo_supported OUTPUT ipo_output)
+        if(ipo_supported)
+            set_target_properties("slp_png" PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+        endif()
     endif()
 endif()
 
