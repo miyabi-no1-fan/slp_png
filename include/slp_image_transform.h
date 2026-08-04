@@ -3,6 +3,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 bool slp_image_convert_to_8bit(slp_image_t* image);
 bool slp_image_convert_to_16bit(slp_image_t* image);
 bool slp_image_crop(slp_image_t* image, const uint32_t new_width, const uint32_t new_height, const uint32_t offset_width, const uint32_t offset_height);
@@ -17,3 +21,7 @@ bool slp_image_convert_GA32_to_RGBA64(slp_image_t* image);
 slp_image_t slp_image_copy(const slp_image_t image);
 bool slp_image_unformat(slp_image_t* image);
 bool slp_image_format(slp_image_t* image);
+
+#ifdef __cplusplus
+}
+#endif

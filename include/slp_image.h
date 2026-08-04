@@ -7,6 +7,10 @@
 #ifndef SLP_IMAGE_H
 #define SLP_IMAGE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct slp_image_t {
     uint8_t* pixels;
     uint32_t height;
@@ -92,6 +96,10 @@ enum SLP_ERROR {
 
     // a and b are integer
     #define div_ceil(a, b) ((a) / (b) + ((a) % (b) != 0))
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif
