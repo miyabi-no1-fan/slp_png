@@ -30,8 +30,7 @@ build/example
 ```C
 #include <slp_png.h>
 
-int main(void)
-{
+int main(void) {
     slp_image_t your_image = slp_png_read("/path/to/your/image");
     if (!your_image.buffer) return 1;
 
@@ -42,13 +41,12 @@ int main(void)
     return 0;
 }
 ```
-- The output image format is raw format except for color type 3 which will be converted to RGBA32.
-
-It is equivalent to this spng format:
+The output image format is raw format except for color type 3 which will be converted to RGBA32.
+If you're familiar with libspng, our output format is equivalent to this:
 ```C
 (color_type == SPNG_COLOR_TYPE_INDEXED) ? SPNG_FMT_RGBA8 : SPNG_FMT_RAW
 ```
-we have our test to ensure slp_png_read output match every single byte of spng output using that format
+We have our test to ensure slp_png_read output match every single byte of libspng output using the same format.
 
 
 ## Features
