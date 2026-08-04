@@ -13,7 +13,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -25,9 +24,13 @@ limitations under the License.
 #define SLP_IMAGE_HELPER_MACROS
 #include <slp_image.h>
 
+static inline uint8_t paeth(uint8_t a, uint8_t b, uint8_t c);
+
 // scanline[0] is up, scanline[1] is output
 int defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker) {
-    assert(bpp < bpr);
+    if (!(bpp <= 8)) __builtin_unreachable();
+    if (!(bpp <= bpr)) __builtin_unreachable();
+
     uint8_t filter = *buffer++;
     switch (filter) {
         case 0: {
@@ -80,25 +83,23 @@ int defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, con
             } else {
                 size_t i = 0;
                 for (; i < bpp; i++) scanline[1][i] = buffer[i] + scanline[0][i];
-                for (; i < bpr; i++) {
-                    const int a = scanline[1][i - bpp];
-                    const int b = scanline[0][i];
-                    const int c = scanline[0][i - bpp];
-
-                    const int p = a + b - c;
-                    const int pa = abs(p - a);
-                    const int pb = abs(p - b);
-                    const int pc = abs(p - c);
-
-                    uint8_t d = (pb <= pc) ? b : c;
-                    d = (pa <= pb && pa <= pc) ? a : d;
-
-                    scanline[1][i] = buffer[i] + d;
-                }
+                for (; i < bpr; i++) scanline[1][i] = buffer[i] + paeth(scanline[1][i - bpp], scanline[0][i], scanline[0][i - bpp]);
             }
             break;
         }
         default: return 1;
     }
     return 0;
+}
+
+static inline uint8_t paeth(const uint8_t a, const uint8_t b, const uint8_t c) {
+    const int p = (int)a + b - c;
+    const int pa = abs(p - a);
+    const int pb = abs(p - b);
+    const int pc = abs(p - c);
+
+    uint8_t d = (pb <= pc) ? b : c;
+    d = (pa <= pb && pa <= pc) ? a : d;
+
+    return d;
 }
