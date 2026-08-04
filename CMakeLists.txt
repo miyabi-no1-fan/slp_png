@@ -17,10 +17,7 @@ option(BUILD_EXAMPLE "Build example" OFF)
 
 if (SLP_PNG_SHARED OR SLP_PNG_STATIC)
     find_package(ZLIB REQUIRED)
-
-    if (SLP_IMAGE_TRANSFORM)
-        find_package(Threads REQUIRED)
-    endif()
+    find_package(Threads REQUIRED)
 
     if (BUILD_TEST)
         find_package(Threads REQUIRED)
