@@ -199,14 +199,14 @@ void filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_bu
             filter_scores[3] += abs(filter_buffers[3][j + 1]);
             filter_scores[4] += abs(filter_buffers[4][j + 1]);
 
-            /*Overflow Risk:
-            In order to overflow
-            bpr must be at least UINT64_MAX / UINT8_MAX
-            the biggest image format support is RGBA64, which has 4 channels and bit_depth of 16
+            /* Overflow Risk:
+            In order to overflow, bpr must be at least UINT64_MAX / UINT8_MAX
+            The biggest image format support is RGBA64, which has 4 channels and bit_depth of 16
             bpr = width * 4 * 2
             So, width must be at least UINT64_MAX / (UINT8_MAX * 4 * 2)
-            But width is uint32_t. So:*/
-            assert(UINT32_MAX < UINT64_MAX / (UINT8_MAX * 4 * 2));
+            But width is uint32_t.
+            So there's no overflow as long as
+            `UINT32_MAX < UINT64_MAX / (UINT8_MAX * 4 * 2))` */
         }
     }
 }
