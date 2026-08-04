@@ -13,9 +13,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #if defined(__i386__) || defined(__x86_64__)
     #include <immintrin.h>
@@ -23,14 +23,16 @@ limitations under the License.
 
 #include <slp_image.h>
 
-void colortype3_unpack(uint8_t* restrict buffer, slp_image_t* restrict image, const size_t bpr, const size_t imtrker) {
-    assert(image->channels == 4);
+void colortype3_unpack(slp_image_t* restrict image, uint8_t* restrict buffer, const size_t bpr, const size_t imtrker) {
+    if (image->channels != 4)
+        abort();  // invalid parameter = abort
+
     uint8_t* src = buffer;
     uint8_t* dest = image->pixels + imtrker * image->width * image->channels;
 
-#ifdef __SSE2__
-// convert into u32 and store
-#define store(indx, src) do {                                                                       \
+    #ifdef __SSE2__
+    // convert each u8 into u32 and store
+    #define convert_store_u8_to_u32(indx, src) do {                                                           \
         const __m128i zeroes = _mm_setzero_si128();                                                 \
         const __m128i x0 = _mm_unpacklo_epi8(src, zeroes);                                          \
         const __m128i x1 = _mm_unpackhi_epi8(src, zeroes);                                          \
@@ -43,7 +45,7 @@ void colortype3_unpack(uint8_t* restrict buffer, slp_image_t* restrict image, co
         _mm_storeu_si128((__m128i*)(dest + i * (32 / image->bit_depth) + (indx * 4 + 2) * 16), p2); \
         _mm_storeu_si128((__m128i*)(dest + i * (32 / image->bit_depth) + (indx * 4 + 3) * 16), p3); \
     } while (0)
-#endif
+    #endif
 
     size_t i = 0;
     switch (image->bit_depth) {
@@ -88,14 +90,14 @@ void colortype3_unpack(uint8_t* restrict buffer, slp_image_t* restrict image, co
                 const __m128i a01234567hi_hi_lo = _mm_unpacklo_epi32(a0123hi_hi, a4567hi_hi);
                 const __m128i a01234567hi_hi_hi = _mm_unpackhi_epi32(a0123hi_hi, a4567hi_hi);
 
-                store(0, a01234567lo_lo_lo);
-                store(1, a01234567lo_lo_hi);
-                store(2, a01234567lo_hi_lo);
-                store(3, a01234567lo_hi_hi);
-                store(4, a01234567hi_lo_lo);
-                store(5, a01234567hi_lo_hi);
-                store(6, a01234567hi_hi_lo);
-                store(7, a01234567hi_hi_hi);
+                convert_store_u8_to_u32(0, a01234567lo_lo_lo);
+                convert_store_u8_to_u32(1, a01234567lo_lo_hi);
+                convert_store_u8_to_u32(2, a01234567lo_hi_lo);
+                convert_store_u8_to_u32(3, a01234567lo_hi_hi);
+                convert_store_u8_to_u32(4, a01234567hi_lo_lo);
+                convert_store_u8_to_u32(5, a01234567hi_lo_hi);
+                convert_store_u8_to_u32(6, a01234567hi_hi_lo);
+                convert_store_u8_to_u32(7, a01234567hi_hi_hi);
             }
             #endif
             for (; i < bpr; i++) {
@@ -130,10 +132,10 @@ void colortype3_unpack(uint8_t* restrict buffer, slp_image_t* restrict image, co
                 const __m128i in0123hi_lo = _mm_unpacklo_epi16(in01_hi, in23_hi);
                 const __m128i in0123hi_hi = _mm_unpackhi_epi16(in01_hi, in23_hi);
 
-                store(0, in0123lo_lo);
-                store(1, in0123lo_hi);
-                store(2, in0123hi_lo);
-                store(3, in0123hi_hi);
+                convert_store_u8_to_u32(0, in0123lo_lo);
+                convert_store_u8_to_u32(1, in0123lo_hi);
+                convert_store_u8_to_u32(2, in0123hi_lo);
+                convert_store_u8_to_u32(3, in0123hi_hi);
             }
             #endif
             for (; i < bpr; i++) {
@@ -155,8 +157,8 @@ void colortype3_unpack(uint8_t* restrict buffer, slp_image_t* restrict image, co
                 const __m128i out_lo = _mm_unpacklo_epi8(in0, in1);
                 const __m128i out_hi = _mm_unpackhi_epi8(in0, in1);
 
-                store(0, out_lo);
-                store(1, out_hi);
+                convert_store_u8_to_u32(0, out_lo);
+                convert_store_u8_to_u32(1, out_hi);
             }
             #endif
             for (; i < bpr; i++) {
@@ -167,19 +169,22 @@ void colortype3_unpack(uint8_t* restrict buffer, slp_image_t* restrict image, co
         }
         case 8: {
             #ifdef __SSE2__
-            for (; i + 16 <= bpr; i += 16) store(0, _mm_loadu_si128((const __m128i*)(src + i)));
+            for (; i + 16 <= bpr; i += 16)
+                convert_store_u8_to_u32(0, _mm_loadu_si128((const __m128i*)(src + i)));
             #endif
-            for (; i < bpr; i++) dest[i * 4] = src[i];
+            for (; i < bpr; i++)
+                dest[i * 4] = src[i];
             break;
         }
-        default: assert(false);
+        default:
+            abort();  // invalid parameter = abort
     }
-
-#undef store
 }
 
 void index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restrict palette) {
-    assert(image->channels == 4);
+    if (image->channels != 4)
+        abort();  // invalid parameter = abort
+
     for (size_t i = 0; i + image->channels <= image->image_size; i += image->channels) {
         int index = image->pixels[i] * image->channels;
         for (size_t k = 0; k < image->channels; k++) image->pixels[i + k] = palette[index + k];
