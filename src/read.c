@@ -13,7 +13,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -32,14 +31,15 @@ limitations under the License.
 #if SLP_DEBUG
     #define Err(err) image.bit_depth = err
 #else
-    #define Err(err) do { int e = err; } while(0)
+    #define Err(err) (void)err
 #endif
 
 #define PNG_SIGNATURE 0x89504E470D0A1A0Aull
 #define IHDR 0x49484452u
 
+extern int decode(slp_image_t* restrict image, FILE* restrict file, const int color_type);
+
 static int get_channels(const int color_type, const int bit_depth);
-extern int decode(slp_image_t* restrict image, FILE* restrict file, const size_t file_size, const int color_type);
 
 // read png from a file
 slp_image_t slp_png_read(const char* path) {
@@ -52,33 +52,9 @@ slp_image_t slp_png_read(const char* path) {
         return image;
     }
 
-    int ret = fseek(file, 0, SEEK_END);
-    if (ret != 0) {
-        fclose(file);
-        Err(FILE_ERR);
-        image.pixels = NULL;
-        return image;
-    }
-
-    size_t file_size = ftell(file);
-    if (file_size < 57) {  // minimal size required for PNGSIG + IHDR + IDAT(with data len = 0) + IEND
-        fclose(file);
-        Err(INVALID_FILE);
-        image.pixels = NULL;
-        return image;
-    }
-
-    ret = fseek(file, 0, SEEK_SET);
-    if (ret != 0) {
-        fclose(file);
-        Err(FILE_ERR);
-        image.pixels = NULL;
-        return image;
-    }
-
     uint8_t ihdr[33];
 
-    if (fread(ihdr, 1, 33, file) < 33) {
+    if (fread(ihdr, 1, 33, file) != 33) {
         fclose(file);
         Err(FILE_ERR);
         image.pixels = NULL;
@@ -108,15 +84,11 @@ slp_image_t slp_png_read(const char* path) {
     const int filter_method = ihdr[27];
     const int interlace_method = ihdr[28];
 
-    if (compression_method != 0 || filter_method != 0 || interlace_method != 0 || channels == 0) {
+    if (compression_method != 0 || filter_method != 0 || interlace_method != 0 || channels == -1) {
         fclose(file);
         Err(INVALID_FILE);
         image.pixels = NULL;
         return image;
-    }
-
-    if (color_type == 3) {
-        assert(channels == 4);
     }
 
     const size_t image_size = image.image_size = height * div_ceil((size_t)width * channels * ((color_type == 3) ? 8 : bit_depth), 8);
@@ -130,7 +102,7 @@ slp_image_t slp_png_read(const char* path) {
         return image;
     }
 
-    ret = decode(&image, file, file_size, color_type);
+    int ret = decode(&image, file, color_type);
     if (ret != 0) {
         fclose(file);
         SLP_ALIGNED_FREE(image.pixels);
@@ -199,7 +171,6 @@ static inline int get_channels(const int color_type, const int bit_depth) {
             }
             return 4;
         }
-        default: return 0;
     }
-    assert(false);
+    return -1;
 }
