@@ -18,6 +18,7 @@ limitations under the License.
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <zconf.h>
 #include <zlib.h>
 
 #define SLP_IMAGE_HELPER_MACROS
@@ -31,7 +32,6 @@ limitations under the License.
 extern void filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp);
 
 int encode(slp_image_t* restrict image, FILE* restrict file) {
-    // initialize variables
     int return_code = 0;
     #define Err(v) do { return_code = v; goto cleanup; } while(0)
 
@@ -44,24 +44,26 @@ int encode(slp_image_t* restrict image, FILE* restrict file) {
     const size_t bit_depth = image->bit_depth;
 
     const size_t bpp = channels * (1 + (bit_depth == 16));
-    const size_t bpr = div_ceil(width * channels * bit_depth, 8);  // bytes per row
+    const size_t bpr = div_ceil(width * channels * bit_depth, 8);
 
-    size_t have = 0;
-    size_t data_len = 0;
+    int8_t* filter_buffers[5] = {
+        (int8_t*)SLP_MALLOC(bpr + 1),
+        (int8_t*)SLP_MALLOC(bpr + 1),
+        (int8_t*)SLP_MALLOC(bpr + 1),
+        (int8_t*)SLP_MALLOC(bpr + 1),
+        (int8_t*)SLP_MALLOC(bpr + 1),
+    };
+    uint8_t* out = (uint8_t*)SLP_MALLOC(CHUNK + 12);
 
-    uint8_t* mem_ptr = NULL;
-
-    mem_ptr = (uint8_t*)SLP_MALLOC((bpr + 1) * 5 + CHUNK + 12);
-    if (mem_ptr == NULL)
+    if (filter_buffers[0] == NULL ||
+        filter_buffers[1] == NULL ||
+        filter_buffers[2] == NULL ||
+        filter_buffers[3] == NULL ||
+        filter_buffers[4] == NULL ||
+        out == NULL)
+    {
         Err(ALLOC_ERR);
-
-    int8_t* filter_buffers[5];
-    filter_buffers[0] = (int8_t*)mem_ptr + (bpr + 1) * 0;
-    filter_buffers[1] = (int8_t*)mem_ptr + (bpr + 1) * 1;
-    filter_buffers[2] = (int8_t*)mem_ptr + (bpr + 1) * 2;
-    filter_buffers[3] = (int8_t*)mem_ptr + (bpr + 1) * 3;
-    filter_buffers[4] = (int8_t*)mem_ptr + (bpr + 1) * 4;
-    uint8_t* out = mem_ptr + (bpr + 1) * 5;
+    }
 
     SLP_MEMCPY(out + 4, "IDAT", 4);
     filter_buffers[0][0] = 0;
@@ -69,102 +71,107 @@ int encode(slp_image_t* restrict image, FILE* restrict file) {
     filter_buffers[2][0] = 2;
     filter_buffers[3][0] = 3;
     filter_buffers[4][0] = 4;
-    // end initialize variables
 
-    // CHUNK BEFORE IDAT STAY HERE
-
-    // writting IDAT
-    z_stream strm = {0};
-    strm.zalloc = Z_NULL;
-    strm.zfree = Z_NULL;
-    strm.opaque = Z_NULL;
-
-    int ret = deflateInit2(&strm, COMPRESSION_LEVEL, Z_DEFLATED, 15, 9, Z_FILTERED);
+    // init zlib.
+    // Adler-32 checksum disabled.
+    // > Gemini: Z_FILTERED is a good strategy for images
+    z_stream strm = {};
+    int ret = deflateInit2(&strm, COMPRESSION_LEVEL, Z_DEFLATED, MAX_WBITS, MAX_MEM_LEVEL, Z_FILTERED);
     if (ret != Z_OK)
         Err(ZLIB_ERR);
 
+    // let zlib track our available output capacity
     strm.avail_out = CHUNK;
+    // we only track the output len
+    uint32_t out_len = 0;
 
+    // for each line
     for (size_t i = 0; i < height; i++) {
+        // calculate all 5 filters
         uint64_t filter_scores[5] = {0};
         filter(image->pixels, filter_buffers, filter_scores, i, bpr, bpp);
 
+        // pick the best filter_type (lowest score)
         unsigned int filter_type = 0;
         for (unsigned int i = 0; i < 5; i++)
             filter_type = (filter_scores[i] < filter_scores[filter_type]) ? i : filter_type;
 
+        // deflate loop
         strm.next_in = (uint8_t*)filter_buffers[filter_type];
         strm.avail_in = bpr + 1;
         do {
-            strm.next_out = out + 8 + have;
+            strm.next_out = out + 8 + out_len;
             ret = deflate(&strm, Z_NO_FLUSH);
             if (ret != Z_OK) {
                 deflateEnd(&strm);
                 Err(ZLIB_ERR);
             }
-            have = CHUNK - strm.avail_out;
-            if (strm.avail_out == 0) {
-                data_len = (uint32_t)(have);
-                data_len = big_edian_u32_in_mem(data_len, is_little_edian);
-                SLP_MEMCPY(out, &data_len, 4);
-                uint32_t crc_ = crc32(0, out + 4, 4);
-                crc_ = crc32(crc_, out + 8, have);
-                crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
-                SLP_MEMCPY(out + 8 + have, &crc_, 4);
+            out_len = CHUNK - strm.avail_out;
 
-                if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4) {
+            // flush if out of output capacity
+            if (strm.avail_out == 0) {
+                uint32_t chunk_len = big_edian_u32_in_mem(out_len, is_little_edian);
+                SLP_MEMCPY(out, &chunk_len, 4);
+                uint32_t crc_ = crc32(0, out + 4, 4);
+                crc_ = crc32(crc_, out + 8, out_len);
+                crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
+                SLP_MEMCPY(out + 8 + out_len, &crc_, 4);
+
+                if (fwrite(out, 1, 8 + out_len + 4, file) != 8 + out_len + 4) {
                     deflateEnd(&strm);
                     Err(FILE_ERR);
                 }
 
                 strm.avail_out = CHUNK;
-                have = 0;
+                out_len = 0;
             }
         } while (strm.avail_in > 0);
     }
 
+    // finish
     do {
-        strm.next_out = out + 8 + have;
+        strm.next_out = out + 8 + out_len;
         ret = deflate(&strm, Z_FINISH);
         if (ret != Z_OK && ret != Z_STREAM_END) {
             deflateEnd(&strm);
             Err(ZLIB_ERR);
         }
-        have = CHUNK - strm.avail_out;
+        out_len = CHUNK - strm.avail_out;
         if (strm.avail_out == 0) {
-            data_len = (uint32_t)(have);
-            data_len = big_edian_u32_in_mem(data_len, is_little_edian);
-            SLP_MEMCPY(out, &data_len, 4);
-            uint32_t crc_ = crc32(0, out + 4, 4 + have);
+            uint32_t chunk_len = big_edian_u32_in_mem(out_len, is_little_edian);
+            SLP_MEMCPY(out, &chunk_len, 4);
+            uint32_t crc_ = crc32(0, out + 4, 4 + out_len);
             crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
-            SLP_MEMCPY(out + 8 + have, &crc_, 4);
-            if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4) {
+            SLP_MEMCPY(out + 8 + out_len, &crc_, 4);
+            if (fwrite(out, 1, 8 + out_len + 4, file) != 8 + out_len + 4) {
                 deflateEnd(&strm);
                 Err(FILE_ERR);
             }
             strm.avail_out = CHUNK;
-            have = 0;
+            out_len = 0;
         }
     } while (ret != Z_STREAM_END);
     deflateEnd(&strm);
 
-    data_len = (uint32_t)(have);
-    data_len = big_edian_u32_in_mem(data_len, is_little_edian);
-    SLP_MEMCPY(out, &data_len, 4);
-    uint32_t crc_ = crc32(0, out + 4, 4 + have);
+    // flush
+    uint32_t chunk_len = big_edian_u32_in_mem(out_len, is_little_edian);
+    SLP_MEMCPY(out, &chunk_len, 4);
+    uint32_t crc_ = crc32(0, out + 4, 4 + out_len);
     crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
-    SLP_MEMCPY(out + 8 + have, &crc_, 4);
-    if (fwrite(out, 1, 8 + have + 4, file) != 8 + have + 4)
+    SLP_MEMCPY(out + 8 + out_len, &crc_, 4);
+    if (fwrite(out, 1, 8 + out_len + 4, file) != 8 + out_len + 4)
         Err(FILE_ERR);
-    // finish writting IDAT
-
-    // CHUNK AFTER IDAT STAY HERE
 
     // writting IEND
     const uint8_t IENDsig[12] = {0, 0, 0, 0, 'I', 'E', 'N', 'D', 0xAE, 0x42, 0x60, 0x82};
     if (fwrite(IENDsig, 1, 12, file) != 12)
         Err(FILE_ERR);
 cleanup:
-    SLP_FREE(mem_ptr);
+    SLP_FREE(filter_buffers[0]);
+    SLP_FREE(filter_buffers[1]);
+    SLP_FREE(filter_buffers[2]);
+    SLP_FREE(filter_buffers[3]);
+    SLP_FREE(filter_buffers[4]);
+    SLP_FREE(out);
     return return_code;
 }
