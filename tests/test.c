@@ -112,7 +112,7 @@ void rw_test(const char* path, const char* path_out) {
 
     for (size_t i = 0; i < a.image_size; i++)
         if (a.pixels[i] != spng_image.pixels[i])
-            panic("slp_png_read image pixels mismatch at %lu / %lu, value: %u vs %u", i, a.image_size, a.pixels[i], spng_image.pixels[i]);
+            panic("slp_png_read image pixels mismatch at %zu / %zu, value: %u vs %u", i, a.image_size, a.pixels[i], spng_image.pixels[i]);
     free(spng_image.pixels);
 
     int ret = slp_png_write(a, path_out);
