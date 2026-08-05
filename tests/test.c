@@ -1,15 +1,10 @@
-#include <assert.h>
 #include <pthread.h>
-#include <slp_png.h>
-#include <spng.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-#include "slp_image.h"
 
 #ifdef _WIN32
     #include <windows.h>
@@ -22,6 +17,10 @@
 #if defined(__i386__) || defined(__x86_64__)
     #include <immintrin.h>
 #endif
+
+#include <slp_image_transform.h>
+#include <slp_png.h>
+#include <spng.h>
 
 static int get_nproc(void) {
     #ifdef _WIN32
@@ -305,7 +304,9 @@ slp_image_t spng_read_png(const char *filepath) {
 }
 
 int spng_write_png(const char *filepath, const slp_image_t image) {
-    assert(image.pixels != NULL);
+    if (image.pixels == NULL) {
+        panic("image.pixels == NULL");
+    }
 
     FILE* file = fopen(filepath, "wb");
     if (!file) return -1;
