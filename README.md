@@ -20,10 +20,10 @@ cmake --build build
 - If you want to run test, see CMakeLists.txt option
 - Or you could run this following line:
 ```bash
-gcc tests/example.c -Iinclude -Lbuild -lslp_png -Wl,-rpath,build -o build/example
+gcc examples/example.c -Iinclude -Lbuild -lslp_png -Wl,-rpath,build -o build/example
 build/example
 ```
-- Replace tests/example.c with the file you wanna test with
+- Replace examples/example.c with the file you wanna test with
 
 
 ## Basic usage
@@ -81,22 +81,19 @@ For both slp_png_read and slp_png_write:
 - RAM: 16GB DDR5
 - Compare with https://github.com/randy408/libspng
 
-For slp_png:
-```bash
-git clone https://github.com/slp-c/slp_png.git
-cd slp_png
-cmake -S . -B build -DBUILD_EXAMPLE=ON
-cmake --build build
-build/example
-```
-
-For spng:
 ```bash
 git clone https://github.com/slp-c/slp_png.git
 cd slp_png
 cmake -S . -B build -DBUILD_TEST=ON
 cmake --build build
+
+# For slp_png
+build/slp_benchmark
+
+# For spng
 build/test --spng-benchmark
+
+# You could also try with `hyperfine` and `perf` for more precise comparison
 ```
 
 Test image: tests/test_images/10.4-MB.png
