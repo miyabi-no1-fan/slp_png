@@ -13,16 +13,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-
 #if defined(__i386__) || defined(__x86_64__)
     #include <immintrin.h>
 #endif
 
-#define SLP_IMAGE_HELPER_MACROS
-#include <slp_image.h>
+#define SLP_PNG_MACROS
+#include "slp_png.h"
 
 static inline uint8_t paeth(uint8_t a, uint8_t b, uint8_t c);
 

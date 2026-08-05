@@ -14,15 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <zconf.h>
 #include <zlib.h>
 
-#define SLP_IMAGE_HELPER_MACROS
-#include <slp_image.h>
+#define SLP_PNG_MACROS
+#include "slp_png.h"
 
 #define PREFERED_IO_BUF_SIZE 65536
 #define __CHUNK_TYPE(x0, x1, x2, x3) ((((uint32_t)x0) << 24) | (((uint32_t)x1) << 16) | (((uint32_t)x2) << 8) | (((uint32_t)x3) << 0))

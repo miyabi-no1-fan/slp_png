@@ -13,15 +13,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-
 #if defined(__i386__) || defined(__x86_64__)
     #include <immintrin.h>
 #endif
 
-#include <slp_image.h>
+#include "slp_png.h"
 
 void colortype3_unpack(slp_image_t* restrict image, uint8_t* restrict buffer, const size_t bpr, const size_t imtrker) {
     if (image->channels != 4)
