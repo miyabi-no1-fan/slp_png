@@ -14,14 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <zlib.h>
 
-#define SLP_IMAGE_HELPER_MACROS
-#include <slp_image.h>
-#include <slp_png.h>
+#define SLP_PNG_MACROS
+#include "slp_png.h"
 
 // helpers
 static uint8_t get_color_type(const uint8_t channels);

@@ -14,15 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <zlib.h>
 
-#define SLP_IMAGE_HELPER_MACROS
-#include <slp_image.h>
-#include <slp_png.h>
+#define SLP_PNG_MACROS
+#include "slp_png.h"
 
 #ifndef SLP_DEBUG
 #define SLP_DEBUG 0
@@ -114,14 +110,6 @@ slp_image_t slp_png_read(const char* path) {
 
     fclose(file);
     return image;
-}
-
-void slp_image_destroy(slp_image_t* image) {
-    if (image != NULL) {
-        if (image->pixels != NULL)
-            SLP_ALIGNED_FREE(image->pixels);
-        SLP_MEMSET(image, 0, sizeof(*image));
-    }
 }
 
 static inline int get_channels(const int color_type, const int bit_depth) {
