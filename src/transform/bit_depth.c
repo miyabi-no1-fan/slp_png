@@ -119,7 +119,7 @@ void slp_image_convert_to_8bit(slp_image_t* image) {
 bool slp_image_convert_to_16bit(slp_image_t* image) {
     const size_t size = image->height * image->width * image->channels;  // source size
 
-    uint8_t* new_buffer = (uint8_t*)SLP_ALIGNED_ALLOC(size * 2);
+    uint8_t* new_buffer = (uint8_t*)SLP_MALLOC(size * 2);
     if (new_buffer == NULL) {
         if (image->bit_depth == 16) return true;
         return false;
@@ -259,11 +259,11 @@ bool slp_image_convert_to_16bit(slp_image_t* image) {
             break;
         }
         case 16: {
-            SLP_ALIGNED_FREE(new_buffer);
+            SLP_FREE(new_buffer);
             return true;
         }
         default: {
-            SLP_ALIGNED_FREE(new_buffer);
+            SLP_FREE(new_buffer);
             return false;
         }
     }
@@ -273,7 +273,6 @@ bool slp_image_convert_to_16bit(slp_image_t* image) {
     image->pixels = new_buffer;
     image->bit_depth = 16;
     image->image_size = size * 2;
-    image->allocated_size = SLP_ALIGN_SIZE(size * 2);
 
     return true;
 }

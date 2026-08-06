@@ -297,7 +297,6 @@ slp_image_t spng_read_png(const char *filepath) {
         .channels = get_channels(ihdr.color_type, ihdr.bit_depth),
         .bit_depth = ihdr.bit_depth,
         .image_size = image_size,
-        .allocated_size = image_size
     };
 
     return image;

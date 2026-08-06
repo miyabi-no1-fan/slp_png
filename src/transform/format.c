@@ -8,7 +8,7 @@
 bool slp_image_unpack(slp_image_t* image) {
     const size_t size = (size_t)image->width * image->height * image->channels * (1 + (image->bit_depth == 16));  // dest size
 
-    uint8_t* new_buffer = (uint8_t*)SLP_ALIGNED_ALLOC(size);
+    uint8_t* new_buffer = (uint8_t*)SLP_MALLOC(size);
     if (new_buffer == NULL) {
         if (image->bit_depth == 8) return true;
         return false;
@@ -154,11 +154,11 @@ bool slp_image_unpack(slp_image_t* image) {
             break;
         }
         case 8: {
-            SLP_ALIGNED_FREE(new_buffer);
+            SLP_FREE(new_buffer);
             return true;
         }
         case 16: {
-            SLP_ALIGNED_FREE(new_buffer);
+            SLP_FREE(new_buffer);
             return true;
         }
         default: {
@@ -171,7 +171,6 @@ bool slp_image_unpack(slp_image_t* image) {
 
     image->pixels = new_buffer;
     image->image_size = size;
-    image->allocated_size = SLP_ALIGN_SIZE(size);
 
     return true;
 }
@@ -182,7 +181,7 @@ bool slp_image_pack(slp_image_t* image) {
     const size_t size = (size_t)image->height * image->width * image->channels * (1 + (image->bit_depth == 16));
     const size_t new_size = image->image_size;
 
-    uint8_t* new_buffer = (uint8_t*)SLP_ALIGNED_ALLOC(new_size);
+    uint8_t* new_buffer = (uint8_t*)SLP_MALLOC(new_size);
     if (new_buffer == NULL) return false;
 
     uint8_t* src = (uint8_t*)(image->pixels);
@@ -390,15 +389,15 @@ bool slp_image_pack(slp_image_t* image) {
             break;
         }
         case 8: {
-            SLP_ALIGNED_FREE(new_buffer);
+            SLP_FREE(new_buffer);
             return true;
         }
         case 16: {
-            SLP_ALIGNED_FREE(new_buffer);
+            SLP_FREE(new_buffer);
             return true;
         }
         default: {
-            SLP_ALIGNED_FREE(new_buffer);
+            SLP_FREE(new_buffer);
             return false;
         }
     }
@@ -407,7 +406,6 @@ bool slp_image_pack(slp_image_t* image) {
 
     image->pixels = new_buffer;
     image->image_size = new_size;
-    image->allocated_size = SLP_ALIGN_SIZE(new_size);
 
     return true;
 }
