@@ -53,19 +53,16 @@ For `slp_png_write`:
 - Filter method: 0
 - Interlace method: 0
 
-Additional:
-- Thread-safety: this function can call by any thread, but it does not automatically handle fileIO conflicts
-- `slp_image_t` pixels is allocated via aligned_alloc by default with 64 bytes alignment
-
 Format:
-`slp_png_read` output format is `raw format` except for `color type 3` which will be converted to `RGBA32`.
-If you're familiar with `libspng`, our output format is equivalent to this:
-```C
-(color_type == SPNG_COLOR_TYPE_INDEXED) ? SPNG_FMT_RGBA8 : SPNG_FMT_RAW
-```
-We have our test to ensure `slp_png_read` output match every single byte of `libspng` output, using the same format.
+- `slp_png_read` output format is `raw format` except for `color type 3` which will be converted to `RGBA32`.
 
-`slp_png_write` expect the same format as `slp_png_read`.
+    If you're familiar with `libspng`, our output format is equivalent to this:
+    ```C
+    (color_type == SPNG_COLOR_TYPE_INDEXED) ? SPNG_FMT_RGBA8 : SPNG_FMT_RAW
+    ```
+    We have our test to ensure `slp_png_read` output match every single byte of `libspng` output, using the same format.
+
+- `slp_png_write` expect the same format as `slp_png_read` output format.
 
 
 ## Performance
