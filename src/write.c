@@ -25,7 +25,7 @@ static uint8_t get_color_type(const uint8_t channels);
 extern int encode(slp_image_t* restrict image, FILE* restrict file);
 
 int slp_png_write(slp_image_t image, const char* path) {
-    if (image.height == 0 || image.width == 0 || image.channels == 0) return INVALID_PNG;
+    if (image.pixels == NULL || image.height == 0 || image.width == 0 || image.channels == 0) return INVALID_PNG;
     switch (image.bit_depth) {
         case 1: break;
         case 2: break;
