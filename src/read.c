@@ -43,7 +43,7 @@ slp_image_t slp_png_read(const char* path) {
 
     FILE* file = fopen(path, "rb");
     if (file == NULL) {
-        Err(FILE_ERR);
+        Err(IO_ERR);
         image.pixels = NULL;
         return image;
     }
@@ -52,7 +52,7 @@ slp_image_t slp_png_read(const char* path) {
 
     if (fread(ihdr, 1, 33, file) != 33) {
         fclose(file);
-        Err(FILE_ERR);
+        Err(IO_ERR);
         image.pixels = NULL;
         return image;
     }
@@ -66,7 +66,7 @@ slp_image_t slp_png_read(const char* path) {
         big_edian_u32(ihdr + 29) != crc_)
     {
         fclose(file);
-        Err(INVALID_FILE);
+        Err(INVALID_PNG);
         image.pixels = NULL;
         return image;
     }
@@ -82,7 +82,7 @@ slp_image_t slp_png_read(const char* path) {
 
     if (compression_method != 0 || filter_method != 0 || interlace_method != 0 || channels == -1) {
         fclose(file);
-        Err(INVALID_FILE);
+        Err(INVALID_PNG);
         image.pixels = NULL;
         return image;
     }

@@ -115,7 +115,7 @@ int encode(slp_image_t* restrict image, FILE* restrict file) {
 
                 if (fwrite(out, 1, 8 + out_len + 4, file) != 8 + out_len + 4) {
                     deflateEnd(&strm);
-                    Err(FILE_ERR);
+                    Err(IO_ERR);
                 }
 
                 strm.avail_out = CHUNK;
@@ -141,7 +141,7 @@ int encode(slp_image_t* restrict image, FILE* restrict file) {
             SLP_MEMCPY(out + 8 + out_len, &crc_, 4);
             if (fwrite(out, 1, 8 + out_len + 4, file) != 8 + out_len + 4) {
                 deflateEnd(&strm);
-                Err(FILE_ERR);
+                Err(IO_ERR);
             }
             strm.avail_out = CHUNK;
             out_len = 0;
@@ -156,12 +156,12 @@ int encode(slp_image_t* restrict image, FILE* restrict file) {
     crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
     SLP_MEMCPY(out + 8 + out_len, &crc_, 4);
     if (fwrite(out, 1, 8 + out_len + 4, file) != 8 + out_len + 4)
-        Err(FILE_ERR);
+        Err(IO_ERR);
 
     // writting IEND
     const uint8_t IENDsig[12] = {0, 0, 0, 0, 'I', 'E', 'N', 'D', 0xAE, 0x42, 0x60, 0x82};
     if (fwrite(IENDsig, 1, 12, file) != 12)
-        Err(FILE_ERR);
+        Err(IO_ERR);
 cleanup:
     SLP_FREE(filter_buffers[0]);
     SLP_FREE(filter_buffers[1]);
