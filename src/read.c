@@ -88,9 +88,8 @@ slp_image_t slp_png_read(const char* path) {
     }
 
     const size_t image_size = image.image_size = height * div_ceil((size_t)width * channels * ((color_type == 3) ? 8 : bit_depth), 8);
-    const size_t allocated_size = image.allocated_size = SLP_ALIGN_SIZE(image_size);
 
-    image.pixels = (uint8_t*)SLP_ALIGNED_ALLOC(allocated_size);
+    image.pixels = (uint8_t*)SLP_MALLOC(image_size);
     if (image.pixels == NULL) {
         fclose(file);
         Err(ALLOC_ERR);
@@ -101,7 +100,7 @@ slp_image_t slp_png_read(const char* path) {
     int ret = decode(&image, file, color_type);
     if (ret != 0) {
         fclose(file);
-        SLP_ALIGNED_FREE(image.pixels);
+        SLP_FREE(image.pixels);
         Err(ret);
         image.pixels = NULL;
         return image;

@@ -18,7 +18,6 @@ typedef struct slp_image_t {
     uint32_t channels;
     uint8_t bit_depth;
     size_t image_size;
-    size_t allocated_size;
 } slp_image_t;
 
 enum SLP_ERROR {
@@ -55,30 +54,6 @@ void slp_image_destroy(slp_image_t* image);
 
 #ifndef SLP_MEMSET
     #define SLP_MEMSET(s, c, n) memset(s, c, n)
-#endif
-
-#ifndef SLP_USE_ALIGNED_ALLOC
-    #if defined(__unix__) || defined(__APPLE__) || defined(_WIN32)
-        #define SLP_USE_ALIGNED_ALLOC 1
-    #else
-        #define SLP_USE_ALIGNED_ALLOC 0
-    #endif
-#endif
-
-#if SLP_USE_ALIGNED_ALLOC
-    #define SLP_ALIGNMENT 64
-    #define SLP_ALIGN_SIZE(size) (((size) + SLP_ALIGNMENT - 1) & ~(SLP_ALIGNMENT - 1))
-    #ifdef _WIN32
-        #define SLP_ALIGNED_ALLOC(size) _aligned_malloc(SLP_ALIGN_SIZE(size), SLP_ALIGNMENT)
-        #define SLP_ALIGNED_FREE(ptr) _aligned_free(ptr)
-    #else
-        #define SLP_ALIGNED_ALLOC(size) aligned_alloc(SLP_ALIGNMENT, SLP_ALIGN_SIZE(size))
-        #define SLP_ALIGNED_FREE(ptr) free(ptr)
-    #endif
-#else
-    #define SLP_ALIGN_SIZE(size) (size)
-    #define SLP_ALIGNED_ALLOC(size) malloc(size)
-    #define SLP_ALIGNED_FREE(ptr) free(ptr)
 #endif
 
 #ifdef SLP_PNG_MACROS

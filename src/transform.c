@@ -36,12 +36,12 @@ void slp_image_fill(uint8_t* buffer, const size_t buffer_size, const uint8_t* pi
 }
 
 slp_image_t slp_image_copy(slp_image_t image) {
-    uint8_t* new_buffer = (uint8_t*)SLP_ALIGNED_ALLOC(image.allocated_size);
+    uint8_t* new_buffer = (uint8_t*)SLP_MALLOC(image.image_size);
     if (new_buffer == NULL) {
         image.pixels = NULL;
         return image;
     }
-    SLP_MEMCPY(new_buffer, image.pixels, image.allocated_size);
+    SLP_MEMCPY(new_buffer, image.pixels, image.image_size);
     image.pixels = new_buffer;
     return image;
 }
@@ -54,7 +54,7 @@ bool image_crop(slp_image_t* image, const uint32_t new_width, const uint32_t new
     const size_t dest_stride = (size_t)new_width * sizeof_1pixel;
 
     const size_t new_size = dest_stride * new_height;
-    uint8_t* new_buffer = (uint8_t*)SLP_ALIGNED_ALLOC(new_size);
+    uint8_t* new_buffer = (uint8_t*)SLP_MALLOC(new_size);
     if (new_buffer == NULL) return false;
 
     uint8_t* src = image->pixels + offset_height * src_stride + offset_width * sizeof_1pixel;
@@ -70,7 +70,6 @@ bool image_crop(slp_image_t* image, const uint32_t new_width, const uint32_t new
     image->width = new_width;
     image->height = new_height;
     image->image_size = new_size;
-    image->allocated_size = SLP_ALIGN_SIZE(new_size);
 
     return true;
 }
@@ -139,7 +138,7 @@ bool slp_image_linear_transform(slp_image_t* restrict image, const double* restr
     const size_t dst_stride = new_width * pixel_size;                            // sizeof 1 dst scanline
     const size_t new_size = (size_t)new_width * new_height * pixel_size;
 
-    uint8_t* new_buffer = (uint8_t*)SLP_ALIGNED_ALLOC(new_size);
+    uint8_t* new_buffer = (uint8_t*)SLP_MALLOC(new_size);
     if (new_buffer == NULL) return false;
 
     slp_image_fill(new_buffer, new_size, background, pixel_size);
@@ -213,7 +212,6 @@ bool slp_image_linear_transform(slp_image_t* restrict image, const double* restr
     image->width = new_width;
     image->height = new_height;
     image->image_size = new_size;
-    image->allocated_size = SLP_ALIGN_SIZE(new_size);
 
     return true;
 }
