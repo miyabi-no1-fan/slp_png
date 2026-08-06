@@ -34,6 +34,8 @@ int slp_png_write(slp_image_t image, const char* path) {
         case 16: break;
         default: return INVALID_PNG;
     }
+    if (image.image_size != image.height * div_ceil((size_t)image.width * image.channels * image.bit_depth, 8))
+        return INVALID_PNG;
 
     const uint16_t random_value_for_edian_test = 1;
     const bool is_little_edian = *(uint8_t*)(&random_value_for_edian_test);
@@ -81,7 +83,7 @@ int slp_png_write(slp_image_t image, const char* path) {
         fwrite(&crc, 1, 4, file) != 4)
     {
         fclose(file);
-        return INVALID_PNG;
+        return IO_ERR;
     }
 
     int ret = encode(&image, file);
