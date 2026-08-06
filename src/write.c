@@ -25,14 +25,14 @@ static uint8_t get_color_type(const uint8_t channels);
 extern int encode(slp_image_t* restrict image, FILE* restrict file);
 
 int slp_png_write(slp_image_t image, const char* path) {
-    if (image.height == 0 || image.width == 0 || image.channels == 0) return INVALID_INPUT;
+    if (image.height == 0 || image.width == 0 || image.channels == 0) return INVALID_PNG;
     switch (image.bit_depth) {
         case 1: break;
         case 2: break;
         case 4: break;
         case 8: break;
         case 16: break;
-        default: return INVALID_INPUT;
+        default: return INVALID_PNG;
     }
 
     const uint16_t random_value_for_edian_test = 1;
@@ -40,7 +40,7 @@ int slp_png_write(slp_image_t image, const char* path) {
     const uint64_t PNG_SIGNATURE = big_edian_u64_in_mem(0x89504E470D0A1A0Aull, is_little_edian);
 
     FILE* file = fopen(path, "wb");
-    if (file == NULL) return FILE_ERR;
+    if (file == NULL) return IO_ERR;
 
     // use to write IHDR
     #pragma pack(push, 1)
@@ -67,7 +67,7 @@ int slp_png_write(slp_image_t image, const char* path) {
 
     if (header.color_type == 0xFF) {
         fclose(file);
-        return INVALID_INPUT;
+        return INVALID_PNG;
     }
 
     uint32_t crc = crc32(0xA8A1AE0A, (unsigned char*)(&header), 13);
@@ -81,7 +81,7 @@ int slp_png_write(slp_image_t image, const char* path) {
         fwrite(&crc, 1, 4, file) != 4)
     {
         fclose(file);
-        return INVALID_FILE;
+        return INVALID_PNG;
     }
 
     int ret = encode(&image, file);

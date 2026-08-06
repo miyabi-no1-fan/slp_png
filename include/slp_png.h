@@ -22,9 +22,8 @@ typedef struct slp_image_t {
 
 enum SLP_ERROR {
     ALLOC_ERR = -1,
-    FILE_ERR = 1,
-    INVALID_FILE = 2,   // for slp_png_read
-    INVALID_INPUT = 2,  // for slp_png_write
+    IO_ERR = 1,
+    INVALID_PNG = 2,
     ZLIB_ERR = 3,
 };
 
