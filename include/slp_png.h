@@ -90,10 +90,6 @@ int slp_png_write(const slp_image_t* image, const slp_png_io* png);
 if image == NULL or image->pixels == NULL, this does nothing */
 void slp_image_destroy(slp_image_t* image);
 
-#ifndef SLP_MALLOC
-    #define SLP_MALLOC(size) malloc(size)
-#endif
-
 #ifndef SLP_CALLOC
     #define SLP_CALLOC(size) calloc(size, 1)
 #endif
@@ -102,16 +98,8 @@ void slp_image_destroy(slp_image_t* image);
     #define SLP_FREE(ptr) free(ptr)
 #endif
 
-#ifndef SLP_MEMCPY
-    #define SLP_MEMCPY(dest, source, size) memcpy(dest, source, size)
-#endif
-
 #ifndef SLP_MEMMOVE
     #define SLP_MEMMOVE(dest, source, size) memmove(dest, source, size)
-#endif
-
-#ifndef SLP_MEMSET
-    #define SLP_MEMSET(s, c, n) memset(s, c, n)
 #endif
 
 #ifdef SLP_PNG_MACROS

@@ -43,13 +43,13 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
     const size_t bpr = div_ceil(width * channels * bit_depth, 8);
 
     int8_t* filter_buffers[5] = {
-        (int8_t*)SLP_MALLOC(bpr + 1),
-        (int8_t*)SLP_MALLOC(bpr + 1),
-        (int8_t*)SLP_MALLOC(bpr + 1),
-        (int8_t*)SLP_MALLOC(bpr + 1),
-        (int8_t*)SLP_MALLOC(bpr + 1),
+        (int8_t*)SLP_CALLOC(bpr + 1),
+        (int8_t*)SLP_CALLOC(bpr + 1),
+        (int8_t*)SLP_CALLOC(bpr + 1),
+        (int8_t*)SLP_CALLOC(bpr + 1),
+        (int8_t*)SLP_CALLOC(bpr + 1),
     };
-    uint8_t* out = (uint8_t*)SLP_MALLOC(CHUNK + 12);
+    uint8_t* out = (uint8_t*)SLP_CALLOC(CHUNK + 12);
 
     if (filter_buffers[0] == NULL ||
         filter_buffers[1] == NULL ||
@@ -61,7 +61,7 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
         Err(ALLOC_ERR);
     }
 
-    SLP_MEMCPY(out + 4, "IDAT", 4);
+    SLP_MEMMOVE(out + 4, "IDAT", 4);
     filter_buffers[0][0] = 0;
     filter_buffers[1][0] = 1;
     filter_buffers[2][0] = 2;
@@ -107,11 +107,11 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
             // flush if out of output capacity
             if (strm.avail_out == 0) {
                 uint32_t chunk_len = big_edian_u32_in_mem(out_len, is_little_edian);
-                SLP_MEMCPY(out, &chunk_len, 4);
+                SLP_MEMMOVE(out, &chunk_len, 4);
                 uint32_t crc_ = crc32(0, out + 4, 4);
                 crc_ = crc32(crc_, out + 8, out_len);
                 crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
-                SLP_MEMCPY(out + 8 + out_len, &crc_, 4);
+                SLP_MEMMOVE(out + 8 + out_len, &crc_, 4);
 
                 if (!png.write(out, png.buf, 8 + out_len + 4)) {
                     deflateEnd(&strm);
@@ -135,10 +135,10 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
         out_len = CHUNK - strm.avail_out;
         if (strm.avail_out == 0) {
             uint32_t chunk_len = big_edian_u32_in_mem(out_len, is_little_edian);
-            SLP_MEMCPY(out, &chunk_len, 4);
+            SLP_MEMMOVE(out, &chunk_len, 4);
             uint32_t crc_ = crc32(0, out + 4, 4 + out_len);
             crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
-            SLP_MEMCPY(out + 8 + out_len, &crc_, 4);
+            SLP_MEMMOVE(out + 8 + out_len, &crc_, 4);
             if (!png.write(out, png.buf, 8 + out_len + 4)) {
                 deflateEnd(&strm);
                 Err(IO_ERR);
@@ -151,10 +151,10 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
 
     // flush
     uint32_t chunk_len = big_edian_u32_in_mem(out_len, is_little_edian);
-    SLP_MEMCPY(out, &chunk_len, 4);
+    SLP_MEMMOVE(out, &chunk_len, 4);
     uint32_t crc_ = crc32(0, out + 4, 4 + out_len);
     crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
-    SLP_MEMCPY(out + 8 + out_len, &crc_, 4);
+    SLP_MEMMOVE(out + 8 + out_len, &crc_, 4);
     if (!png.write(out, png.buf, 8 + out_len + 4))
         Err(IO_ERR);
 

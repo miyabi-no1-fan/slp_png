@@ -72,11 +72,11 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
 
                 const size_t IN_LEN = PREFERED_IO_BUF_SIZE;
                 const size_t OUT_LEN = (PREFERED_IO_BUF_SIZE < bpr + 1) ? bpr + 1 : PREFERED_IO_BUF_SIZE;
-                in = (uint8_t*)SLP_MALLOC(IN_LEN);
-                out = (uint8_t*)SLP_MALLOC(OUT_LEN);
+                in = (uint8_t*)SLP_CALLOC(IN_LEN);
+                out = (uint8_t*)SLP_CALLOC(OUT_LEN);
 
-                scanline[0] = (is_color_type3) ? ((uint8_t*)SLP_MALLOC(bpr)) : image->pixels;
-                scanline[1] = (is_color_type3) ? ((uint8_t*)SLP_MALLOC(bpr)) : image->pixels;
+                scanline[0] = (is_color_type3) ? ((uint8_t*)SLP_CALLOC(bpr)) : image->pixels;
+                scanline[1] = (is_color_type3) ? ((uint8_t*)SLP_CALLOC(bpr)) : image->pixels;
 
                 if (out == NULL || in == NULL || scanline[0] == NULL || scanline[1] == NULL) {
                     inflateEnd(&strm);
@@ -254,7 +254,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                     Err(INVALID_PNG);
                 plte_check = true;
 
-                uint8_t* plte = (uint8_t*)SLP_MALLOC(chunk_len);
+                uint8_t* plte = (uint8_t*)SLP_CALLOC(chunk_len);
                 if (plte == NULL)
                     Err(ALLOC_ERR);
 
@@ -305,7 +305,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                     Err(INVALID_PNG);
                 tRNS_check = true;
 
-                uint8_t* trns = (uint8_t*)SLP_MALLOC(chunk_len);
+                uint8_t* trns = (uint8_t*)SLP_CALLOC(chunk_len);
                 if (trns == NULL)
                     Err(ALLOC_ERR);
 

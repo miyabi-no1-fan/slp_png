@@ -30,17 +30,17 @@ int defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, con
     uint8_t filter = *buffer++;
     switch (filter) {
         case 0: {
-            SLP_MEMCPY(scanline[1], buffer, bpr);
+            SLP_MEMMOVE(scanline[1], buffer, bpr);
             break;
         }
         case 1: {
-            SLP_MEMCPY(scanline[1], buffer, bpp);
+            SLP_MEMMOVE(scanline[1], buffer, bpp);
             for (size_t i = bpp; i < bpr; i++) scanline[1][i] = buffer[i] + scanline[1][i - bpp];
             break;
         }
         case 2: {
             if (imtrker == 0)
-                SLP_MEMCPY(scanline[1], buffer, bpr);
+                SLP_MEMMOVE(scanline[1], buffer, bpr);
             else {
                 size_t i = 0;
                 #ifdef __AVX2__
@@ -63,7 +63,7 @@ int defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, con
         }
         case 3: {
             if (imtrker == 0) {
-                SLP_MEMCPY(scanline[1], buffer, bpp);
+                SLP_MEMMOVE(scanline[1], buffer, bpp);
                 for (size_t i = bpp; i < bpr; i++) scanline[1][i] = buffer[i] + (scanline[1][i - bpp] >> 1);
             } else {
                 size_t i = 0;
@@ -74,7 +74,7 @@ int defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, con
         }
         case 4: {
             if (imtrker == 0) {
-                SLP_MEMCPY(scanline[1], buffer, bpp);
+                SLP_MEMMOVE(scanline[1], buffer, bpp);
                 for (size_t i = bpp; i < bpr; i++) scanline[1][i] = buffer[i] + scanline[1][i - bpp];
             } else {
                 size_t i = 0;
