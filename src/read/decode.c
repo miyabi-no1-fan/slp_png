@@ -32,7 +32,7 @@ extern int defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanli
 extern void colortype3_unpack(slp_image_t* restrict image, uint8_t* restrict buffer, const size_t bpr, const size_t imtrker);
 extern void index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restrict palette);
 
-int decode(slp_image_t* restrict image, FILE* restrict file, const int color_type) {
+int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
     int return_code = 0;
     const bool is_color_type3 = (color_type == 3);
 
@@ -53,7 +53,7 @@ int decode(slp_image_t* restrict image, FILE* restrict file, const int color_typ
     bool iend_check = false;
 
     while (!iend_check) {
-        if (fread(worker, 1, 8, file) != 8)
+        if (!png.read(worker, png.buf, 8))
             Err(IO_ERR);
 
         uint32_t chunk_len = big_edian_u32(worker);
@@ -65,7 +65,7 @@ int decode(slp_image_t* restrict image, FILE* restrict file, const int color_typ
                     Err(INVALID_PNG);
                 idat_check = true;
 
-                z_stream strm = {};
+                z_stream strm = {0};
                 int ret = inflateInit2(&strm, MAX_WBITS);
                 if (ret != Z_OK)
                     Err(ZLIB_ERR);
@@ -96,7 +96,7 @@ int decode(slp_image_t* restrict image, FILE* restrict file, const int color_typ
 
                     while (chunk_len > remaining_in_cap) {
                         // read as much as remaining input capacity has
-                        if (fread(in + IN_LEN - remaining_in_cap, 1, remaining_in_cap, file) != remaining_in_cap) {
+                        if (!png.read(in + IN_LEN - remaining_in_cap, png.buf, remaining_in_cap)) {
                             inflateEnd(&strm);
                             Err(IO_ERR);
                         }
@@ -159,7 +159,7 @@ int decode(slp_image_t* restrict image, FILE* restrict file, const int color_typ
                     }
 
                     // read as much as chunk_len remains
-                    if (fread(in + IN_LEN - remaining_in_cap, 1, chunk_len, file) != chunk_len) {
+                    if (!png.read(in + IN_LEN - remaining_in_cap, png.buf, chunk_len)) {
                         inflateEnd(&strm);
                         Err(IO_ERR);
                     }
@@ -167,7 +167,7 @@ int decode(slp_image_t* restrict image, FILE* restrict file, const int color_typ
                     remaining_in_cap -= chunk_len;
 
                     // read chunk's crc
-                    if (fread(worker + 8, 1, 4, file) != 4) {
+                    if (!png.read(worker + 8, png.buf, 4)) {
                         inflateEnd(&strm);
                         Err(IO_ERR);
                     }
@@ -179,7 +179,7 @@ int decode(slp_image_t* restrict image, FILE* restrict file, const int color_typ
                     }
 
                     // read the next chunk's header
-                    if (fread(worker, 1, 8, file) != 8) {
+                    if (!png.read(worker, png.buf, 8)) {
                         inflateEnd(&strm);
                         Err(IO_ERR);
                     }
@@ -189,7 +189,7 @@ int decode(slp_image_t* restrict image, FILE* restrict file, const int color_typ
                 } while (chunk_type == IDAT);  // break if chunk_type is not IDAT
 
                 // seek back to reserve the next chunk's header
-                if (fseek(file, -8, SEEK_CUR) != 0)
+                if (!png.seek(png.buf, -8))
                     Err(IO_ERR);
 
                 // finish + flush
@@ -258,7 +258,7 @@ int decode(slp_image_t* restrict image, FILE* restrict file, const int color_typ
                 if (plte == NULL)
                     Err(ALLOC_ERR);
 
-                if (fread(plte, 1, chunk_len, file) != chunk_len) {
+                if (!png.read(plte, png.buf, chunk_len)) {
                     SLP_FREE(plte);
                     Err(IO_ERR);
                 }
@@ -266,7 +266,7 @@ int decode(slp_image_t* restrict image, FILE* restrict file, const int color_typ
                 uint32_t crc_ = crc32(0, worker + 4, 4);
                 crc_ = crc32(crc_, plte, chunk_len);
 
-                if (fread(worker + 8, 1, 4, file) != 4) {
+                if (!png.read(worker + 8, png.buf, 4)) {
                     SLP_FREE(plte);
                     Err(IO_ERR);
                 }
@@ -309,7 +309,7 @@ int decode(slp_image_t* restrict image, FILE* restrict file, const int color_typ
                 if (trns == NULL)
                     Err(ALLOC_ERR);
 
-                if (fread(trns, 1, chunk_len, file) != chunk_len) {
+                if (!png.read(trns, png.buf, chunk_len)) {
                     SLP_FREE(trns);
                     Err(IO_ERR);
                 }
@@ -317,7 +317,7 @@ int decode(slp_image_t* restrict image, FILE* restrict file, const int color_typ
                 uint32_t crc_ = crc32(0, worker + 4, 4);
                 crc_ = crc32(crc_, trns, chunk_len);
 
-                if (fread(worker + 8, 1, 4, file) != 4) {
+                if (!png.read(worker + 8, png.buf, 4)) {
                     SLP_FREE(trns);
                     Err(IO_ERR);
                 }
@@ -344,7 +344,7 @@ int decode(slp_image_t* restrict image, FILE* restrict file, const int color_typ
                     Err(INVALID_PNG);
 
                 uint32_t crc_ = crc32(0, worker + 4, 4);
-                if (fread(worker + 8, 1, 4, file) != 4)
+                if (!png.read(worker + 8, png.buf, 4))
                     Err(IO_ERR);
                 if (big_edian_u32(worker + 8) != crc_)
                     Err(INVALID_PNG);
@@ -354,9 +354,8 @@ int decode(slp_image_t* restrict image, FILE* restrict file, const int color_typ
             }
             default: {
                 // else = skip
-                fseek(file, chunk_len + 4, SEEK_CUR);
-                // we don't have to check for fseek error here,
-                // the fread follow after it will fail anyway
+                if (!png.seek(png.buf, chunk_len + 4))
+                    Err(IO_ERR);
                 break;
             }
         }

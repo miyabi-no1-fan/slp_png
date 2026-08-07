@@ -23,94 +23,50 @@ limitations under the License.
 #define PNG_SIGNATURE 0x89504E470D0A1A0Aull
 #define IHDR 0x49484452u
 
-extern int decode(slp_image_t* restrict image, FILE* restrict file, const int color_type);
+#define Err(err) do { return err; } while(0)
+
+extern int decode(slp_png_io png, slp_image_t* restrict image, const int color_type);
 static int get_channels(const int color_type, const int bit_depth);
+static int read_ihdr(slp_image_t* image, const slp_png_io png, int* color_type);
 
 // default limit as 12k resolution
 _Thread_local uint32_t with_limit = 12288;
 _Thread_local uint32_t height_limit = 6480;
 
+bool default_read(void* dst, void* src, size_t n) {
+    return fread(dst, 1, n, src) == n;
+}
+
+bool default_seek(void* src, int n) {
+    return fseek(src, n, SEEK_CUR) == 0;
+}
+
 // read png from a file
-slp_image_t slp_png_read(const char* path, int* error_code) {
-    #define Err(err) do { if (error_code != NULL) *error_code = err; } while(0)
+int slp_png_read(slp_image_t* image, const slp_png_io* png_) {
+    if (image == NULL || png_ == NULL) return NULL_ARGS;
+    if (png_->buf == NULL) return IO_ERR;
 
-    slp_image_t image = {};
+    slp_png_io png = *png_;
+    if (png_->read == NULL) png.read = &default_read;
+    if (png_->seek == NULL) png.seek = &default_seek;
+    png.write = NULL;  // unused so we set it to NULL
 
-    FILE* file = fopen(path, "rb");
-    if (file == NULL) {
-        Err(IO_ERR);
-        image.pixels = NULL;
-        return image;
-    }
+    int color_type;
+    int ret = read_ihdr(image, png, &color_type);
+    if (ret != 0) Err(ret);
 
-    uint8_t ihdr[33];
+    image->pixels = (uint8_t*)SLP_MALLOC(image->image_size);
+    if (image->pixels == NULL) Err(ALLOC_ERR);
 
-    if (fread(ihdr, 1, 33, file) != 33) {
-        fclose(file);
-        Err(IO_ERR);
-        image.pixels = NULL;
-        return image;
-    }
-
-    uint32_t crc_ = crc32(0, ihdr + 12, 4);
-    crc_ = crc32(crc_, ihdr + 16, 13);
-
-    if (big_edian_u64(ihdr) != PNG_SIGNATURE ||
-        big_edian_u32(ihdr + 8) != 13 ||
-        big_edian_u32(ihdr + 12) != IHDR ||
-        big_edian_u32(ihdr + 29) != crc_)
-    {
-        fclose(file);
-        Err(INVALID_PNG);
-        image.pixels = NULL;
-        return image;
-    }
-
-    const uint32_t width = image.width = big_edian_u32(ihdr + 16);
-    const uint32_t height = image.height = big_edian_u32(ihdr + 20);
-    const int bit_depth = image.bit_depth = ihdr[24];
-    const int color_type = ihdr[25];
-    const int channels = image.channels = get_channels(color_type, bit_depth);
-    const int compression_method = ihdr[26];
-    const int filter_method = ihdr[27];
-    const int interlace_method = ihdr[28];
-
-    if (width > with_limit || height > height_limit) {
-        fclose(file);
-        Err(INVALID_PNG);
-        image.pixels = NULL;
-        return image;
-    }
-
-    if (compression_method != 0 || filter_method != 0 || interlace_method != 0 || channels == -1) {
-        fclose(file);
-        Err(INVALID_PNG);
-        image.pixels = NULL;
-        return image;
-    }
-
-    const size_t image_size = image.image_size = height * div_ceil((size_t)width * channels * ((color_type == 3) ? 8 : bit_depth), 8);
-
-    image.pixels = (uint8_t*)SLP_MALLOC(image_size);
-    if (image.pixels == NULL) {
-        fclose(file);
-        Err(ALLOC_ERR);
-        image.pixels = NULL;
-        return image;
-    }
-
-    int ret = decode(&image, file, color_type);
+    ret = decode(png, image, color_type);
     if (ret != 0) {
-        fclose(file);
-        SLP_FREE(image.pixels);
+        SLP_FREE(image->pixels);
+        image->pixels = NULL;
         Err(ret);
-        image.pixels = NULL;
-        return image;
     }
-    image.bit_depth = (color_type == 3) ? 8 : image.bit_depth;
+    image->bit_depth = (color_type == 3) ? 8 : image->bit_depth;
 
-    fclose(file);
-    return image;
+    return 0;
 }
 
 static inline int get_channels(const int color_type, const int bit_depth) {
@@ -162,4 +118,42 @@ static inline int get_channels(const int color_type, const int bit_depth) {
         }
     }
     return -1;
+}
+
+static int read_ihdr(slp_image_t* image, const slp_png_io png, int* color_type) {
+    uint8_t ihdr[33];
+
+    if (!png.read(ihdr, png.buf, 33))
+        Err(IO_ERR);
+
+    uint32_t crc_ = crc32(0, ihdr + 12, 4);
+    crc_ = crc32(crc_, ihdr + 16, 13);
+
+    if (big_edian_u64(ihdr) != PNG_SIGNATURE ||
+        big_edian_u32(ihdr + 8) != 13 ||
+        big_edian_u32(ihdr + 12) != IHDR ||
+        big_edian_u32(ihdr + 29) != crc_)
+    {
+        Err(INVALID_PNG);
+    }
+
+    image->width = big_edian_u32(ihdr + 16);
+    image->height = big_edian_u32(ihdr + 20);
+    image->bit_depth = ihdr[24];
+    *color_type = ihdr[25];
+    image->channels = get_channels(*color_type, image->bit_depth);
+
+    const int compression_method = ihdr[26];
+    const int filter_method = ihdr[27];
+    const int interlace_method = ihdr[28];
+
+    if (image->width > with_limit || image->height > height_limit)
+        Err(INVALID_PNG);
+
+    if (compression_method != 0 || filter_method != 0 || interlace_method != 0 || (int)image->channels == -1)
+        Err(INVALID_PNG);
+
+    image->image_size = image->height * div_ceil((size_t)image->width * image->channels * ((*color_type == 3) ? 8 : image->bit_depth), 8);
+
+    return 0;
 }

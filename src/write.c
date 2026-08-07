@@ -22,11 +22,23 @@ limitations under the License.
 
 // helpers
 static uint8_t get_color_type(const uint8_t channels);
-extern int encode(slp_image_t* restrict image, FILE* restrict file);
+extern int encode(const slp_image_t* restrict image, slp_png_io png);
 
-int slp_png_write(slp_image_t image, const char* path) {
-    if (image.pixels == NULL || image.height == 0 || image.width == 0 || image.channels == 0) return INVALID_PNG;
-    switch (image.bit_depth) {
+bool default_write(void* src, void* dst, size_t n) {
+    return fwrite(src, 1, n, dst) == n;
+}
+
+int slp_png_write(const slp_image_t* image, const slp_png_io* png_) {
+    if (image == NULL || png_ == NULL) return NULL_ARGS;
+    if (image->pixels == NULL ||
+        image->height == 0 ||
+        image->width == 0 ||
+        image->channels == 0 ||
+        image->image_size != image->height * div_ceil((size_t)image->width * image->channels * image->bit_depth, 8))
+    {
+        return INVALID_PNG;
+    }
+    switch (image->bit_depth) {
         case 1: break;
         case 2: break;
         case 4: break;
@@ -34,15 +46,14 @@ int slp_png_write(slp_image_t image, const char* path) {
         case 16: break;
         default: return INVALID_PNG;
     }
-    if (image.image_size != image.height * div_ceil((size_t)image.width * image.channels * image.bit_depth, 8))
-        return INVALID_PNG;
+    if (png_->buf == NULL) return IO_ERR;
+
+    slp_png_io png = *png_;
+    if (png_->write == NULL) png.write = &default_write;
 
     const uint16_t random_value_for_edian_test = 1;
     const bool is_little_edian = *(uint8_t*)(&random_value_for_edian_test);
     const uint64_t PNG_SIGNATURE = big_edian_u64_in_mem(0x89504E470D0A1A0Aull, is_little_edian);
-
-    FILE* file = fopen(path, "wb");
-    if (file == NULL) return IO_ERR;
 
     // use to write IHDR
     #pragma pack(push, 1)
@@ -57,42 +68,34 @@ int slp_png_write(slp_image_t image, const char* path) {
     } ihdr_t;
     #pragma pack(pop)
 
-    ihdr_t header = {
-        .width = big_edian_u32_in_mem(image.width, is_little_edian),
-        .height = big_edian_u32_in_mem(image.height, is_little_edian),
-        .bit_depth = image.bit_depth,
-        .color_type = get_color_type(image.channels),
+    ihdr_t ihdr = {
+        .width = big_edian_u32_in_mem(image->width, is_little_edian),
+        .height = big_edian_u32_in_mem(image->height, is_little_edian),
+        .bit_depth = image->bit_depth,
+        .color_type = get_color_type(image->channels),
         .compression_method = 0,
         .filter_method = 0,
         .interlace_method = 0
     };
 
-    if (header.color_type == 0xFF) {
-        fclose(file);
-        return INVALID_PNG;
-    }
+    if (ihdr.color_type == 0xFF) return INVALID_PNG;
 
-    uint32_t crc = crc32(0xA8A1AE0A, (unsigned char*)(&header), 13);
+    uint32_t crc = crc32(0xA8A1AE0A, (unsigned char*)(&ihdr), 13);
     crc = big_edian_u32_in_mem(crc, is_little_edian);
     const uint32_t data_len = big_edian_u32_in_mem(13, is_little_edian);
 
-    if (fwrite(&PNG_SIGNATURE, 1, 8, file) != 8 ||
-        fwrite(&data_len, 1, 4, file) != 4 ||
-        fwrite("IHDR", 1, 4, file) != 4 ||
-        fwrite(&header, 1, 13, file) != 13 ||
-        fwrite(&crc, 1, 4, file) != 4)
+    if (!png.write((void*)&PNG_SIGNATURE, png.buf, 8) ||
+        !png.write((void*)&data_len, png.buf, 4) ||
+        !png.write("IHDR", png.buf, 4) ||
+        !png.write(&ihdr, png.buf, 13) ||
+        !png.write(&crc, png.buf, 4))
     {
-        fclose(file);
         return IO_ERR;
     }
 
-    int ret = encode(&image, file);
-    if (ret != 0) {
-        fclose(file);
-        return ret;
-    }
+    int ret = encode(image, png);
+    if (ret != 0) return ret;
 
-    fclose(file);
     return 0;
 }
 
