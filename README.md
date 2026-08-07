@@ -66,8 +66,8 @@ Format:
 
 
 ## Security
-- You should read `.github/workflows/cmake-multi-platform.yml` and `tests/test.c`.
 - In general security of this project is still low and not recommended to use.
+- You should read `.github/workflows/cmake-multi-platform.yml` and `tests/test.c` for details if needed.
 
 
 ## Performance
