@@ -15,7 +15,6 @@ limitations under the License.
 */
 #include <stdbool.h>
 #include <stdio.h>
-#include <threads.h>
 #include <zlib.h>
 
 #define SLP_PNG_MACROS
@@ -38,8 +37,8 @@ extern int decode(slp_image_t* restrict image, FILE* restrict file, const int co
 static int get_channels(const int color_type, const int bit_depth);
 
 // default limit as 12k resolution
-thread_local uint32_t with_limit = 12288;
-thread_local uint32_t height_limit = 6480;
+_Thread_local uint32_t with_limit = 12288;
+_Thread_local uint32_t height_limit = 6480;
 
 // read png from a file
 slp_image_t slp_png_read(const char* path) {
