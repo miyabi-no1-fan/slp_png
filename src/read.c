@@ -29,7 +29,7 @@ static int get_channels(const int color_type, const int bit_depth);
 
 // read png from a file
 slp_image_t slp_png_read(const char* path, int* error_code) {
-    #define Err(err) *error_code = err
+    #define Err(err) do { if (error_code != NULL) *error_code = err; } while(0)
 
     slp_image_t image = {};
 
