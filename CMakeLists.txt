@@ -54,7 +54,7 @@ endif()
 
 file(GLOB_RECURSE SRC CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 set(DEPENDENCIES ZLIB::ZLIB m)
-set(OPTIMIZE_FLAGS -O2 -DNDEBUG)
+set(OPTIMIZE_FLAGS -O2 -DNDEBUG -Wall -Werror -Wextra)
 
 if (SLP_PNG_SHARED)
     add_library("slp_png" SHARED ${SRC})

@@ -1,4 +1,5 @@
 #include <slp_png.h>
+#include <stdio.h>
 #include <string.h>
 
 int main(int argc, char* argv[]) {
@@ -12,7 +13,7 @@ int main(int argc, char* argv[]) {
             case '-': {
                 switch (argv[i][1]) {
                     case 'o': {
-                        strncpy(path_out, argv[i + 1], 64);
+                        strncpy(path_out, argv[i + 1], 63);
                         i++;
                         break;
                     }
@@ -20,20 +21,23 @@ int main(int argc, char* argv[]) {
                 break;
             }
             default: {
-                strncpy(path, argv[i], 64);
+                strncpy(path, argv[i], 63);
                 break;
             }
         }
     }
 
-    slp_image_t a = slp_png_read(path, NULL);
-    if (!a.pixels)
-        return 1;
+    int ret = 0;
 
-    int ret = slp_png_write(a, path_out);
+    slp_image_t image;
+    ret = slp_png_read(&image, &(slp_png_io) {.buf = fopen(path, "rb")});
     if (ret != 0)
-        return 1;
+        return ret;
 
-    slp_image_destroy(&a);
+    ret = slp_png_write(&image, &(slp_png_io) {.buf = fopen(path_out, "wb")});
+    if (ret != 0)
+        return ret;
+
+    slp_image_destroy(&image);
     return 0;
 }

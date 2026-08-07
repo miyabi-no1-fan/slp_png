@@ -27,7 +27,7 @@ limitations under the License.
 
 extern void filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp);
 
-int encode(slp_image_t* restrict image, FILE* restrict file) {
+int encode(const slp_image_t* restrict image, slp_png_io png) {
     int return_code = 0;
     #define Err(v) do { return_code = v; goto cleanup; } while(0)
 
@@ -113,7 +113,7 @@ int encode(slp_image_t* restrict image, FILE* restrict file) {
                 crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
                 SLP_MEMCPY(out + 8 + out_len, &crc_, 4);
 
-                if (fwrite(out, 1, 8 + out_len + 4, file) != 8 + out_len + 4) {
+                if (!png.write(out, png.buf, 8 + out_len + 4)) {
                     deflateEnd(&strm);
                     Err(IO_ERR);
                 }
@@ -139,7 +139,7 @@ int encode(slp_image_t* restrict image, FILE* restrict file) {
             uint32_t crc_ = crc32(0, out + 4, 4 + out_len);
             crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
             SLP_MEMCPY(out + 8 + out_len, &crc_, 4);
-            if (fwrite(out, 1, 8 + out_len + 4, file) != 8 + out_len + 4) {
+            if (!png.write(out, png.buf, 8 + out_len + 4)) {
                 deflateEnd(&strm);
                 Err(IO_ERR);
             }
@@ -155,12 +155,12 @@ int encode(slp_image_t* restrict image, FILE* restrict file) {
     uint32_t crc_ = crc32(0, out + 4, 4 + out_len);
     crc_ = big_edian_u32_in_mem(crc_, is_little_edian);
     SLP_MEMCPY(out + 8 + out_len, &crc_, 4);
-    if (fwrite(out, 1, 8 + out_len + 4, file) != 8 + out_len + 4)
+    if (!png.write(out, png.buf, 8 + out_len + 4))
         Err(IO_ERR);
 
     // writting IEND
     const uint8_t IENDsig[12] = {0, 0, 0, 0, 'I', 'E', 'N', 'D', 0xAE, 0x42, 0x60, 0x82};
-    if (fwrite(IENDsig, 1, 12, file) != 12)
+    if (!png.write((void*)IENDsig, png.buf, 12))
         Err(IO_ERR);
 cleanup:
     SLP_FREE(filter_buffers[0]);

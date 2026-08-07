@@ -1,4 +1,5 @@
 #pragma once
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -25,35 +26,68 @@ enum SLP_ERROR {
     ALLOC_ERR = -1,
     // input/output error from file operations
     IO_ERR = 1,
-    // PNG is invalid **or not supported**
+    // PNG is invalid **or not supported**, used for both `read` and `write`
     INVALID_PNG = 2,
     // internal decode/encode error
     ZLIB_ERR = 3,
+    // function arguments are NULL
+    NULL_ARGS = 4,
 };
 
 /* This would set a hard limit for `slp_png_read` to reject any PNG that has width and height exceed this limit.
 - Thread-safe: The limit is applied per thread and complete independent each thread (via _Thread_local) */
 void slp_png_set_limit(uint32_t width, uint32_t height);
 
-/* Read the PNG from a file,
-if got error, error_code will be overwrite with the SLP_ERROR, otherwise, ignored
 
-This function have width/height limit
+typedef struct {
+    /* read `n` bytes from `src` to `dst`.
+    Return true on success and false on error. */
+    bool (*read)(void* dst, void* src, size_t n);
+
+    /* write `n` bytes from `src` to `dst`.
+    Return true on success and false on error. */
+    bool (*write)(void* src, void* dst, size_t n);
+
+    /* why `write` is (src, dst) but `read` is (dst, src) ?
+    `dst` `read` -> `src` (see how `read` is applied to `src` not `dst`)
+    `src` `write` -> `dst` (see how `write` is applied to `dst` not `src`) */
+
+    /* move the read/write `buf` by `n` bytes.
+
+    `n` can be negative. */
+    bool (*seek)(void* buf, int n);
+
+    /* used as `src` for `read`.
+    used as `dst` for `write`. */
+    void* buf;
+} slp_png_io;
+
+/* Read a PNG image,
+return status either 0 on success or SLP_ERROR on failure.
+
+`slp_png_read` only use `read`, `seek`, `buf` from `png`. The rest is ignored.
+
+By default, `read` is `fread` and `seek` is `fseek`.
+
+`slp_png_read` have width/height limit:
 ```C
 _Thread_local uint32_t with_limit = 12288;
 _Thread_local uint32_t height_limit = 6480;
 ```
-return `INVALID_PNG` error if any PNG exceed this limit
 
-you can change the limit via `slp_png_set_limit`*/
-slp_image_t slp_png_read(const char* path, int* error_code);
+return `INVALID_PNG` error if any PNG exceed this limit.
 
-/* Write the image to a file as PNG,
-return status either 0 on success or SLP_ERROR on failure. */
-int slp_png_write(slp_image_t image, const char* path);
+you can change the limit via `slp_png_set_limit`. */
+int slp_png_read(slp_image_t* image, const slp_png_io* png);
+
+/* Write a PNG image.
+return status either 0 on success or SLP_ERROR on failure.
+
+`slp_png_read` only use `write`, `buf` from `png`. The rest is ignored. */
+int slp_png_write(const slp_image_t* image, const slp_png_io* png);
 
 /* destroy the image, free up resources.
-if image == NULL or image->pixels == NULL this does nothing */
+if image == NULL or image->pixels == NULL, this does nothing */
 void slp_image_destroy(slp_image_t* image);
 
 #ifndef SLP_MALLOC
