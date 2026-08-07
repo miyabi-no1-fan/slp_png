@@ -10,6 +10,18 @@
 extern "C" {
 #endif
 
+#ifndef SLP_MALLOC
+    #define SLP_MALLOC(size) malloc(size)
+#endif
+
+#ifndef SLP_MEMCPY
+    #define SLP_MEMCPY(dest, source, size) memcpy(dest, source, size)
+#endif
+
+#ifndef SLP_MEMSET
+    #define SLP_MEMSET(s, c, n) memset(s, c, n)
+#endif
+
 void slp_image_convert_to_8bit(slp_image_t* image);
 bool slp_image_convert_to_16bit(slp_image_t* image);
 void slp_image_bswap16(slp_image_t* image);
