@@ -38,8 +38,9 @@ int decode(slp_image_t* restrict image, FILE* restrict file, const int color_typ
 
     #define Err(error) do { return_code = error; goto cleanup; } while(0)
 
-    const size_t bpp = is_color_type3 ? 1 : (image->channels * (1 + (image->bit_depth == 16)));
-    const size_t bpr = div_ceil((size_t)image->width * (is_color_type3 ? 1 : image->channels) * image->bit_depth, 8);
+    const size_t __c = (is_color_type3 ? 1 : image->channels);  // for indexed, channels are 1
+    const size_t bpp = __c * div_ceil((size_t)image->bit_depth, 8);
+    const size_t bpr = div_ceil((size_t)image->width * __c * image->bit_depth, 8);
 
     uint8_t worker[12];
     uint8_t* out = NULL;
