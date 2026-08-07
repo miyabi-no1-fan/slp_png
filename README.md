@@ -22,15 +22,25 @@ cmake --build build
 ## Basic usage
 ```C
 #include <slp_png.h>
+#include <stdio.h>
 
 int main(void) {
-    int ret;
+    slp_image_t your_image;
+    {
+        FILE* file = fopen("/path/to/your/image", "rb");
+        int ret = slp_png_read(&your_image, &(slp_png_io) {.buf = file});
+        if (ret != 0)
+            return ret;
+        fclose(file);
+    }
 
-    slp_image_t your_image = slp_png_read("/path/to/your/image", &ret);
-    if (!your_image.buffer) return ret;
-
-    ret = slp_png_write(your_image, "/path/to/where/to/write");
-    if (ret != 0) return ret;
+    {
+        FILE* file = fopen("/path/to/where/to/write", "wb");
+        int ret = slp_png_write(&your_image, &(slp_png_io) {.buf = file});
+        if (ret != 0)
+            return ret;
+        fclose(file);
+    }
 
     slp_image_destroy(&your_image);
     return 0;

@@ -102,29 +102,43 @@ void rw_test(const char* path, const char* path_out) {
     if (spng_image.pixels == NULL)
         panic("spng read failed");
 
-    slp_image_t a = slp_png_read(path, NULL);
-    if (a.pixels == NULL)
-        panic("slp_png_read failed: %u", a.bit_depth);
+    slp_image_t a;
+    {
+        FILE* file = fopen(path, "rb");
+        int ret = slp_png_read(&a, &(slp_png_io) {.buf = file});
+        if (ret != 0)
+            panic("slp_png_read failed: %d", ret);
+        fclose(file);
+    }
 
     if (a.image_size != spng_image.image_size)
-        panic("slp_png_read image size mismatch");
+        panic("slp_png_read image size mismatch (error vs expect): %zu vs %zu", a.image_size, spng_image.image_size);
 
     for (size_t i = 0; i < a.image_size; i++)
         if (a.pixels[i] != spng_image.pixels[i])
             panic("slp_png_read image pixels mismatch at %zu / %zu, value: %u vs %u", i, a.image_size, a.pixels[i], spng_image.pixels[i]);
     free(spng_image.pixels);
 
-    int ret = slp_png_write(a, path_out);
-    if (ret != 0)
-        panic("slp_png_write failed: %d", ret);
+    {
+        FILE* file = fopen(path_out, "wb");
+        int ret = slp_png_write(&a, &(slp_png_io) {.buf = file});
+        if (ret != 0)
+            panic("slp_png_write failed: %d", ret);
+        fclose(file);
+    }
 
     // validate new saved image
-    slp_image_t b = slp_png_read(path_out, NULL);
-    if (b.pixels == NULL)
-        panic("slp_png_read failed: %u", b.bit_depth);
+    slp_image_t b;
+    {
+        FILE* file = fopen(path_out, "rb");
+        int ret = slp_png_read(&b, &(slp_png_io) {.buf = file});
+        if (ret != 0)
+            panic("slp_png_read failed: %d", ret);
+        fclose(file);
+    }
 
     if (b.image_size != a.image_size)
-        panic("slp_png_read image size mismatch");
+        panic("slp_png_read image size mismatch (error vs expect): %zu vs %zu", b.image_size, a.image_size);
 
     for (size_t i = 0; i < a.image_size; i++)
         if (b.pixels[i] != a.pixels[i])
