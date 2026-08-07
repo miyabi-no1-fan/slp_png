@@ -15,6 +15,7 @@ limitations under the License.
 */
 #include <stdbool.h>
 #include <stdio.h>
+#include <threads.h>
 #include <zlib.h>
 
 #define SLP_PNG_MACROS
@@ -34,8 +35,11 @@ limitations under the License.
 #define IHDR 0x49484452u
 
 extern int decode(slp_image_t* restrict image, FILE* restrict file, const int color_type);
-
 static int get_channels(const int color_type, const int bit_depth);
+
+// default limit as 12k resolution
+thread_local uint32_t with_limit = 12288;
+thread_local uint32_t height_limit = 6480;
 
 // read png from a file
 slp_image_t slp_png_read(const char* path) {
@@ -79,6 +83,13 @@ slp_image_t slp_png_read(const char* path) {
     const int compression_method = ihdr[26];
     const int filter_method = ihdr[27];
     const int interlace_method = ihdr[28];
+
+    if (width > with_limit || height > height_limit) {
+        fclose(file);
+        Err(INVALID_PNG);
+        image.pixels = NULL;
+        return image;
+    }
 
     if (compression_method != 0 || filter_method != 0 || interlace_method != 0 || channels == -1) {
         fclose(file);
