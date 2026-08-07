@@ -12,7 +12,7 @@ int main(void) {
     double write_time = 0;
 
     start = clock();
-    slp_image_t image = slp_png_read(path);
+    slp_image_t image = slp_png_read(path, NULL);
     if (image.pixels == NULL) return 1;
     end = clock();
 
