@@ -20,16 +20,6 @@ limitations under the License.
 #define SLP_PNG_MACROS
 #include "slp_png.h"
 
-#ifndef SLP_DEBUG
-#define SLP_DEBUG 0
-#endif
-
-#if SLP_DEBUG
-    #define Err(err) image.bit_depth = err
-#else
-    #define Err(err) (void)err
-#endif
-
 #define PNG_SIGNATURE 0x89504E470D0A1A0Aull
 #define IHDR 0x49484452u
 
@@ -38,7 +28,9 @@ extern int decode(slp_image_t* restrict image, FILE* restrict file, const int co
 static int get_channels(const int color_type, const int bit_depth);
 
 // read png from a file
-slp_image_t slp_png_read(const char* path) {
+slp_image_t slp_png_read(const char* path, int* error_code) {
+    #define Err(err) *error_code = err
+
     slp_image_t image = {};
 
     FILE* file = fopen(path, "rb");

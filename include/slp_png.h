@@ -27,7 +27,7 @@ enum SLP_ERROR {
     ZLIB_ERR = 3,
 };
 
-slp_image_t slp_png_read(const char* path);
+slp_image_t slp_png_read(const char* path, int* error_code);
 int slp_png_write(slp_image_t image, const char* path);
 void slp_image_destroy(slp_image_t* image);
 
