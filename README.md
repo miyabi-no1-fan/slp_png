@@ -109,3 +109,11 @@ Results:
     - libspng: 10.66MB
 
 Somehow our encoder is a bit faster than `libspng`
+
+---
+
+I have some clues but I'll keep it myself.
+
+You can just think "maybe the benchmark is unfair", that's ok.
+
+If you wanna know why, clone this repo and test it yourself - or ask me in private, maybe I'll response.
