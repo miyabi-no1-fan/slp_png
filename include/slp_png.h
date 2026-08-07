@@ -21,16 +21,39 @@ typedef struct slp_image_t {
 } slp_image_t;
 
 enum SLP_ERROR {
+    // allocation failed
     ALLOC_ERR = -1,
+    // input/output error from file operations
     IO_ERR = 1,
+    // PNG is invalid **or not supported**
     INVALID_PNG = 2,
+    // internal decode/encode error
     ZLIB_ERR = 3,
 };
 
+/* This would set a hard limit for `slp_png_read` to reject any PNG that has width and height exceed this limit.
+- Thread-safe: The limit is applied per thread and complete independent each thread (via _Thread_local) */
 void slp_png_set_limit(uint32_t width, uint32_t height);
 
+/* Read the PNG from a file,
+if got error, error_code will be overwrite with the SLP_ERROR, otherwise, ignored
+
+This function have width/height limit
+```C
+_Thread_local uint32_t with_limit = 12288;
+_Thread_local uint32_t height_limit = 6480;
+```
+return `INVALID_PNG` error if any PNG exceed this limit
+
+you can change the limit via `slp_png_set_limit`*/
 slp_image_t slp_png_read(const char* path, int* error_code);
+
+/* Write the image to a file as PNG,
+return status either 0 on success or SLP_ERROR on failure. */
 int slp_png_write(slp_image_t image, const char* path);
+
+/* destroy the image, free up resources.
+if image == NULL or image->pixels == NULL this does nothing */
 void slp_image_destroy(slp_image_t* image);
 
 #ifndef SLP_MALLOC
