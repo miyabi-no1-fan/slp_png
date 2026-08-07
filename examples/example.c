@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    slp_image_t a = slp_png_read(path);
+    slp_image_t a = slp_png_read(path, NULL);
     if (!a.pixels)
         return 1;
 

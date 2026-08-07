@@ -29,7 +29,7 @@ enum SLP_ERROR {
 
 void slp_png_set_limit(uint32_t width, uint32_t height);
 
-slp_image_t slp_png_read(const char* path);
+slp_image_t slp_png_read(const char* path, int* error_code);
 int slp_png_write(slp_image_t image, const char* path);
 void slp_image_destroy(slp_image_t* image);
 

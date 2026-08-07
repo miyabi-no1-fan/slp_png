@@ -102,7 +102,7 @@ void rw_test(const char* path, const char* path_out) {
     if (spng_image.pixels == NULL)
         panic("spng read failed");
 
-    slp_image_t a = slp_png_read(path);
+    slp_image_t a = slp_png_read(path, NULL);
     if (a.pixels == NULL)
         panic("slp_png_read failed: %u", a.bit_depth);
 
@@ -119,7 +119,7 @@ void rw_test(const char* path, const char* path_out) {
         panic("slp_png_write failed: %d", ret);
 
     // validate new saved image
-    slp_image_t b = slp_png_read(path_out);
+    slp_image_t b = slp_png_read(path_out, NULL);
     if (b.pixels == NULL)
         panic("slp_png_read failed: %u", b.bit_depth);
 
