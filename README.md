@@ -2,7 +2,7 @@
 
 ## Support platforms
 - OS: Linux, MacOS, Windows.
-- Architecture: x86_64, ARM.
+- Architecture: x86_64, ARM64.
 
 
 ## Dependencies
