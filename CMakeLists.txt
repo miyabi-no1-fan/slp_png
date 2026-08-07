@@ -17,7 +17,6 @@ option(BUILD_EXAMPLE "Build example" OFF)
 
 if (SLP_PNG_SHARED OR SLP_PNG_STATIC)
     find_package(ZLIB REQUIRED)
-    find_package(Threads REQUIRED)
 
     if (BUILD_TEST)
         find_package(Threads REQUIRED)
@@ -54,7 +53,7 @@ if (SLP_PNG_SHARED OR SLP_PNG_STATIC)
 endif()
 
 file(GLOB_RECURSE SRC CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
-set(DEPENDENCIES ZLIB::ZLIB Threads::Threads m)
+set(DEPENDENCIES ZLIB::ZLIB m)
 set(OPTIMIZE_FLAGS -O2 -DNDEBUG)
 
 if (SLP_PNG_SHARED)
@@ -101,7 +100,7 @@ if (BUILD_TEST)
         add_executable("test-static" tests/test.c)
         target_link_libraries("test-static" PRIVATE "slp_png-static" Threads::Threads ${SPNG_TARGET})
 
-        add_executable("slp_benchmark" benches/slp_rw.c)
-        target_link_libraries("slp_benchmark" PRIVATE "slp_png-static")
+        add_executable("slp-benchmark" benches/slp_rw.c)
+        target_link_libraries("slp-benchmark" PRIVATE "slp_png-static")
     endif()
 endif()
