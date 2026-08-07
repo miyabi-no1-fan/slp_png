@@ -24,11 +24,13 @@ cmake --build build
 #include <slp_png.h>
 
 int main(void) {
-    slp_image_t your_image = slp_png_read("/path/to/your/image");
-    if (!your_image.buffer) return 1;
+    int ret;
 
-    int ret = slp_png_write(your_image, "/path/to/where/to/write");
-    if (ret != 0) return 1;
+    slp_image_t your_image = slp_png_read("/path/to/your/image", &ret);
+    if (!your_image.buffer) return ret;
+
+    ret = slp_png_write(your_image, "/path/to/where/to/write");
+    if (ret != 0) return ret;
 
     slp_image_destroy(&your_image);
     return 0;
