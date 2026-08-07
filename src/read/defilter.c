@@ -24,8 +24,8 @@ static inline uint8_t paeth(uint8_t a, uint8_t b, uint8_t c);
 
 // scanline[0] is up, scanline[1] is output
 int defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker) {
-    if (!(bpp <= 8)) __builtin_unreachable();
-    if (!(bpp <= bpr)) __builtin_unreachable();
+    if (!(bpp <= 8)) abort();
+    if (!(bpp <= bpr)) abort();
 
     uint8_t filter = *buffer++;
     switch (filter) {
