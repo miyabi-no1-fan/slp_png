@@ -90,31 +90,32 @@ int slp_png_write(const slp_image_t* image, const slp_png_io* png);
 if image == NULL or image->pixels == NULL, this does nothing */
 void slp_image_destroy(slp_image_t* image);
 
-#ifndef SLP_MALLOC
-    #define SLP_MALLOC(size) malloc(size)
-#endif
-
-#ifndef SLP_CALLOC
-    #define SLP_CALLOC(size) calloc(size, 1)
-#endif
-
-#ifndef SLP_FREE
-    #define SLP_FREE(ptr) free(ptr)
-#endif
-
-#ifndef SLP_MEMCPY
-    #define SLP_MEMCPY(dest, source, size) memcpy(dest, source, size)
-#endif
-
-#ifndef SLP_MEMMOVE
-    #define SLP_MEMMOVE(dest, source, size) memmove(dest, source, size)
-#endif
-
-#ifndef SLP_MEMSET
-    #define SLP_MEMSET(s, c, n) memset(s, c, n)
-#endif
-
+// define some macro for easier replacement
 #ifdef SLP_PNG_MACROS
+    #ifndef SLP_MALLOC
+        #define SLP_MALLOC(size) malloc(size)
+    #endif
+
+    #ifndef SLP_CALLOC
+        #define SLP_CALLOC(size) calloc(size, 1)
+    #endif
+
+    #ifndef SLP_FREE
+        #define SLP_FREE(ptr) free(ptr)
+    #endif
+
+    #ifndef SLP_MEMCPY
+        #define SLP_MEMCPY(dest, source, size) memcpy(dest, source, size)
+    #endif
+
+    #ifndef SLP_MEMMOVE
+        #define SLP_MEMMOVE(dest, source, size) memmove(dest, source, size)
+    #endif
+
+    #ifndef SLP_MEMSET
+        #define SLP_MEMSET(s, c, n) memset(s, c, n)
+    #endif
+
     #define bswap_u32(x) ((((x) & 0xFF000000u) >> 24) | (((x) & 0x00FF0000u) >> 8) | \
                           (((x) & 0x0000FF00u) << 8) | (((x) & 0x000000FFu) << 24))
     #define bswap_u64(x) ((((x) & 0xFF00000000000000ull) >> 56) | (((x) & 0x00FF000000000000ull) >> 40) | \
