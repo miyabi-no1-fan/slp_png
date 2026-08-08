@@ -24,7 +24,7 @@ static inline uint8_t paeth(uint8_t a, uint8_t b, uint8_t c);
 
 // prev is up, cur is output
 int defilter(uint8_t* restrict buffer, uint8_t* restrict cur, uint8_t* restrict prev, const size_t bpp, const size_t bpr) {
-    if (!(bpp <= 8)) abort();
+    if (!(0 < bpp && bpp <= 8)) abort();
     if (!(bpp <= bpr)) abort();
 
     uint8_t filter = *buffer++;
