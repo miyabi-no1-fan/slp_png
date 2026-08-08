@@ -28,7 +28,7 @@ limitations under the License.
 #define PLTE __CHUNK_TYPE('P', 'L', 'T', 'E')
 #define tRNS __CHUNK_TYPE('t', 'R', 'N', 'S')
 
-extern int defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr, const size_t imtrker);
+extern int defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr);
 extern void colortype3_unpack(slp_image_t* restrict image, uint8_t* restrict buffer, const size_t bpr, const size_t imtrker);
 extern void index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restrict palette);
 
@@ -76,8 +76,8 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                 in = (uint8_t*)SLP_MALLOC(IN_LEN);
                 out = (uint8_t*)SLP_MALLOC(OUT_LEN);
 
-                scanline[0] = (is_color_type3) ? ((uint8_t*)SLP_MALLOC(bpr)) : image->pixels;
-                scanline[1] = (is_color_type3) ? ((uint8_t*)SLP_MALLOC(bpr)) : image->pixels;
+                scanline[0] = (is_color_type3) ? ((uint8_t*)SLP_CALLOC(bpr)) : (image->pixels + image->image_size - bpr);
+                scanline[1] = (is_color_type3) ? ((uint8_t*)SLP_CALLOC(bpr)) : image->pixels;
 
                 if (out == NULL || in == NULL || scanline[0] == NULL || scanline[1] == NULL) {
                     inflateEnd(&strm);
@@ -127,7 +127,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                             // for each new row produced
                             for (size_t i = 0; i < row_produced; i++) {
                                 // defilter to scanline[1] from buffer as raw and scanline[0] as up
-                                if (defilter(out + i * (bpr + 1), scanline, bpp, bpr, imtrker) != 0) {
+                                if (defilter(out + i * (bpr + 1), scanline, bpp, bpr) != 0) {
                                     inflateEnd(&strm);
                                     Err(INVALID_PNG);
                                 }
@@ -211,7 +211,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                         Err(INVALID_PNG);
                     }
                     for (size_t i = 0; i < row_produced; i++) {
-                        if (defilter(out + i * (bpr + 1), scanline, bpp, bpr, imtrker) != 0) {
+                        if (defilter(out + i * (bpr + 1), scanline, bpp, bpr) != 0) {
                             inflateEnd(&strm);
                             Err(INVALID_PNG);
                         }
