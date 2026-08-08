@@ -30,13 +30,21 @@ int main(int argc, char* argv[]) {
     int ret = 0;
 
     slp_image_t image;
-    ret = slp_png_read(&image, &(slp_png_io) {.buf = fopen(path, "rb")});
-    if (ret != 0)
-        return ret;
+    {
+        FILE* file = fopen(path, "rb");
+        int ret = slp_png_read(&image, &(slp_png_io) {.buf = file});
+        if (ret != 0)
+            return ret;
+        fclose(file);
+    }
 
-    ret = slp_png_write(&image, &(slp_png_io) {.buf = fopen(path_out, "wb")});
-    if (ret != 0)
-        return ret;
+    {
+        FILE* file = fopen(path_out, "wb");
+        int ret = slp_png_write(&image, &(slp_png_io) {.buf = file});
+        if (ret != 0)
+            return ret;
+        fclose(file);
+    }
 
     slp_image_destroy(&image);
     return 0;

@@ -15,18 +15,26 @@ int main(void) {
 
     start = clock();
     slp_image_t image;
-    ret = slp_png_read(&image, &(slp_png_io) {.buf = fopen(path, "rb")});
-    if (ret != 0)
-        return ret;
+    {
+        FILE* file = fopen(path, "rb");
+        int ret = slp_png_read(&image, &(slp_png_io) {.buf = file});
+        if (ret != 0)
+            return ret;
+        fclose(file);
+    }
     end = clock();
 
     read_time = (double)(end - start) / CLOCKS_PER_SEC;
     printf("read time: %.3fs\n", read_time);
 
     start = clock();
-    ret = slp_png_write(&image, &(slp_png_io) {.buf = fopen(path_out, "wb")});
-    if (ret != 0)
-        return ret;
+    {
+        FILE* file = fopen(path_out, "wb");
+        int ret = slp_png_write(&image, &(slp_png_io) {.buf = file});
+        if (ret != 0)
+            return ret;
+        fclose(file);
+    }
     end = clock();
 
     write_time = (double)(end - start) / CLOCKS_PER_SEC;
