@@ -1,4 +1,6 @@
+#define SLP_PNG_MACROS
 #include "slp_image_transform.h"
+
 #if SLP_IMAGE_TRANSFROM_RELEASE
 
 #if defined(__i386__) || defined(__x86_64__)

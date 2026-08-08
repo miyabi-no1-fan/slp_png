@@ -1,10 +1,11 @@
-#define SLP_IMAGE_TRANSFROM_RELEASE 0  // not release yet, we didn't have any test for it at all
+#define SLP_IMAGE_TRANSFROM_RELEASE 1  // not release yet, we didn't have any test for it at all
 
 #if SLP_IMAGE_TRANSFROM_RELEASE
 
 #pragma once
-#include <slp_png.h>
 #include <stdbool.h>
+
+#include "slp_png.h"
 
 #ifdef __cplusplus
 extern "C" {

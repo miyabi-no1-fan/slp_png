@@ -13,16 +13,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+#define SLP_PNG_MACROS
 #include "slp_image_transform.h"
+
 #if SLP_IMAGE_TRANSFROM_RELEASE
 
 #include <math.h>
-#ifdef _WIN32
-    #include <windows.h>
-#endif
-#if defined(__unix__) || defined(__APPLE__)
-    #include <unistd.h>
-#endif
+
 #if defined(__i386__) || defined(__x86_64__)
     #include <immintrin.h>
 #endif
