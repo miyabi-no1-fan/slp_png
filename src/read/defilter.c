@@ -69,10 +69,10 @@ int defilter(uint8_t* restrict buffer, uint8_t* restrict cur, uint8_t* restrict 
             size_t i = 0;
 
             for (; i < bpp; i++)
-                cur[i] = buffer[i] + ((prev[i]) >> 1);
+                cur[i] = buffer[i] + prev[i] / 2;
 
             for (; i < bpr; i++)
-                cur[i] = buffer[i] + ((prev[i] + cur[i - bpp]) >> 1);
+                cur[i] = buffer[i] + (prev[i] + cur[i - bpp]) / 2;
 
             break;
         }
