@@ -28,7 +28,7 @@ limitations under the License.
 #define PLTE __CHUNK_TYPE('P', 'L', 'T', 'E')
 #define tRNS __CHUNK_TYPE('t', 'R', 'N', 'S')
 
-extern int defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr);
+extern int defilter(uint8_t* restrict buffer, uint8_t* restrict cur, uint8_t* restrict prev, const size_t bpp, const size_t bpr);
 extern void colortype3_unpack(slp_image_t* restrict image, uint8_t* restrict buffer, const size_t bpr, const size_t imtrker);
 extern void index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restrict palette);
 
@@ -46,7 +46,9 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
     uint8_t* out = NULL;
     uint8_t* in = NULL;
     uint8_t* palette = NULL;
-    uint8_t* scanline[2] = {NULL, NULL};
+
+    uint8_t* cur = NULL;
+    uint8_t* prev = NULL;
 
     bool plte_check = false;
     bool tRNS_check = false;
@@ -76,10 +78,11 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                 in = (uint8_t*)SLP_MALLOC(IN_LEN);
                 out = (uint8_t*)SLP_MALLOC(OUT_LEN);
 
-                scanline[0] = (is_color_type3) ? ((uint8_t*)SLP_CALLOC(bpr)) : (image->pixels + image->image_size - bpr);
-                scanline[1] = (is_color_type3) ? ((uint8_t*)SLP_CALLOC(bpr)) : image->pixels;
+                // commit 87d0911712e0e8632ffcc1903ddf64e59043fd4b
+                prev = (is_color_type3) ? ((uint8_t*)SLP_CALLOC(bpr)) : (image->pixels + image->image_size - bpr);
+                cur = (is_color_type3) ? ((uint8_t*)SLP_CALLOC(bpr)) : image->pixels;
 
-                if (out == NULL || in == NULL || scanline[0] == NULL || scanline[1] == NULL) {
+                if (out == NULL || in == NULL || prev == NULL || cur == NULL) {
                     inflateEnd(&strm);
                     Err(ALLOC_ERR);
                 }
@@ -126,25 +129,25 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
 
                             // for each new row produced
                             for (size_t i = 0; i < row_produced; i++) {
-                                // defilter to scanline[1] from buffer as raw and scanline[0] as up
-                                if (defilter(out + i * (bpr + 1), scanline, bpp, bpr) != 0) {
+                                // defilter to cur from buffer as raw and prev as up
+                                if (defilter(out + i * (bpr + 1), cur, prev, bpp, bpr) != 0) {
                                     inflateEnd(&strm);
                                     Err(INVALID_PNG);
                                 }
 
                                 if (is_color_type3) {
                                     // unpack tightly packed idexes into u32 little-edian array
-                                    colortype3_unpack(image, scanline[1], bpr, imtrker);
+                                    colortype3_unpack(image, cur, bpr, imtrker);
 
                                     // swap scanline for the next process
-                                    uint8_t* temp = scanline[0];
-                                    scanline[0] = scanline[1];
-                                    scanline[1] = temp;
+                                    uint8_t* temp = prev;
+                                    prev = cur;
+                                    cur = temp;
                                 }
                                 else {
                                     // move scanline forward for the next process
-                                    scanline[0] = scanline[1];
-                                    scanline[1] += bpr;
+                                    prev = cur;
+                                    cur += bpr;
                                 }
 
                                 imtrker++;
@@ -211,19 +214,19 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                         Err(INVALID_PNG);
                     }
                     for (size_t i = 0; i < row_produced; i++) {
-                        if (defilter(out + i * (bpr + 1), scanline, bpp, bpr) != 0) {
+                        if (defilter(out + i * (bpr + 1), cur, prev, bpp, bpr) != 0) {
                             inflateEnd(&strm);
                             Err(INVALID_PNG);
                         }
                         if (is_color_type3) {
-                            colortype3_unpack(image, scanline[1], bpr, imtrker);
-                            uint8_t* temp = scanline[0];
-                            scanline[0] = scanline[1];
-                            scanline[1] = temp;
+                            colortype3_unpack(image, cur, bpr, imtrker);
+                            uint8_t* temp = prev;
+                            prev = cur;
+                            cur = temp;
                         }
                         else {
-                            scanline[0] = scanline[1];
-                            scanline[1] += bpr;
+                            prev = cur;
+                            cur += bpr;
                         }
                         imtrker++;
                     }
@@ -242,11 +245,11 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                 SLP_FREE(in);
                 in = NULL;
                 if (is_color_type3) {
-                    SLP_FREE(scanline[0]);
-                    SLP_FREE(scanline[1]);
+                    SLP_FREE(prev);
+                    SLP_FREE(cur);
                 }
-                scanline[0] = NULL;
-                scanline[1] = NULL;
+                prev = NULL;
+                cur = NULL;
 
                 break;
             }
@@ -366,8 +369,8 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
         index_u32_to_RGBA(image, palette);
 cleanup:
     if (is_color_type3) {
-        SLP_FREE(scanline[0]);
-        SLP_FREE(scanline[1]);
+        SLP_FREE(cur);
+        SLP_FREE(prev);
     }
     SLP_FREE(palette);
     SLP_FREE(out);

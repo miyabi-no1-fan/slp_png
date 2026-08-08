@@ -22,20 +22,23 @@ limitations under the License.
 
 static inline uint8_t paeth(uint8_t a, uint8_t b, uint8_t c);
 
-// scanline[0] is up, scanline[1] is output
-int defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, const size_t bpp, const size_t bpr) {
+// prev is up, cur is output
+int defilter(uint8_t* restrict buffer, uint8_t* restrict cur, uint8_t* restrict prev, const size_t bpp, const size_t bpr) {
     if (!(bpp <= 8)) abort();
     if (!(bpp <= bpr)) abort();
 
     uint8_t filter = *buffer++;
     switch (filter) {
         case 0: {
-            SLP_MEMCPY(scanline[1], buffer, bpr);
+            SLP_MEMCPY(cur, buffer, bpr);
             break;
         }
         case 1: {
-            SLP_MEMCPY(scanline[1], buffer, bpp);
-            for (size_t i = bpp; i < bpr; i++) scanline[1][i] = buffer[i] + scanline[1][i - bpp];
+            SLP_MEMCPY(cur, buffer, bpp);
+
+            for (size_t i = bpp; i < bpr; i++)
+                cur[i] = buffer[i] + cur[i - bpp];
+
             break;
         }
         case 2: {
@@ -44,33 +47,44 @@ int defilter(uint8_t* restrict buffer, uint8_t* restrict* restrict scanline, con
             #ifdef __AVX2__
             for (; i + 32 <= bpr; i += 32) {
                 const __m256i raw = _mm256_loadu_si256((const __m256i*)(buffer + i));
-                const __m256i up = _mm256_loadu_si256((const __m256i*)(scanline[0] + i));
-                _mm256_storeu_si256((__m256i*)(scanline[1] + i), _mm256_add_epi8(raw, up));
+                const __m256i up = _mm256_loadu_si256((const __m256i*)(prev + i));
+                _mm256_storeu_si256((__m256i*)(cur + i), _mm256_add_epi8(raw, up));
             }
             #endif
 
             #ifdef __SSE2__
             for (; i + 16 <= bpr; i += 16) {
                 const __m128i raw = _mm_loadu_si128((const __m128i*)(buffer + i));
-                const __m128i up = _mm_loadu_si128((const __m128i*)(scanline[0] + i));
-                _mm_storeu_si128((__m128i*)(scanline[1] + i), _mm_add_epi8(raw, up));
+                const __m128i up = _mm_loadu_si128((const __m128i*)(prev + i));
+                _mm_storeu_si128((__m128i*)(cur + i), _mm_add_epi8(raw, up));
             }
             #endif
 
-            for (; i < bpr; i++) scanline[1][i] = buffer[i] + scanline[0][i];
+            for (; i < bpr; i++)
+                cur[i] = buffer[i] + prev[i];
 
             break;
         }
         case 3: {
             size_t i = 0;
-            for (; i < bpp; i++) scanline[1][i] = buffer[i] + ((scanline[0][i]) >> 1);
-            for (; i < bpr; i++) scanline[1][i] = buffer[i] + ((scanline[0][i] + scanline[1][i - bpp]) >> 1);
+
+            for (; i < bpp; i++)
+                cur[i] = buffer[i] + ((prev[i]) >> 1);
+
+            for (; i < bpr; i++)
+                cur[i] = buffer[i] + ((prev[i] + cur[i - bpp]) >> 1);
+
             break;
         }
         case 4: {
             size_t i = 0;
-            for (; i < bpp; i++) scanline[1][i] = buffer[i] + scanline[0][i];
-            for (; i < bpr; i++) scanline[1][i] = buffer[i] + paeth(scanline[1][i - bpp], scanline[0][i], scanline[0][i - bpp]);
+
+            for (; i < bpp; i++)
+                cur[i] = buffer[i] + prev[i];
+
+            for (; i < bpr; i++)
+                cur[i] = buffer[i] + paeth(cur[i - bpp], prev[i], prev[i - bpp]);
+
             break;
         }
         default: return 1;
