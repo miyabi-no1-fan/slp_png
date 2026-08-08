@@ -55,7 +55,7 @@ int slp_png_read(slp_image_t* image, const slp_png_io* png_) {
     int ret = read_ihdr(image, png, &color_type);
     if (ret != 0) Err(ret);
 
-    image->pixels = (uint8_t*)SLP_MALLOC(image->image_size);
+    image->pixels = (uint8_t*)SLP_CALLOC(image->image_size);
     if (image->pixels == NULL) Err(ALLOC_ERR);
 
     ret = decode(png, image, color_type);
