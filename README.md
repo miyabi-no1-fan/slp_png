@@ -127,7 +127,3 @@ I have some clues but I'll keep it myself.
 You can just think "maybe the benchmark is unfair", that's ok.
 
 If you wanna know why, clone this repo and test it yourself - or ask me in private, maybe I'll response.
-
----
-By the way, you might wonder why we use the Apache License.
-It's simple, Apache License was the first option in Github's `Add License`, so I just pick it idc
