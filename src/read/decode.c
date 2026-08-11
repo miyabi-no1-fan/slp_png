@@ -33,7 +33,7 @@ extern int defilter(uint8_t* restrict buffer, uint8_t* restrict cur, uint8_t* re
 extern void colortype3_unpack(slp_image_t* restrict image, uint8_t* restrict buffer, const size_t bpr, const size_t imtrker);
 extern void index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restrict palette);
 
-static inline int idat_decode(slp_png_io png, slp_image_t* restrict image, const int color_type, uint32_t chunk_type, uint32_t chunk_len);
+static inline int idat_decode(slp_png_io png, slp_image_t* restrict image, const int color_type, uint8_t worker[12], uint32_t* chunk_type, uint32_t* chunk_len);
 
 int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
     int return_code = 0;
@@ -46,12 +46,18 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
     bool idat_check = false;
     bool iend_check = false;
 
-    while (!iend_check) {
-        if (!png.read(worker, png.buf, 8))
-            Err(IO_ERR);
+    uint32_t chunk_len;
+    uint32_t chunk_type;
+    bool should_update_chunk_type_and_len = true;
 
-        uint32_t chunk_len = big_edian_u32(worker);
-        uint32_t chunk_type = big_edian_u32(worker + 4);
+    while (!iend_check) {
+        if (should_update_chunk_type_and_len) {
+            if (!png.read(worker, png.buf, 8))
+                Err(IO_ERR);
+            chunk_len = big_edian_u32(worker);
+            chunk_type = big_edian_u32(worker + 4);
+        }
+        should_update_chunk_type_and_len = true;
 
         switch (chunk_type) {
             case IDAT: {
@@ -60,10 +66,11 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                 idat_check = true;
 
                 // idat decode is too long so we have to seperate it into another function
-                int ret = idat_decode(png, image, color_type, chunk_type, chunk_len);
+                int ret = idat_decode(png, image, color_type, worker, &chunk_type, &chunk_len);
                 if (ret != 0)
                     Err(ret);
 
+                should_update_chunk_type_and_len = false;
                 break;
             }
             case PLTE: {
@@ -185,15 +192,13 @@ cleanup:
     return return_code;
 }
 
-static inline int idat_decode(slp_png_io png, slp_image_t* restrict image, const int color_type, uint32_t chunk_type, uint32_t chunk_len) {
+static inline int idat_decode(slp_png_io png, slp_image_t* restrict image, const int color_type, uint8_t worker[12], uint32_t* _chunk_type, uint32_t* _chunk_len) {
     int return_code = 0;
     const bool is_color_type3 = (color_type == 3);
 
     const size_t __c = (is_color_type3 ? 1 : image->channels);  // for indexed, channels are 1
     const size_t bpp = __c * div_ceil((size_t)image->bit_depth, 8);
     const size_t bpr = div_ceil((size_t)image->width * __c * image->bit_depth, 8);
-
-    uint8_t worker[12];  // buffer for parsing chunk's metadata
 
     // idat io buffers
     uint8_t* out = NULL;
@@ -225,6 +230,9 @@ static inline int idat_decode(slp_png_io png, slp_image_t* restrict image, const
     size_t imtrker = 0;                // track the total row produced
     size_t offset = 0;                 // the 'out' buffer offset
     size_t remaining_in_cap = IN_LEN;  // remaining in capacity
+
+    uint32_t chunk_type = IDAT;  // = *_chunk_type
+    uint32_t chunk_len = *_chunk_len;
 
     // for each IDAT chunk
     do {
@@ -308,14 +316,15 @@ static inline int idat_decode(slp_png_io png, slp_image_t* restrict image, const
         // read the next chunk's header
         if (!png.read(worker, png.buf, 8))
             Err(IO_ERR);
-
         chunk_len = big_edian_u32(worker);
         chunk_type = big_edian_u32(worker + 4);
-    } while (chunk_type == IDAT);  // break if chunk_type is not IDAT
 
-    // seek back to reserve the next chunk's header
-    if (!png.seek(png.buf, -8))
-        Err(IO_ERR);
+        // break if chunk_type is not IDAT
+    } while (chunk_type == IDAT);
+
+    // preserve read chunk's metadata
+    *_chunk_type = chunk_type;
+    *_chunk_len = chunk_len;
 
     // finish + flush
     strm.avail_in = IN_LEN - remaining_in_cap;
@@ -361,6 +370,7 @@ cleanup:
     }
     SLP_FREE(out);
     SLP_FREE(in);
-    if (inflate_is_init) inflateEnd(&strm);
+    if (inflate_is_init)
+        inflateEnd(&strm);
     return return_code;
 }

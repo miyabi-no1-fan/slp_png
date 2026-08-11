@@ -55,7 +55,7 @@ typedef struct {
     /* move the read/write `buf` by `n` bytes.
 
     `n` can be negative. */
-    bool (*seek)(void* buf, int n);
+    bool (*seek)(void* buf, uint32_t n);
 
     /* used as `src` for `read`.
     used as `dst` for `write`. */

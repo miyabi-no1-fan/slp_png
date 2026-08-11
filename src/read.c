@@ -37,7 +37,7 @@ bool default_read(void* dst, void* src, size_t n) {
     return fread(dst, 1, n, src) == n;
 }
 
-bool default_seek(void* src, int n) {
+bool default_seek(void* src, uint32_t n) {
     return fseek(src, n, SEEK_CUR) == 0;
 }
 
