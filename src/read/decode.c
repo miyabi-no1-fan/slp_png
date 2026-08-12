@@ -78,6 +78,10 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                     Err(INVALID_PNG);
                 plte_check = true;
 
+                // max chunk length for a PLTE is for color type 3 with 256 entries of RGB
+                if (chunk_len > 256 * 3)
+                    Err(INVALID_PNG);
+
                 uint8_t* plte = (uint8_t*)SLP_MALLOC(chunk_len);
                 if (plte == NULL)
                     Err(ALLOC_ERR);
@@ -129,6 +133,10 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                     Err(INVALID_PNG);
                 tRNS_check = true;
 
+                // max chunk length for a tRNS is for color type 3 with 256 entries of alpha channel
+                if (chunk_len > 256)
+                    Err(INVALID_PNG);
+
                 uint8_t* trns = (uint8_t*)SLP_MALLOC(chunk_len);
                 if (trns == NULL)
                     Err(ALLOC_ERR);
@@ -164,7 +172,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                 break;
             }
             case IEND: {
-                if (!idat_check || (color_type == 3 && !plte_check))
+                if (!idat_check || (color_type == 3 && !plte_check) || chunk_len != 0)
                     Err(INVALID_PNG);
 
                 uint32_t crc_ = crc32(0, worker + 4, 4);
