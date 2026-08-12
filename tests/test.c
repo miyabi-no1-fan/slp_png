@@ -34,14 +34,6 @@ static int get_nproc(void) {
     return 2;
 }
 
-// test images name:
-// rover
-// gray16
-// grayscale_4bit
-// 4bit3
-// palette_4bit
-// 10.4-MB
-
 #define panic(...) \
     do {                                                               \
         fprintf(stderr, "panic at:\n File: %s\n  Line: %d\n", __FILE__, __LINE__); \
@@ -58,7 +50,7 @@ void thread_safety_test(const char* path);
 
 
 int main(int argc, char* argv[]) {
-    char* path = "tests/test_images/10.4-MB.png";
+    char* path = "tests/test_images/benchmark/10.4-MB.png";
     char* path_out = "TEST.png";
 
     bool thread_test = false;

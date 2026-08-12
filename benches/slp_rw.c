@@ -3,7 +3,7 @@
 #include <time.h>
 
 // default path
-char path[] = "tests/test_images/10.4-MB.png";
+char path[] = "tests/test_images/benchmark/10.4-MB.png";
 char path_out[] = "tests/test_images/new.png";
 
 int main(void) {

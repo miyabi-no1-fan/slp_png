@@ -4,7 +4,7 @@
 
 int main(int argc, char* argv[]) {
     // default path
-    char path[64] = "tests/test_images/10.4-MB.png";
+    char path[64] = "tests/test_images/benchmark/10.4-MB.png";
     char path_out[64] = "tests/test_images/new.png";
 
     // parse input/output path
