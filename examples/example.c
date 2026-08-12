@@ -27,8 +27,6 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    int ret = 0;
-
     slp_image_t image;
     {
         FILE* file = fopen(path, "rb");
