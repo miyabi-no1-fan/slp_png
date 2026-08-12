@@ -72,6 +72,10 @@ Format:
     ```C
     (color_type == SPNG_COLOR_TYPE_INDEXED) ? SPNG_FMT_RGBA8 : SPNG_FMT_RAW
     ```
+    also with this flag:
+    ```C
+    (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED) ? SPNG_DECODE_TRNS : 0;
+    ```
     We have our test to ensure `slp_png_read` output match every single byte of `libspng` output, using the same format.
 
 - `slp_png_write` expect the same format as `slp_png_read` output format.
@@ -95,7 +99,7 @@ build/slp_benchmark
 # For spng
 build/test --spng-benchmark
 
-# You could also try with `hyperfine` and `perf` for more precise comparison
+# You could also try with `hyperfine` and `perf` for more accurate comparison
 ```
 
 Test image: tests/test_images/10.4-MB.png
