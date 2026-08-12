@@ -68,43 +68,46 @@ void colortype3_unpack(slp_image_t* restrict image, uint8_t* restrict buffer, co
                 const __m128i a67_lo = _mm_unpacklo_epi8(in6, in7);
                 const __m128i a67_hi = _mm_unpackhi_epi8(in6, in7);
 
-                const __m128i a0123lo_lo = _mm_unpacklo_epi16(a01_lo, a23_lo);
-                const __m128i a0123lo_hi = _mm_unpackhi_epi16(a01_lo, a23_lo);
-                const __m128i a0123hi_lo = _mm_unpacklo_epi16(a01_hi, a23_hi);
-                const __m128i a0123hi_hi = _mm_unpackhi_epi16(a01_hi, a23_hi);
-                const __m128i a4567lo_lo = _mm_unpacklo_epi16(a45_lo, a67_lo);
-                const __m128i a4567lo_hi = _mm_unpackhi_epi16(a45_lo, a67_lo);
-                const __m128i a4567hi_lo = _mm_unpacklo_epi16(a45_hi, a67_hi);
-                const __m128i a4567hi_hi = _mm_unpackhi_epi16(a45_hi, a67_hi);
+                const __m128i a0123_part1 = _mm_unpacklo_epi16(a01_lo, a23_lo);
+                const __m128i a0123_part2 = _mm_unpackhi_epi16(a01_lo, a23_lo);
+                const __m128i a0123_part3 = _mm_unpacklo_epi16(a01_hi, a23_hi);
+                const __m128i a0123_part4 = _mm_unpackhi_epi16(a01_hi, a23_hi);
+                const __m128i a4567_part1 = _mm_unpacklo_epi16(a45_lo, a67_lo);
+                const __m128i a4567_part2 = _mm_unpackhi_epi16(a45_lo, a67_lo);
+                const __m128i a4567_part3 = _mm_unpacklo_epi16(a45_hi, a67_hi);
+                const __m128i a4567_part4 = _mm_unpackhi_epi16(a45_hi, a67_hi);
 
-                const __m128i a01234567lo_lo_lo = _mm_unpacklo_epi32(a0123lo_lo, a4567lo_lo);
-                const __m128i a01234567lo_lo_hi = _mm_unpackhi_epi32(a0123lo_lo, a4567lo_lo);
-                const __m128i a01234567lo_hi_lo = _mm_unpacklo_epi32(a0123lo_hi, a4567lo_hi);
-                const __m128i a01234567lo_hi_hi = _mm_unpackhi_epi32(a0123lo_hi, a4567lo_hi);
-                const __m128i a01234567hi_lo_lo = _mm_unpacklo_epi32(a0123hi_lo, a4567hi_lo);
-                const __m128i a01234567hi_lo_hi = _mm_unpackhi_epi32(a0123hi_lo, a4567hi_lo);
-                const __m128i a01234567hi_hi_lo = _mm_unpacklo_epi32(a0123hi_hi, a4567hi_hi);
-                const __m128i a01234567hi_hi_hi = _mm_unpackhi_epi32(a0123hi_hi, a4567hi_hi);
+                const __m128i out1 = _mm_unpacklo_epi32(a0123_part1, a4567_part1);
+                const __m128i out2 = _mm_unpackhi_epi32(a0123_part1, a4567_part1);
+                const __m128i out3 = _mm_unpacklo_epi32(a0123_part2, a4567_part2);
+                const __m128i out4 = _mm_unpackhi_epi32(a0123_part2, a4567_part2);
+                const __m128i out5 = _mm_unpacklo_epi32(a0123_part3, a4567_part3);
+                const __m128i out6 = _mm_unpackhi_epi32(a0123_part3, a4567_part3);
+                const __m128i out7 = _mm_unpacklo_epi32(a0123_part4, a4567_part4);
+                const __m128i out8 = _mm_unpackhi_epi32(a0123_part4, a4567_part4);
 
-                convert_store_u8_to_u32(0, a01234567lo_lo_lo);
-                convert_store_u8_to_u32(1, a01234567lo_lo_hi);
-                convert_store_u8_to_u32(2, a01234567lo_hi_lo);
-                convert_store_u8_to_u32(3, a01234567lo_hi_hi);
-                convert_store_u8_to_u32(4, a01234567hi_lo_lo);
-                convert_store_u8_to_u32(5, a01234567hi_lo_hi);
-                convert_store_u8_to_u32(6, a01234567hi_hi_lo);
-                convert_store_u8_to_u32(7, a01234567hi_hi_hi);
+                convert_store_u8_to_u32(0, out1);
+                convert_store_u8_to_u32(1, out2);
+                convert_store_u8_to_u32(2, out3);
+                convert_store_u8_to_u32(3, out4);
+                convert_store_u8_to_u32(4, out5);
+                convert_store_u8_to_u32(5, out6);
+                convert_store_u8_to_u32(6, out7);
+                convert_store_u8_to_u32(7, out8);
             }
             #endif
             for (; i < bpr; i++) {
-                dest[i * 32 + 0 * 4] = (src[i] >> 7) & 1;
+                for (size_t j = 0; j < 8 && i * 32 + j * 4 < image->width * image->channels; j++) {
+                    dest[i * 32 + j * 4] = (src[i] >> (7 - j)) & 1;
+                }
+                /*dest[i * 32 + 0 * 4] = (src[i] >> 7) & 1;
                 dest[i * 32 + 1 * 4] = (src[i] >> 6) & 1;
                 dest[i * 32 + 2 * 4] = (src[i] >> 5) & 1;
                 dest[i * 32 + 3 * 4] = (src[i] >> 4) & 1;
                 dest[i * 32 + 4 * 4] = (src[i] >> 3) & 1;
                 dest[i * 32 + 5 * 4] = (src[i] >> 2) & 1;
                 dest[i * 32 + 6 * 4] = (src[i] >> 1) & 1;
-                dest[i * 32 + 7 * 4] = (src[i] >> 0) & 1;
+                dest[i * 32 + 7 * 4] = (src[i] >> 0) & 1;*/
             }
             break;
         }
@@ -135,10 +138,13 @@ void colortype3_unpack(slp_image_t* restrict image, uint8_t* restrict buffer, co
             }
             #endif
             for (; i < bpr; i++) {
-                dest[i * 16 + 0 * 4] = (src[i] >> 6) & 3;
+                for (size_t j = 0; j < 4 && i * 16 + j * 4 < image->width * image->channels; j++) {
+                    dest[i * 16 + j * 4] = (src[i] >> (6 - j * 2)) & 3;
+                }
+                /*dest[i * 16 + 0 * 4] = (src[i] >> 6) & 3;
                 dest[i * 16 + 1 * 4] = (src[i] >> 4) & 3;
                 dest[i * 16 + 2 * 4] = (src[i] >> 2) & 3;
-                dest[i * 16 + 3 * 4] = (src[i] >> 0) & 3;
+                dest[i * 16 + 3 * 4] = (src[i] >> 0) & 3;*/
             }
             break;
         }
@@ -158,8 +164,11 @@ void colortype3_unpack(slp_image_t* restrict image, uint8_t* restrict buffer, co
             }
             #endif
             for (; i < bpr; i++) {
-                dest[i * 8 + 0 * 4] = (src[i] >> 4) & 0x0F;
-                dest[i * 8 + 1 * 4] = (src[i] >> 0) & 0x0F;
+                for (size_t j = 0; j < 2 && i * 8 + j * 4 < image->width * image->channels; j++) {
+                    dest[i * 8 + j * 4] = (src[i] >> (4 - j * 4)) & 0x0F;
+                }
+                /*dest[i * 8 + 0 * 4] = (src[i] >> 4) & 0x0F;
+                dest[i * 8 + 1 * 4] = (src[i] >> 0) & 0x0F;*/
             }
             break;
         }
