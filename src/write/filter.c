@@ -43,22 +43,23 @@ static inline __m256i _mm256_paeth(const __m256i a, const __m256i b, const __m25
 
 void filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp) {
     if (i == 0) {
-        uint8_t* src = image_buffer;
-        for (size_t j = 0; j < bpp; j++) filter_buffers[1][j + 1] = src[j];
-        for (size_t j = bpp; j < bpr; j++) filter_buffers[1][j + 1] = src[j] - src[j - bpp];
+        uint8_t* cur = image_buffer;
+        for (size_t j = 0; j < bpp; j++) filter_buffers[1][j + 1] = cur[j];
+        for (size_t j = bpp; j < bpr; j++) filter_buffers[1][j + 1] = cur[j] - cur[j - bpp];
         for (int j = 0; j < 5; j++) filter_scores[j] = 1;
         filter_scores[1] = 0;
     }
     else {
-        uint8_t* src = image_buffer + i * bpr;
+        uint8_t* cur = image_buffer + i * bpr;
+        uint8_t* prev = image_buffer + (i - 1) * bpr;
 
         size_t j = 0;
         for (; j < bpp; j++) {
-            filter_buffers[0][j + 1] = src[j];
-            filter_buffers[1][j + 1] = src[j];
-            filter_buffers[2][j + 1] = src[j] - src[j - bpr];
-            filter_buffers[3][j + 1] = src[j] - (src[j - bpr] >> 1);
-            filter_buffers[4][j + 1] = src[j] - src[j - bpr];
+            filter_buffers[0][j + 1] = cur[j];
+            filter_buffers[1][j + 1] = cur[j];
+            filter_buffers[2][j + 1] = cur[j] - prev[j];
+            filter_buffers[3][j + 1] = cur[j] - (prev[j] >> 1);
+            filter_buffers[4][j + 1] = cur[j] - prev[j];
 
             filter_scores[0] += abs(filter_buffers[0][j + 1]);
             filter_scores[1] += abs(filter_buffers[1][j + 1]);
@@ -77,10 +78,10 @@ void filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_bu
             __m256i zero = _mm256_setzero_si256();
 
             for (; j + 32 <= bpr; j += 32) {
-                const __m256i raw = _mm256_loadu_si256((const __m256i*)(src + j));
-                const __m256i a = _mm256_loadu_si256((const __m256i*)(src + j - bpp));
-                const __m256i b = _mm256_loadu_si256((const __m256i*)(src + j - bpr));
-                const __m256i c = _mm256_loadu_si256((const __m256i*)(src + j - bpr - bpp));
+                const __m256i raw = _mm256_loadu_si256((const __m256i*)(cur + j));
+                const __m256i a = _mm256_loadu_si256((const __m256i*)(cur + j - bpp));
+                const __m256i b = _mm256_loadu_si256((const __m256i*)(prev + j));
+                const __m256i c = _mm256_loadu_si256((const __m256i*)(prev + j - bpp));
 
                 const __m256i sub = _mm256_sub_epi8(raw, a);
                 const __m256i up = _mm256_sub_epi8(raw, b);
@@ -131,10 +132,10 @@ void filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_bu
             __m128i zero = _mm_setzero_si128();
 
             for (; j + 16 <= bpr; j += 16) {
-                const __m128i raw = _mm_loadu_si128((const __m128i*)(src + j));
-                const __m128i a = _mm_loadu_si128((const __m128i*)(src + j - bpp));
-                const __m128i b = _mm_loadu_si128((const __m128i*)(src + j - bpr));
-                const __m128i c = _mm_loadu_si128((const __m128i*)(src + j - bpr - bpp));
+                const __m128i raw = _mm_loadu_si128((const __m128i*)(cur + j));
+                const __m128i a = _mm_loadu_si128((const __m128i*)(cur + j - bpp));
+                const __m128i b = _mm_loadu_si128((const __m128i*)(prev + j));
+                const __m128i c = _mm_loadu_si128((const __m128i*)(prev + j - bpp));
 
                 const __m128i sub = _mm_sub_epi8(raw, a);
                 const __m128i up = _mm_sub_epi8(raw, b);
@@ -177,19 +178,19 @@ void filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_bu
         #endif
 
         for (; j < bpr; j++) {
-            const int p = src[j - bpp] + src[j - bpr] - src[j - bpr - bpp];
-            const int pa = abs(p - src[j - bpp]);
-            const int pb = abs(p - src[j - bpr]);
-            const int pc = abs(p - src[j - bpr - bpp]);
+            const int p = cur[j - bpp] + prev[j] - prev[j - bpp];
+            const int pa = abs(p - cur[j - bpp]);
+            const int pb = abs(p - prev[j]);
+            const int pc = abs(p - prev[j - bpp]);
 
-            uint8_t d = (pb <= pc) ? src[j - bpr] : src[j - bpr - bpp];
-            d = (pa <= pb && pa <= pc) ? src[j - bpp] : d;
+            uint8_t d = (pb <= pc) ? prev[j] : prev[j - bpp];
+            d = (pa <= pb && pa <= pc) ? cur[j - bpp] : d;
 
-            filter_buffers[0][j + 1] = src[j];
-            filter_buffers[1][j + 1] = src[j] - src[j - bpp];
-            filter_buffers[2][j + 1] = src[j] - src[j - bpr];
-            filter_buffers[3][j + 1] = src[j] - ((src[j - bpp] + src[j - bpr]) / 2);
-            filter_buffers[4][j + 1] = src[j] - d;
+            filter_buffers[0][j + 1] = cur[j];
+            filter_buffers[1][j + 1] = cur[j] - cur[j - bpp];
+            filter_buffers[2][j + 1] = cur[j] - prev[j];
+            filter_buffers[3][j + 1] = cur[j] - ((uint16_t)cur[j - bpp] + prev[j]) / 2;
+            filter_buffers[4][j + 1] = cur[j] - d;
 
             filter_scores[0] += abs(filter_buffers[0][j + 1]);
             filter_scores[1] += abs(filter_buffers[1][j + 1]);
