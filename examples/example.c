@@ -31,17 +31,21 @@ int main(int argc, char* argv[]) {
     {
         FILE* file = fopen(path, "rb");
         int ret = slp_png_read(&image, &(slp_png_io) {.buf = file});
-        if (ret != 0)
-            return ret;
         fclose(file);
+        if (ret != 0) {
+            printf("read failed, return code: %d\n", ret);
+            return 0;
+        }
     }
 
     {
         FILE* file = fopen(path_out, "wb");
         int ret = slp_png_write(&image, &(slp_png_io) {.buf = file});
-        if (ret != 0)
-            return ret;
         fclose(file);
+        if (ret != 0) {
+            printf("write failed, return code: %d\n", ret);
+            return 0;
+        }
     }
 
     slp_image_destroy(&image);
