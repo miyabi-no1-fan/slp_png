@@ -11,8 +11,6 @@ int main(void) {
     double read_time = 0;
     double write_time = 0;
 
-    int ret = 0;
-
     start = clock();
     slp_image_t image;
     {
