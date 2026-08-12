@@ -279,6 +279,7 @@ slp_image_t spng_read_png(const char *filepath) {
     }
 
     const int target_fmt = (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED) ? SPNG_FMT_RGBA8 : SPNG_FMT_RAW;
+    const int flag = (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED) ? SPNG_DECODE_TRNS : 0;
 
     size_t image_size;
     if (spng_decoded_image_size(ctx, target_fmt, &image_size) != 0) {
@@ -294,7 +295,7 @@ slp_image_t spng_read_png(const char *filepath) {
         return null;
     }
 
-    if (spng_decode_image(ctx, image_buf, image_size, target_fmt, 0) != 0) {
+    if (spng_decode_image(ctx, image_buf, image_size, target_fmt, flag) != 0) {
         free(image_buf);
         spng_ctx_free(ctx);
         fclose(file);
