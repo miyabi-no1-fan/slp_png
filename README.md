@@ -77,11 +77,6 @@ Format:
 - `slp_png_write` expect the same format as `slp_png_read` output format.
 
 
-## Security
-- In general security of this project is still low and not recommended to use.
-- You should read `.github/workflows/cmake-multi-platform.yml` and `tests/test.c` for details if needed.
-
-
 ## Performance
 - Platform: Linux
 - CPU: intel i5 12450H
