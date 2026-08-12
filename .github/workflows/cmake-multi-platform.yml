@@ -3,10 +3,10 @@ name: test slp_png
 on:
   push:
     branches: [ "main" ]
-    paths-ignore: ['README.md', '.gitignore', 'LICENSE']
+    paths-ignore: ['README.md', 'LICENSE']
   pull_request:
     branches: [ "main" ]
-    paths-ignore: ['README.md', '.gitignore', 'LICENSE']
+    paths-ignore: ['README.md', '.gitignore', 'LICENSE', '**/MANIFEST.md']
 
 jobs:
   test_linux:
@@ -28,42 +28,33 @@ jobs:
           -DCMAKE_BUILD_TYPE=Debug
           -DENABLE_OPT=OFF
           -DBUILD_TEST=ON
-          -DCMAKE_C_FLAGS="-mno-avx512f -Og -g"
+          -DBUILD_EXAMPLE=ON
+          -DCMAKE_C_FLAGS="-mno-avx512f -Og -g -mavx2"
           -S .
           && cmake --build build --config Debug
 
-      - name: Valgrind test
+      - name: Valgrind test with valid PNGs
         shell: bash
-        run: >
-          valgrind
-          --leak-check=full
-          --show-leak-kinds=all
-          --errors-for-leak-kinds=all
-          --track-origins=yes
-          --error-exitcode=1
-          build/test
-
-      - name: Build Release
-        run: >
-          cmake -B build
-          -DCMAKE_C_COMPILER=gcc
-          -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_EXAMPLE=ON
-          -DBUILD_TEST=ON
-          -DCMAKE_C_FLAGS="-march=native"
-          -S .
-          && cmake --build build --config Release
-
-      - name: Run example
-        run: build/example && build/example-static
-      
-      - name: Run test
-        run: build/test tests/test_images/4bit3.png && build/test-static tests/test_images/gray16.png
-
-      - name: Build (no test)
         run: |
-          cmake -B build
-          cmake --build build
+          for file in tests/test_images/pngsuite/*.png; do
+              echo $file
+              valgrind --leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=all  --track-origins=yes --error-exitcode=1 build/test $file
+              if [ $? -ne 0 ]; then
+                  exit -1
+              fi
+          done
+
+      - name: Valgrind test with corrupted PNGs
+        shell: bash
+        run: |
+          for file in tests/test_images/pngsuite_corrupted/*.png; do
+            echo $file
+            valgrind --leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=all  --track-origins=yes --error-exitcode=1 build/example $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
+
 
   test_macOS:
     runs-on: macos-latest
@@ -75,7 +66,7 @@ jobs:
       - name: Install deps
         run: brew install zlib-ng-compat llvm libspng
 
-      - name: Build Release
+      - name: Build with generic ARM64
         shell: bash
         run: >
           export CMAKE_PREFIX_PATH="/opt/homebrew/opt/llvm" &&
@@ -84,7 +75,8 @@ jobs:
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           -DCMAKE_BUILD_TYPE=Release
           -DBUILD_TEST=ON
-          -DCMAKE_C_FLAGS="-march=native"
+          -DBUILD_EXAMPLE=ON
+          -DCMAKE_C_FLAGS="-arch arm64"
           -S .
           && cmake --build build --config Release
 
@@ -98,9 +90,27 @@ jobs:
           --checks='-*,clang-analyzer-*, -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling, -clang-diagnostic-unknown-warning-option'
           -extra-arg='-Wno-unknown-warning-option'
           --warnings-as-errors='*'
-          src/*/*.c
+          src/**/*.c
 
-      - name: Run test
+      - name: Run Test
+        shell: bash
+        run: |
+          for file in tests/test_images/pngsuite/*.png; do
+            echo $file
+            build/test $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
+          for file in tests/test_images/pngsuite_corrupted/*.png; do
+            echo $file
+            build/example $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
+
+      - name: Run Thread Test
         shell: bash
         run: |
           set -e
@@ -131,110 +141,152 @@ jobs:
       - name: Set up MSYS2 and Install deps
         uses: msys2/setup-msys2@v2
         with:
-          msystem: UCRT64
-          install: >
-            mingw-w64-ucrt-x86_64-clang
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-make
-            mingw-w64-ucrt-x86_64-zlib-ng-compat
-            mingw-w64-ucrt-x86_64-libwinpthread
-            mingw-w64-ucrt-x86_64-libspng
+          msystem: CLANG64
+          install: >-
+            mingw-w64-clang-x86_64-clang
+            mingw-w64-clang-x86_64-cmake
+            mingw-w64-clang-x86_64-make
+            mingw-w64-clang-x86_64-zlib-ng-compat
+            mingw-w64-clang-x86_64-libwinpthread
+            mingw-w64-clang-x86_64-libspng
+            mingw-w64-clang-x86_64-compiler-rt
 
-      - name: Build Release
-        shell: msys2 {0}
-        run: >
-          cmake -B build
-          -DCMAKE_C_COMPILER=clang
-          -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_EXAMPLE=ON
-          -DBUILD_TEST=ON
-          -S .
-          && cmake --build build --config Release
-
-      - name: Run example
-        run: build/example && build/example-static
-
-      - name: Run test
-        run: >
-          build/test tests/test_images/grayscale_4bit.png &&
-          build/test-static tests/test_images/palette_4bit.png &&
-          build/test tests/test_images/rover.png
-          build/test-static tests/test_images/10.4-MB.png
-
-      - name: Build Release with SSE2
-        shell: msys2 {0}
-        run: >
-          cmake -B build
-          -DCMAKE_C_COMPILER=clang
-          -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_TEST=ON
-          -DCMAKE_C_FLAGS="-msse2"
-          -S .
-          && cmake --build build --config Release
-          && build/test tests/test_images/4bit3.png
-
-      - name: Build Release with SSSE3
-        shell: msys2 {0}
-        run: >
-          cmake -B build
-          -DCMAKE_C_COMPILER=clang
-          -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_TEST=ON
-          -DCMAKE_C_FLAGS="-mssse3"
-          -S .
-          && cmake --build build --config Release
-          && build/test tests/test_images/4bit3.png
-
-      - name: Build Release with SSE3
-        shell: msys2 {0}
-        run: >
-          cmake -B build
-          -DCMAKE_C_COMPILER=clang
-          -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_TEST=ON
-          -DCMAKE_C_FLAGS="-msse3"
-          -S .
-          && cmake --build build --config Release
-          && build/test tests/test_images/4bit3.png
-
-      - name: Build Release with SSE4.1
-        shell: msys2 {0}
-        run: >
-          cmake -B build
-          -DCMAKE_C_COMPILER=clang
-          -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_TEST=ON
-          -DCMAKE_C_FLAGS="-msse4.1"
-          -S .
-          && cmake --build build --config Release
-          && build/test tests/test_images/4bit3.png
-
-      - name: Build Release with SSE4.2
-        shell: msys2 {0}
-        run: >
-          cmake -B build
-          -DCMAKE_C_COMPILER=clang
-          -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_TEST=ON
-          -DCMAKE_C_FLAGS="-msse4.2"
-          -S .
-          && cmake --build build --config Release
-          && build/test tests/test_images/4bit3.png
-
-      - name: Build Release with AVX2
-        shell: msys2 {0}
-        run: >
-          cmake -B build
-          -DCMAKE_C_COMPILER=clang
-          -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_TEST=ON
-          -DCMAKE_C_FLAGS="-mavx2"
-          -S .
-          && cmake --build build --config Release
-          && build/test tests/test_images/4bit3.png
-
-      - name: Build (no test)
+      - name: Build and Test with generic x86-64
         shell: msys2 {0}
         run: |
-          cmake -B build
-          cmake --build build
+          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-march=x86-64 -fsanitize=address,undefined -fno-omit-frame-pointer" -S .
+          cmake --build build --config Release
+          for file in tests/test_images/pngsuite/*.png; do
+            echo $file
+            build/test $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
+          for file in tests/test_images/pngsuite_corrupted/*.png; do
+            echo $file
+            build/example $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
+
+      - name: Build and Test with SSE2
+        shell: msys2 {0}
+        run: |
+          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-msse2 -fsanitize=address,undefined -fno-omit-frame-pointer" -S .
+          cmake --build build --config Release
+          for file in tests/test_images/pngsuite/*.png; do
+            echo $file
+            build/test $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
+          for file in tests/test_images/pngsuite_corrupted/*.png; do
+            echo $file
+            build/example $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
+
+      - name: Build and Test with SSSE3
+        shell: msys2 {0}
+        run: |
+          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-mssse3 -fsanitize=address,undefined -fno-omit-frame-pointer" -S .
+          cmake --build build --config Release
+          for file in tests/test_images/pngsuite/*.png; do
+            echo $file
+            build/test $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
+          for file in tests/test_images/pngsuite_corrupted/*.png; do
+            echo $file
+            build/example $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
+
+      - name: Build and Test with SSE3
+        shell: msys2 {0}
+        run: |
+          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-msse3 -fsanitize=address,undefined -fno-omit-frame-pointer" -S .
+          cmake --build build --config Release
+          for file in tests/test_images/pngsuite/*.png; do
+            echo $file
+            build/test $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
+          for file in tests/test_images/pngsuite_corrupted/*.png; do
+            echo $file
+            build/example $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
+
+      - name: Build and Test with SSE4.1
+        shell: msys2 {0}
+        run: |
+          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-msse4.1 -fsanitize=address,undefined -fno-omit-frame-pointer" -S .
+          cmake --build build --config Release
+          for file in tests/test_images/pngsuite/*.png; do
+            echo $file
+            build/test $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
+          for file in tests/test_images/pngsuite_corrupted/*.png; do
+            echo $file
+            build/example $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
+
+      - name: Build and Test with SSE4.2
+        shell: msys2 {0}
+        run: |
+          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-msse4.2 -fsanitize=address,undefined -fno-omit-frame-pointer" -S .
+          cmake --build build --config Release
+          for file in tests/test_images/pngsuite/*.png; do
+            echo $file
+            build/test $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
+          for file in tests/test_images/pngsuite_corrupted/*.png; do
+            echo $file
+            build/example $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
+
+      - name: Build and Test with AVX2
+        shell: msys2 {0}
+        run: |
+          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-mavx2 -fsanitize=address,undefined -fno-omit-frame-pointer" -S .
+          cmake --build build --config Release
+          for file in tests/test_images/pngsuite/*.png; do
+            echo $file
+            build/test $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
+          for file in tests/test_images/pngsuite_corrupted/*.png; do
+            echo $file
+            build/example $file
+            if [ $? -ne 0 ]; then
+              exit -1
+            fi
+          done
