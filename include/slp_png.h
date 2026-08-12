@@ -64,8 +64,10 @@ typedef struct {
     bool (*write)(void* src, void* dst, size_t n);
 
     /* why `write` is (src, dst) but `read` is (dst, src) ?
-    `dst` `read` -> `src` (see how `read` is applied to `src` not `dst`)
-    `src` `write` -> `dst` (see how `write` is applied to `dst` not `src`) */
+    Think of it like this:
+    "a read from b" is equivalent to "b write to a".
+    So plug in b = `src` and a = `dst` we have:
+    `dst` `read` `src` and `src` `write` `dst` */
 
     /* move the read/write `buf` by `n` bytes.
 
