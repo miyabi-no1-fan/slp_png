@@ -94,7 +94,7 @@ cmake -S . -B build -DBUILD_TEST=ON
 cmake --build build
 
 # For slp_png
-build/slp_benchmark
+build/slp-benchmark
 
 # For spng
 build/test --spng-benchmark
