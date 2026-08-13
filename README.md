@@ -74,7 +74,7 @@ Format:
     ```
     also with this flag:
     ```C
-    (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED) ? SPNG_DECODE_TRNS : 0;
+    (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED) ? SPNG_DECODE_TRNS : 0
     ```
     We have our test to ensure `slp_png_read` output match every single byte of `libspng` output, using the same format.
 
