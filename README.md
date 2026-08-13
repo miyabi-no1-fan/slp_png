@@ -29,17 +29,17 @@ int main(void) {
     {
         FILE* file = fopen("/path/to/your/image", "rb");
         int ret = slp_png_read(&your_image, &(slp_png_io) {.buf = file});
+        fclose(file);
         if (ret != 0)
             return ret;
-        fclose(file);
     }
 
     {
         FILE* file = fopen("/path/to/where/to/write", "wb");
         int ret = slp_png_write(&your_image, &(slp_png_io) {.buf = file});
+        fclose(file);
         if (ret != 0)
             return ret;
-        fclose(file);
     }
 
     slp_image_destroy(&your_image);
