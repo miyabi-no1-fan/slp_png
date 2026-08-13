@@ -1,3 +1,4 @@
 build/
 build_old/
 .cache/
+tests/corpus/
