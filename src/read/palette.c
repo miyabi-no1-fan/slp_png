@@ -16,6 +16,7 @@ limitations under the License.
 #if defined(__i386__) || defined(__x86_64__)
     #include <immintrin.h>
 #endif
+#include <stdlib.h>
 
 #include "slp_png.h"
 
