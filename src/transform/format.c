@@ -171,15 +171,15 @@ bool slp_image_unpack(slp_image_t* image) {
             break;
         }
         case 8: {
-            SLP_FREE(new_buffer);
+            SLP_FREE(new_buffer, size);
             return true;
         }
         case 16: {
-            SLP_FREE(new_buffer);
+            SLP_FREE(new_buffer, size);
             return true;
         }
         default: {
-            SLP_FREE(new_buffer);
+            SLP_FREE(new_buffer, size);
             return false;
         }
     }
@@ -406,15 +406,15 @@ bool slp_image_pack(slp_image_t* image) {
             break;
         }
         case 8: {
-            SLP_FREE(new_buffer);
+            SLP_FREE(new_buffer, size);
             return true;
         }
         case 16: {
-            SLP_FREE(new_buffer);
+            SLP_FREE(new_buffer, size);
             return true;
         }
         default: {
-            SLP_FREE(new_buffer);
+            SLP_FREE(new_buffer, size);
             return false;
         }
     }

@@ -86,7 +86,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                     Err(ALLOC_ERR);
 
                 if (!png.read(plte, png.buf, chunk_len)) {
-                    SLP_FREE(plte);
+                    SLP_FREE(plte, chunk_len);
                     Err(IO_ERR);
                 }
 
@@ -94,24 +94,24 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                 crc_ = crc32(crc_, plte, chunk_len);
 
                 if (!png.read(worker + 8, png.buf, 4)) {
-                    SLP_FREE(plte);
+                    SLP_FREE(plte, chunk_len);
                     Err(IO_ERR);
                 }
 
                 if (big_edian_u32(worker + 8) != crc_) {
-                    SLP_FREE(plte);
+                    SLP_FREE(plte, chunk_len);
                     Err(INVALID_PNG);
                 }
 
                 if (color_type == 3) {
                     if (chunk_len % 3 != 0 || chunk_len / 3 > 256) {
-                        SLP_FREE(plte);
+                        SLP_FREE(plte, chunk_len);
                         Err(INVALID_PNG);
                     }
 
                     palette = (uint8_t*)SLP_CALLOC(256 * 4);  // default to always use 256 entries
                     if (palette == NULL) {
-                        SLP_FREE(plte);
+                        SLP_FREE(plte, chunk_len);
                         Err(ALLOC_ERR);
                     }
 
@@ -123,7 +123,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                     }
                 }
 
-                SLP_FREE(plte);
+                SLP_FREE(plte, chunk_len);
 
                 break;
             }
@@ -141,7 +141,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                     Err(ALLOC_ERR);
 
                 if (!png.read(trns, png.buf, chunk_len)) {
-                    SLP_FREE(trns);
+                    SLP_FREE(trns, chunk_len);
                     Err(IO_ERR);
                 }
 
@@ -149,24 +149,24 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                 crc_ = crc32(crc_, trns, chunk_len);
 
                 if (!png.read(worker + 8, png.buf, 4)) {
-                    SLP_FREE(trns);
+                    SLP_FREE(trns, chunk_len);
                     Err(IO_ERR);
                 }
 
                 if (big_edian_u32(worker + 8) != crc_) {
-                    SLP_FREE(trns);
+                    SLP_FREE(trns, chunk_len);
                     Err(INVALID_PNG);
                 }
 
                 if (color_type == 3) {
                     if (plte_check == 0 || chunk_len > 256) {
-                        SLP_FREE(trns);
+                        SLP_FREE(trns, chunk_len);
                         Err(INVALID_PNG);
                     }
                     for (size_t i = 0; i < chunk_len; i++) palette[i * 4 + 3] = trns[i];
                 }
 
-                SLP_FREE(trns);
+                SLP_FREE(trns, chunk_len);
 
                 break;
             }
@@ -195,7 +195,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
     if (color_type == 3)
         index_u32_to_RGBA(image, palette);
 cleanup:
-    SLP_FREE(palette);
+    SLP_FREE(palette, 256 * 4);
     return return_code;
 }
 
@@ -372,11 +372,11 @@ static inline int idat_decode(slp_png_io png, slp_image_t* restrict image, const
 
 cleanup:
     if (is_color_type3) {
-        SLP_FREE(cur);
-        SLP_FREE(prev);
+        SLP_FREE(cur, bpr);
+        SLP_FREE(prev, bpr);
     }
-    SLP_FREE(out);
-    SLP_FREE(in);
+    SLP_FREE(out, OUT_LEN);
+    SLP_FREE(in, IN_LEN);
     if (inflate_is_init)
         inflateEnd(&strm);
     return return_code;

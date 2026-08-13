@@ -121,7 +121,7 @@ you'll have to change the definition **before compile** `slp_png`'s source code.
     #endif
 
     #ifndef SLP_FREE
-        #define SLP_FREE(ptr) free(ptr)
+        #define SLP_FREE(ptr, size) free(ptr)
     #endif
 
     #ifndef SLP_MEMCPY

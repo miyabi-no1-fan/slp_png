@@ -276,11 +276,11 @@ bool slp_image_convert_to_16bit(slp_image_t* image) {
             break;
         }
         case 16: {
-            SLP_FREE(new_buffer);
+            SLP_FREE(new_buffer, size * 2);
             return true;
         }
         default: {
-            SLP_FREE(new_buffer);
+            SLP_FREE(new_buffer, size * 2);
             return false;
         }
     }

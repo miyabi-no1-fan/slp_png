@@ -60,7 +60,7 @@ int slp_png_read(slp_image_t* image, const slp_png_io* png_) {
 
     ret = decode(png, image, color_type);
     if (ret != 0) {
-        SLP_FREE(image->pixels);
+        SLP_FREE(image->pixels, image->image_size);
         image->pixels = NULL;
         Err(ret);
     }
