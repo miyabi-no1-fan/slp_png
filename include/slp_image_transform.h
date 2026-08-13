@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#define SLP_IMAGE_TRANSFROM_RELEASE 1  // not release yet, we didn't have any test for it at all
+#define SLP_IMAGE_TRANSFROM_RELEASE 0  // not release yet, we didn't have any test for it at all
 
 #if SLP_IMAGE_TRANSFROM_RELEASE
 
