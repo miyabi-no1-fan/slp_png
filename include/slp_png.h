@@ -17,11 +17,9 @@ limitations under the License.
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 
-#ifndef SLP_PNG_H
-#define SLP_PNG_H
+#ifndef __SLP_PNG_H
+#define __SLP_PNG_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -109,6 +107,11 @@ void slp_image_destroy(slp_image_t* image);
 
 // define some macro for easier replacement
 #ifdef SLP_PNG_MACROS
+/* If you wanna change for example `SLP_MEMCPY` to `memmove`,
+you'll have to change the definition **before compile** `slp_png`'s source code. */
+    #include <stdlib.h>
+    #include <string.h>
+
     #ifndef SLP_MALLOC
         #define SLP_MALLOC(size) malloc(size)
     #endif
@@ -151,10 +154,10 @@ void slp_image_destroy(slp_image_t* image);
 
     // a and b are integer
     #define div_ceil(a, b) ((a) / (b) + ((a) % (b) != 0))
-#endif
+#endif /* SLP_PNG_MACROS */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /* __SLP_PNG_H */
