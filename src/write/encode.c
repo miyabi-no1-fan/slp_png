@@ -162,11 +162,11 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
     if (!png.write((void*)IENDsig, png.buf, 12))
         Err(IO_ERR);
 cleanup:
-    SLP_FREE(filter_buffers[0]);
-    SLP_FREE(filter_buffers[1]);
-    SLP_FREE(filter_buffers[2]);
-    SLP_FREE(filter_buffers[3]);
-    SLP_FREE(filter_buffers[4]);
-    SLP_FREE(out);
+    SLP_FREE(filter_buffers[0], bpr + 1);
+    SLP_FREE(filter_buffers[1], bpr + 1);
+    SLP_FREE(filter_buffers[2], bpr + 1);
+    SLP_FREE(filter_buffers[3], bpr + 1);
+    SLP_FREE(filter_buffers[4], bpr + 1);
+    SLP_FREE(out, CHUNK + 12);
     return return_code;
 }
