@@ -232,7 +232,7 @@ static inline int idat_decoder_init(idat_decoder_t* restrict decoder, slp_image_
 
     if (decoder->out == NULL || decoder->prev == NULL || decoder->cur == NULL) {
         inflateEnd(&decoder->strm);
-        SLP_FREE(decoder->out, decode->out_len);
+        SLP_FREE(decoder->out, decoder->out_len);
         if (color_type == 3) {
             SLP_FREE(decoder->prev, bpr);
             SLP_FREE(decoder->cur, bpr);
@@ -314,10 +314,10 @@ static inline void idat_decoder_destroy(idat_decoder_t* decoder) {
     if (decoder == NULL) return;
 
     inflateEnd(&decoder->strm);
-    SLP_FREE(decoder->out, decode->out_len);
+    SLP_FREE(decoder->out, decoder->out_len);
     if (decoder->color_type == 3) {
-        SLP_FREE(decoder->prev, bpr);
-        SLP_FREE(decoder->cur, bpr);
+        SLP_FREE(decoder->prev, decoder->bpr);
+        SLP_FREE(decoder->cur, decoder->bpr);
     }
 }
 
