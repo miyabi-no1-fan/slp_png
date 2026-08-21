@@ -26,7 +26,7 @@ typedef struct slp_image_t {
     uint8_t* pixels;
     uint32_t height;
     uint32_t width;
-    uint32_t channels;
+    uint8_t channels;
     uint8_t bit_depth;
     size_t image_size;
 } slp_image_t;
@@ -118,7 +118,7 @@ you'll have to change the definition **before compile** `slp_png`'s source code.
     #endif
 
     #ifndef SLP_FREE
-        #define SLP_FREE(ptr, size) free(ptr)
+        #define SLP_FREE(ptr, size) do { (void)(size); free(ptr); } while(0)
     #endif
 
     #ifndef SLP_MEMCPY
