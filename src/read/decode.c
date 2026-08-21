@@ -32,7 +32,7 @@ extern int defilter(uint8_t* restrict buffer, uint8_t* restrict cur, uint8_t* re
 extern void colortype3_unpack(slp_image_t* restrict image, uint8_t* restrict buffer, const size_t bpr, const size_t imtrker);
 extern void index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restrict palette);
 
-static inline int idat_decode(slp_png_io png, slp_image_t* restrict image, const int color_type, uint8_t worker[12]);
+static inline int parse_idats(slp_png_io png, slp_image_t* restrict image, const int color_type, uint8_t worker[12]);
 
 int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
     int return_code = 0;
@@ -66,7 +66,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                 idat_check = true;
 
                 // idat decode is too long so we have to seperate it into another function
-                int ret = idat_decode(png, image, color_type, worker);
+                int ret = parse_idats(png, image, color_type, worker);
                 if (ret != 0)
                     Err(ret);
 
@@ -321,8 +321,7 @@ static inline void idat_decoder_destroy(idat_decoder_t* decoder) {
     }
 }
 
-// this is just a straightforward copy paste to separate `idat_decode` from `decode`
-static inline int idat_decode(slp_png_io png, slp_image_t* restrict image, const int color_type, uint8_t worker[12]) {
+static inline int parse_idats(slp_png_io png, slp_image_t* restrict image, const int color_type, uint8_t worker[12]) {
     int return_code = 0;
 
     const size_t _c = (color_type == 3 ? 1 : image->channels);  // for indexed, channels are 1
