@@ -34,7 +34,7 @@ typedef struct slp_image_t {
 enum SLP_ERROR {
     // allocation failed
     ALLOC_ERR = -1,
-    // input/output error from file operations
+    // error from read/write operations
     IO_ERR = 1,
     // PNG is invalid **or not supported**, used for both `read` and `write`
     INVALID_PNG = 2,
