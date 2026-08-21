@@ -21,18 +21,18 @@ limitations under the License.
 #include "slp_png.h"
 
 #define PREFERED_IO_BUF_SIZE 65536
-#define __CHUNK_TYPE(x0, x1, x2, x3) ((((uint32_t)x0) << 24) | (((uint32_t)x1) << 16) | (((uint32_t)x2) << 8) | (((uint32_t)x3) << 0))
-#define IDAT __CHUNK_TYPE('I', 'D', 'A', 'T')
-#define IEND __CHUNK_TYPE('I', 'E', 'N', 'D')
-#define PLTE __CHUNK_TYPE('P', 'L', 'T', 'E')
-#define tRNS __CHUNK_TYPE('t', 'R', 'N', 'S')
+#define _CHUNK_TYPE(x0, x1, x2, x3) ((((uint32_t)x0) << 24) | (((uint32_t)x1) << 16) | (((uint32_t)x2) << 8) | (((uint32_t)x3) << 0))
+#define IDAT _CHUNK_TYPE('I', 'D', 'A', 'T')
+#define IEND _CHUNK_TYPE('I', 'E', 'N', 'D')
+#define PLTE _CHUNK_TYPE('P', 'L', 'T', 'E')
+#define tRNS _CHUNK_TYPE('t', 'R', 'N', 'S')
 #define Err(error) do { return_code = error; goto cleanup; } while(0)
 
 extern int defilter(uint8_t* restrict buffer, uint8_t* restrict cur, uint8_t* restrict prev, const size_t bpp, const size_t bpr);
 extern void colortype3_unpack(slp_image_t* restrict image, uint8_t* restrict buffer, const size_t bpr, const size_t imtrker);
 extern void index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restrict palette);
 
-static inline int idat_decode(slp_png_io png, slp_image_t* restrict image, const int color_type, uint8_t worker[12], uint32_t* chunk_type, uint32_t* chunk_len);
+static inline int idat_decode(slp_png_io png, slp_image_t* restrict image, const int color_type, uint8_t worker[12]);
 
 int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
     int return_code = 0;
@@ -53,10 +53,11 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
         if (should_update_chunk_type_and_len) {
             if (!png.read(worker, png.buf, 8))
                 Err(IO_ERR);
-            chunk_len = big_edian_u32(worker);
-            chunk_type = big_edian_u32(worker + 4);
         }
         should_update_chunk_type_and_len = true;
+
+        chunk_len = big_edian_u32(worker);
+        chunk_type = big_edian_u32(worker + 4);
 
         switch (chunk_type) {
             case IDAT: {
@@ -65,7 +66,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                 idat_check = true;
 
                 // idat decode is too long so we have to seperate it into another function
-                int ret = idat_decode(png, image, color_type, worker, &chunk_type, &chunk_len);
+                int ret = idat_decode(png, image, color_type, worker);
                 if (ret != 0)
                     Err(ret);
 
@@ -199,47 +200,151 @@ cleanup:
     return return_code;
 }
 
-static inline int idat_decode(slp_png_io png, slp_image_t* restrict image, const int color_type, uint8_t worker[12], uint32_t* _chunk_type, uint32_t* _chunk_len) {
-    int return_code = 0;
-    const bool is_color_type3 = (color_type == 3);
+typedef struct {
+    z_stream strm;
 
-    const size_t __c = (is_color_type3 ? 1 : image->channels);  // for indexed, channels are 1
-    const size_t bpp = __c * div_ceil((size_t)image->bit_depth, 8);
-    const size_t bpr = div_ceil((size_t)image->width * __c * image->bit_depth, 8);
+    uint8_t* out;
+    size_t out_len;
+    size_t offset;
 
-    // idat io buffers
-    uint8_t* out = NULL;
-    uint8_t* in = NULL;
+    uint8_t* cur;
+    uint8_t* prev;
 
-    uint8_t* cur = NULL;
-    uint8_t* prev = NULL;
+    size_t current_row;
+    size_t bpp;
+    size_t bpr;
+    uint8_t color_type;
+} idat_decoder_t;
 
-    z_stream strm = {0};
+static inline int idat_decoder_init(idat_decoder_t* restrict decoder, slp_image_t* restrict image, const size_t bpp, const size_t bpr, const int color_type) {
+    memset(decoder, 0, sizeof(*decoder));
 
-    bool inflate_is_init = false;
-    int ret = inflateInit2(&strm, MAX_WBITS);
+    int ret = inflateInit2(&decoder->strm, MAX_WBITS);
     if (ret != Z_OK)
-        Err(ZLIB_ERR);
-    inflate_is_init = true;
+        return ZLIB_ERR;
 
-    const size_t IN_LEN = PREFERED_IO_BUF_SIZE;
-    const size_t OUT_LEN = (PREFERED_IO_BUF_SIZE < bpr + 1) ? bpr + 1 : PREFERED_IO_BUF_SIZE;
-    in = (uint8_t*)SLP_MALLOC(IN_LEN);
-    out = (uint8_t*)SLP_MALLOC(OUT_LEN);
+    decoder->out_len = (PREFERED_IO_BUF_SIZE < bpr + 1) ? bpr + 1 : PREFERED_IO_BUF_SIZE;
+    decoder->out = (uint8_t*)SLP_MALLOC(decoder->out_len);
 
     // commit 87d0911712e0e8632ffcc1903ddf64e59043fd4b
-    prev = (is_color_type3) ? ((uint8_t*)SLP_CALLOC(bpr)) : (image->pixels + image->image_size - bpr);
-    cur = (is_color_type3) ? ((uint8_t*)SLP_CALLOC(bpr)) : image->pixels;
+    decoder->prev = (color_type == 3) ? ((uint8_t*)SLP_CALLOC(bpr)) : (image->pixels + image->image_size - bpr);
+    decoder->cur = (color_type == 3) ? ((uint8_t*)SLP_CALLOC(bpr)) : image->pixels;
 
-    if (out == NULL || in == NULL || prev == NULL || cur == NULL)
-        Err(ALLOC_ERR);  // the only alloc error in this function
+    if (decoder->out == NULL || decoder->prev == NULL || decoder->cur == NULL) {
+        inflateEnd(&decoder->strm);
+        SLP_FREE(decoder->out, decode->out_len);
+        if (color_type == 3) {
+            SLP_FREE(decoder->prev, bpr);
+            SLP_FREE(decoder->cur, bpr);
+        }
+        return ALLOC_ERR;
+    }
 
-    size_t imtrker = 0;                // track the total row produced
-    size_t offset = 0;                 // the 'out' buffer offset
+    decoder->bpp = bpp;
+    decoder->bpr = bpr;
+    decoder->color_type = color_type;
+
+    return 0;
+}
+
+static inline int idat_decoder_flush(idat_decoder_t* decoder, size_t avail_in, uint8_t* next_in, slp_image_t* restrict image) {
+    int ret = 0;
+
+    decoder->strm.avail_in = avail_in;
+    decoder->strm.next_in = next_in;
+
+    // loop until all input consumed or stream end
+    while (decoder->strm.avail_in > 0 && ret != Z_STREAM_END) {
+        decoder->strm.avail_out = decoder->out_len - decoder->offset;
+        decoder->strm.next_out = decoder->out + decoder->offset;
+
+        ret = inflate(&decoder->strm, Z_NO_FLUSH);
+        if (!(ret == Z_OK || ret == Z_STREAM_END))
+            return ZLIB_ERR;
+
+        size_t have = decoder->out_len - decoder->strm.avail_out;
+
+        size_t row_produced = have / (decoder->bpr + 1);
+        if (decoder->current_row + row_produced > image->height)
+            return INVALID_PNG;
+
+        // for each new row produced
+        for (size_t i = 0; i < row_produced; i++) {
+            // defilter to cur from buffer as raw and prev as up
+            if (defilter(decoder->out + i * (decoder->bpr + 1), decoder->cur, decoder->prev, decoder->bpp, decoder->bpr) != 0)
+                return INVALID_PNG;
+
+            if (decoder->color_type == 3) {
+                // unpack tightly packed idexes into u32 little-edian array
+                colortype3_unpack(image, decoder->cur, decoder->bpr, decoder->current_row);
+
+                // swap scanline for the next process
+                uint8_t* temp = decoder->prev;
+                decoder->prev = decoder->cur;
+                decoder->cur = temp;
+            }
+            else {
+                // move scanline forward for the next process
+                decoder->prev = decoder->cur;
+                decoder->cur += decoder->bpr;
+            }
+
+            decoder->current_row++;
+        }
+
+        // move the residues back to the head of the output buffer
+        decoder->offset = have % (decoder->bpr + 1);
+        SLP_MEMMOVE(decoder->out, decoder->out + have - decoder->offset, decoder->offset);
+    }
+
+    if (ret == Z_STREAM_END) {
+        if (decoder->strm.avail_in > 0)
+            return ZLIB_ERR;
+
+        // all data are consumed
+        // there shouldn't be any residues left
+        if (decoder->offset != 0 || decoder->current_row != image->height)
+            return INVALID_PNG;
+    }
+
+    return 0;
+}
+
+static inline void idat_decoder_destroy(idat_decoder_t* decoder) {
+    if (decoder == NULL) return;
+
+    inflateEnd(&decoder->strm);
+    SLP_FREE(decoder->out, decode->out_len);
+    if (decoder->color_type == 3) {
+        SLP_FREE(decoder->prev, bpr);
+        SLP_FREE(decoder->cur, bpr);
+    }
+}
+
+// this is just a straightforward copy paste to separate `idat_decode` from `decode`
+static inline int idat_decode(slp_png_io png, slp_image_t* restrict image, const int color_type, uint8_t worker[12]) {
+    int return_code = 0;
+
+    const size_t _c = (color_type == 3 ? 1 : image->channels);  // for indexed, channels are 1
+    const size_t bpp = _c * div_ceil((size_t)image->bit_depth, 8);
+    const size_t bpr = div_ceil((size_t)image->width * _c * image->bit_depth, 8);
+
+    uint8_t* in = NULL;
+    idat_decoder_t decoder = {0};
+
+    int ret = idat_decoder_init(&decoder, image, bpp, bpr, color_type);
+    if (ret != 0)
+        Err(ret);
+
+    const size_t IN_LEN = PREFERED_IO_BUF_SIZE;
+    in = (uint8_t*)SLP_MALLOC(IN_LEN);
+    if (in == NULL)
+        Err(ALLOC_ERR);
+
     size_t remaining_in_cap = IN_LEN;  // remaining in capacity
 
-    uint32_t chunk_type = IDAT;  // = *_chunk_type
-    uint32_t chunk_len = *_chunk_len;
+    uint32_t chunk_type = IDAT;
+    uint32_t chunk_len = big_edian_u32(worker);
 
     // for each IDAT chunk
     do {
@@ -258,49 +363,9 @@ static inline int idat_decode(slp_png_io png, slp_image_t* restrict image, const
             remaining_in_cap = 0;
 
             // flush the input buffer
-            strm.avail_in = IN_LEN - remaining_in_cap;
-            strm.next_in = in;
-            do {
-                strm.avail_out = OUT_LEN - offset;
-                strm.next_out = out + offset;
-                ret = inflate(&strm, Z_NO_FLUSH);
-                if (ret != Z_OK && ret != Z_STREAM_END)
-                    Err(ZLIB_ERR);
-
-                size_t have = OUT_LEN - strm.avail_out;
-
-                size_t row_produced = have / (bpr + 1);
-                if (imtrker + row_produced > image->height)
-                    Err(INVALID_PNG);
-
-                // for each new row produced
-                for (size_t i = 0; i < row_produced; i++) {
-                    // defilter to cur from buffer as raw and prev as up
-                    if (defilter(out + i * (bpr + 1), cur, prev, bpp, bpr) != 0)
-                        Err(INVALID_PNG);
-
-                    if (is_color_type3) {
-                        // unpack tightly packed idexes into u32 little-edian array
-                        colortype3_unpack(image, cur, bpr, imtrker);
-
-                        // swap scanline for the next process
-                        uint8_t* temp = prev;
-                        prev = cur;
-                        cur = temp;
-                    }
-                    else {
-                        // move scanline forward for the next process
-                        prev = cur;
-                        cur += bpr;
-                    }
-
-                    imtrker++;
-                }
-
-                // move the residues back to the head of the output buffer
-                offset = have % (bpr + 1);
-                SLP_MEMMOVE(out, out + have - offset, offset);
-            } while (strm.avail_in > 0);  // loop until all input consumed
+            int ret = idat_decoder_flush(&decoder, IN_LEN - remaining_in_cap, in, image);
+            if (ret != 0)
+                Err(ret);
 
             // all input consumed so in is now empty
             remaining_in_cap = IN_LEN;
@@ -329,55 +394,13 @@ static inline int idat_decode(slp_png_io png, slp_image_t* restrict image, const
         // break if chunk_type is not IDAT
     } while (chunk_type == IDAT);
 
-    // preserve read chunk's metadata
-    *_chunk_type = chunk_type;
-    *_chunk_len = chunk_len;
-
     // finish + flush
-    strm.avail_in = IN_LEN - remaining_in_cap;
-    strm.next_in = in;
-    do {
-        strm.avail_out = OUT_LEN - offset;
-        strm.next_out = out + offset;
-        ret = inflate(&strm, Z_NO_FLUSH);
-        if (ret != Z_OK && ret != Z_STREAM_END)
-            Err(ZLIB_ERR);
-        size_t have = OUT_LEN - strm.avail_out;
-        size_t row_produced = have / (bpr + 1);
-        if (imtrker + row_produced > image->height)
-            Err(INVALID_PNG);
-        for (size_t i = 0; i < row_produced; i++) {
-            if (defilter(out + i * (bpr + 1), cur, prev, bpp, bpr) != 0)
-                Err(INVALID_PNG);
-            if (is_color_type3) {
-                colortype3_unpack(image, cur, bpr, imtrker);
-                uint8_t* temp = prev;
-                prev = cur;
-                cur = temp;
-            }
-            else {
-                prev = cur;
-                cur += bpr;
-            }
-            imtrker++;
-        }
-        offset = have % (bpr + 1);
-        SLP_MEMMOVE(out, out + have - offset, offset);
-    } while (ret != Z_STREAM_END);
-
-    // all data are consumed
-    // there shouldn't be any residues left
-    if (offset != 0)
-        Err(INVALID_PNG);
+    ret = idat_decoder_flush(&decoder, IN_LEN - remaining_in_cap, in, image);
+    if (ret != 0)
+        Err(ret);
 
 cleanup:
-    if (is_color_type3) {
-        SLP_FREE(cur, bpr);
-        SLP_FREE(prev, bpr);
-    }
-    SLP_FREE(out, OUT_LEN);
+    idat_decoder_destroy(&decoder);
     SLP_FREE(in, IN_LEN);
-    if (inflate_is_init)
-        inflateEnd(&strm);
     return return_code;
 }

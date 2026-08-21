@@ -18,9 +18,6 @@ limitations under the License.
 #include <stddef.h>
 #include <stdint.h>
 
-#ifndef __SLP_PNG_H
-#define __SLP_PNG_H
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -143,11 +140,11 @@ you'll have to change the definition **before compile** `slp_png`'s source code.
                           (((x) & 0x00000000FF000000ull) << 8) | (((x) & 0x0000000000FF0000ull) << 24) |  \
                           (((x) & 0x000000000000FF00ull) << 40) | (((x) & 0x00000000000000FFull) << 56))
 
-    // return big edian in memory order
-    #define big_edian_u32_in_mem(x, is_little_edian) ((is_little_edian) ? (bswap_u32(x)) : (x))
-    #define big_edian_u64_in_mem(x, is_little_edian) ((is_little_edian) ? (bswap_u64(x)) : (x))
+    // return big endian in memory order
+    #define big_endian_u32_in_mem(x, is_little_endian) ((is_little_endian) ? (bswap_u32(x)) : (x))
+    #define big_endian_u64_in_mem(x, is_little_endian) ((is_little_endian) ? (bswap_u64(x)) : (x))
 
-    // read x as big edian
+    // read x as big endian
     #define big_edian_u32(x) (((uint32_t)((x)[0]) << 24) | ((uint32_t)((x)[1]) << 16) | ((uint32_t)((x)[2]) << 8) | ((uint32_t)((x)[3]) << 0))
     #define big_edian_u64(x) (((uint64_t)((x)[0]) << 56) | ((uint64_t)((x)[1]) << 48) | ((uint64_t)((x)[2]) << 40) | ((uint64_t)((x)[3]) << 32) | \
                               ((uint64_t)((x)[4]) << 24) | ((uint64_t)((x)[5]) << 16) | ((uint64_t)((x)[6]) << 8) | ((uint64_t)((x)[7]) << 0))
@@ -159,5 +156,3 @@ you'll have to change the definition **before compile** `slp_png`'s source code.
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* __SLP_PNG_H */

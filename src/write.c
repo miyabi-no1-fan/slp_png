@@ -51,9 +51,9 @@ int slp_png_write(const slp_image_t* image, const slp_png_io* png_) {
     slp_png_io png = *png_;
     if (png_->write == NULL) png.write = &default_write;
 
-    const uint16_t random_value_for_edian_test = 1;
-    const bool is_little_edian = *(uint8_t*)(&random_value_for_edian_test);
-    const uint64_t PNG_SIGNATURE = big_edian_u64_in_mem(0x89504E470D0A1A0Aull, is_little_edian);
+    const uint16_t random_value_for_endian_test = 1;
+    const bool is_little_endian = *(uint8_t*)(&random_value_for_endian_test);
+    const uint64_t PNG_SIGNATURE = big_endian_u64_in_mem(0x89504E470D0A1A0Aull, is_little_endian);
 
     // use to write IHDR
     #pragma pack(push, 1)
@@ -69,8 +69,8 @@ int slp_png_write(const slp_image_t* image, const slp_png_io* png_) {
     #pragma pack(pop)
 
     ihdr_t ihdr = {
-        .width = big_edian_u32_in_mem(image->width, is_little_edian),
-        .height = big_edian_u32_in_mem(image->height, is_little_edian),
+        .width = big_endian_u32_in_mem(image->width, is_little_endian),
+        .height = big_endian_u32_in_mem(image->height, is_little_endian),
         .bit_depth = image->bit_depth,
         .color_type = get_color_type(image->channels),
         .compression_method = 0,
@@ -81,8 +81,8 @@ int slp_png_write(const slp_image_t* image, const slp_png_io* png_) {
     if (ihdr.color_type == 0xFF) return INVALID_PNG;
 
     uint32_t crc = crc32(0xA8A1AE0A, (unsigned char*)(&ihdr), 13);
-    crc = big_edian_u32_in_mem(crc, is_little_edian);
-    const uint32_t data_len = big_edian_u32_in_mem(13, is_little_edian);
+    crc = big_endian_u32_in_mem(crc, is_little_endian);
+    const uint32_t data_len = big_endian_u32_in_mem(13, is_little_endian);
 
     if (!png.write((void*)&PNG_SIGNATURE, png.buf, 8) ||
         !png.write((void*)&data_len, png.buf, 4) ||
