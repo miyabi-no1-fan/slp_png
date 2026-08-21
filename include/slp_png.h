@@ -26,7 +26,7 @@ typedef struct slp_image_t {
     uint8_t* pixels;
     uint32_t height;
     uint32_t width;
-    uint32_t channels;
+    uint8_t channels;
     uint8_t bit_depth;
     size_t image_size;
 } slp_image_t;
