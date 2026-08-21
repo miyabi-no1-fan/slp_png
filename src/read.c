@@ -26,7 +26,7 @@ limitations under the License.
 #define Err(err) do { return err; } while(0)
 
 extern int decode(slp_png_io png, slp_image_t* restrict image, const int color_type);
-static int get_channels(const int color_type, const int bit_depth);
+static uint8_t get_channels(const int color_type, const int bit_depth);
 static int read_ihdr(slp_image_t* image, const slp_png_io png, int* color_type);
 
 // default limit as 12k resolution
@@ -69,7 +69,7 @@ int slp_png_read(slp_image_t* image, const slp_png_io* png_) {
     return 0;
 }
 
-static inline int get_channels(const int color_type, const int bit_depth) {
+static inline uint8_t get_channels(const int color_type, const int bit_depth) {
     switch (color_type) {
         case 0: {
             switch (bit_depth) {
@@ -117,7 +117,7 @@ static inline int get_channels(const int color_type, const int bit_depth) {
             return 4;
         }
     }
-    return -1;
+    return 0;
 }
 
 static int read_ihdr(slp_image_t* image, const slp_png_io png, int* color_type) {
@@ -150,7 +150,7 @@ static int read_ihdr(slp_image_t* image, const slp_png_io png, int* color_type) 
     if (image->width > with_limit || image->height > height_limit)
         Err(INVALID_PNG);
 
-    if (compression_method != 0 || filter_method != 0 || interlace_method != 0 || (int)image->channels == -1)
+    if (compression_method != 0 || filter_method != 0 || interlace_method != 0 || image->channels == 0)
         Err(INVALID_PNG);
 
     image->image_size = image->height * div_ceil((size_t)image->width * image->channels * ((*color_type == 3) ? 8 : image->bit_depth), 8);
