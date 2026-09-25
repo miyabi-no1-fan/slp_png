@@ -24,7 +24,7 @@ limitations under the License.
 static uint8_t get_color_type(const uint8_t channels);
 extern int encode(const slp_image_t* restrict image, slp_png_io png);
 
-bool default_write(void* src, void* dst, size_t n) {
+static bool default_write(void* src, void* dst, size_t n) {
     return fwrite(src, 1, n, dst) == n;
 }
 
@@ -34,8 +34,7 @@ int slp_png_write(const slp_image_t* image, const slp_png_io* png_) {
         image->height == 0 ||
         image->width == 0 ||
         image->channels == 0 ||
-        image->image_size != image->height * div_ceil((size_t)image->width * image->channels * image->bit_depth, 8))
-    {
+        image->size != image->height * div_ceil((size_t)image->width * image->channels * image->bit_depth, 8)) {
         return INVALID_PNG;
     }
     switch (image->bit_depth) {
@@ -88,8 +87,7 @@ int slp_png_write(const slp_image_t* image, const slp_png_io* png_) {
         !png.write((void*)&data_len, png.buf, 4) ||
         !png.write("IHDR", png.buf, 4) ||
         !png.write(&ihdr, png.buf, 13) ||
-        !png.write(&crc, png.buf, 4))
-    {
+        !png.write(&crc, png.buf, 4)) {
         return IO_ERR;
     }
 

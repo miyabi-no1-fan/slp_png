@@ -28,7 +28,11 @@ extern void filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict fi
 
 int encode(const slp_image_t* restrict image, slp_png_io png) {
     int return_code = 0;
-    #define Err(v) do { return_code = v; goto cleanup; } while(0)
+    #define Err(v)       \
+    do {                 \
+        return_code = v; \
+        goto cleanup;    \
+    } while (0)
 
     const uint16_t random_value_for_endian_test = 1;
     const bool is_little_endian = *(uint8_t*)(&random_value_for_endian_test);
@@ -55,8 +59,7 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
         filter_buffers[2] == NULL ||
         filter_buffers[3] == NULL ||
         filter_buffers[4] == NULL ||
-        out == NULL)
-    {
+        out == NULL) {
         Err(ALLOC_ERR);
     }
 
@@ -83,7 +86,7 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
     // for each line
     for (size_t i = 0; i < height; i++) {
         // calculate all 5 filters
-        uint64_t filter_scores[5] = {0};
+        uint64_t filter_scores[5] = { 0 };
         filter(image->pixels, filter_buffers, filter_scores, i, bpr, bpp);
 
         // pick the best filter_type (lowest score)
@@ -158,7 +161,7 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
         Err(IO_ERR);
 
     // writting IEND
-    const uint8_t IENDsig[12] = {0, 0, 0, 0, 'I', 'E', 'N', 'D', 0xAE, 0x42, 0x60, 0x82};
+    const uint8_t IENDsig[12] = { 0, 0, 0, 0, 'I', 'E', 'N', 'D', 0xAE, 0x42, 0x60, 0x82 };
     if (!png.write((void*)IENDsig, png.buf, 12))
         Err(IO_ERR);
 cleanup:
