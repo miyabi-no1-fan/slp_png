@@ -21,6 +21,7 @@ cmake --build build
 
 ## Basic usage
 ```C
+#include <slp_image_transform.h>
 #include <slp_png.h>
 #include <stdio.h>
 
@@ -28,15 +29,29 @@ int main(void) {
     slp_image_t your_image;
     {
         FILE* file = fopen("/path/to/your/image", "rb");
-        int ret = slp_png_read(&your_image, &(slp_png_io) {.buf = file});
+        int ret = slp_png_read(&your_image, &(slp_png_io){ .buf = file });
         fclose(file);
         if (ret != 0)
             return ret;
     }
 
     {
+        slp_image_unpack(&your_image);
+        slp_image_t new_image = slp_image_linear_transform(
+            &your_image,
+            (const double[2][2]){
+                { 1, 0 },
+                { 0, 1 },
+            }  //
+        );
+        slp_image_destroy(&your_image);
+        your_image = new_image;
+        slp_image_pack(&your_image);
+    }
+
+    {
         FILE* file = fopen("/path/to/where/to/write", "wb");
-        int ret = slp_png_write(&your_image, &(slp_png_io) {.buf = file});
+        int ret = slp_png_write(&your_image, &(slp_png_io){ .buf = file });
         fclose(file);
         if (ret != 0)
             return ret;

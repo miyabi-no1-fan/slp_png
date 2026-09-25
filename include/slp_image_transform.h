@@ -22,6 +22,8 @@ limitations under the License.
 extern "C" {
 #endif
 
+// TODO: write documents
+
 // return 1 if unknown bit_depth
 int slp_image_convert_to_8bit(slp_image_t* image);
 
