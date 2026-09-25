@@ -6,4 +6,3 @@ Cpp11BracedListStyle: false
 BinPackArguments: false
 IndentPPDirectives: Leave
 AllowShortCaseLabelsOnASingleLine: true
-OneLineFormatOffRegex: '^\s*\{'

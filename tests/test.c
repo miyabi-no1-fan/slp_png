@@ -34,20 +34,19 @@ static int get_nproc(void) {
     return 2;
 }
 
-#define panic(...) \
-    do {                                                               \
-        fprintf(stderr, "panic at:\n File: %s\n  Line: %d\n", __FILE__, __LINE__); \
-        fprintf(stderr, __VA_ARGS__);                                              \
-        fprintf(stderr, "\n");                                                     \
-        fflush(stderr);                                                            \
-        exit(-1);                                                                  \
+#define panic(...)                                                              \
+    do {                                                                        \
+        fprintf(stderr, "panic at:\nFile: %s\nLine: %d\n", __FILE__, __LINE__); \
+        fprintf(stderr, __VA_ARGS__);                                           \
+        fprintf(stderr, "\n");                                                  \
+        fflush(stderr);                                                         \
+        exit(-1);                                                               \
     } while (0)
 
 slp_image_t spng_read_png(const char* filepath);
 void spng_bench(const char* path, const char* path_out);
 void rw_test(const char* path, const char* path_out);
 void thread_safety_test(const char* path);
-
 
 int main(int argc, char* argv[]) {
     char* path = "tests/test_images/benchmark/10.4-MB.png";
@@ -88,7 +87,6 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-
 void rw_test(const char* path, const char* path_out) {
     slp_image_t spng_image = spng_read_png(path);
     if (spng_image.pixels == NULL)
@@ -97,23 +95,26 @@ void rw_test(const char* path, const char* path_out) {
     slp_image_t a;
     {
         FILE* file = fopen(path, "rb");
-        int ret = slp_png_read(&a, &(slp_png_io) {.buf = file});
+        int ret = slp_png_read(&a, &(slp_png_io){ .buf = file });
         if (ret != 0)
             panic("slp_png_read failed: %d", ret);
         fclose(file);
     }
 
-    if (a.image_size != spng_image.image_size)
-        panic("slp_png_read image size mismatch (error vs expect): %zu vs %zu", a.image_size, spng_image.image_size);
+    slp_image_unpack(&a);
+    slp_image_pack(&a);
 
-    for (size_t i = 0; i < a.image_size; i++)
+    if (a.size != spng_image.size)
+        panic("slp_png_read image size mismatch (error vs expect): %zu vs %zu", a.size, spng_image.size);
+
+    for (size_t i = 0; i < a.size; i++)
         if (a.pixels[i] != spng_image.pixels[i])
-            panic("slp_png_read image pixels mismatch at %zu / %zu, value: %u vs %u", i, a.image_size, a.pixels[i], spng_image.pixels[i]);
+            panic("slp_png_read image pixels mismatch at %zu / %zu, value: %u vs %u", i, a.size, a.pixels[i], spng_image.pixels[i]);
     free(spng_image.pixels);
 
     {
         FILE* file = fopen(path_out, "wb");
-        int ret = slp_png_write(&a, &(slp_png_io) {.buf = file});
+        int ret = slp_png_write(&a, &(slp_png_io){ .buf = file });
         if (ret != 0)
             panic("slp_png_write failed: %d", ret);
         fclose(file);
@@ -123,23 +124,22 @@ void rw_test(const char* path, const char* path_out) {
     slp_image_t b;
     {
         FILE* file = fopen(path_out, "rb");
-        int ret = slp_png_read(&b, &(slp_png_io) {.buf = file});
+        int ret = slp_png_read(&b, &(slp_png_io){ .buf = file });
         if (ret != 0)
             panic("slp_png_read failed: %d", ret);
         fclose(file);
     }
 
-    if (b.image_size != a.image_size)
-        panic("slp_png_read image size mismatch (error vs expect): %zu vs %zu", b.image_size, a.image_size);
+    if (b.size != a.size)
+        panic("slp_png_read image size mismatch (error vs expect): %zu vs %zu", b.size, a.size);
 
-    for (size_t i = 0; i < a.image_size; i++)
+    for (size_t i = 0; i < a.size; i++)
         if (b.pixels[i] != a.pixels[i])
             panic("slp_png_read image pixels mismatch");
 
     slp_image_destroy(&b);
     slp_image_destroy(&a);
 }
-
 
 struct thread_safety_test_arg {
     const char* in_path;
@@ -157,7 +157,7 @@ void* thread_safety_test_task(void* arg) {
     return NULL;
 }
 
-void thread_safety_test(const char *path) {
+void thread_safety_test(const char* path) {
     const char out_paths_prefix[] = "TEST-%02u.png";
 
     const int thread_count = get_nproc();
@@ -245,7 +245,7 @@ static inline uint8_t get_color_type(const uint8_t channels) {
     }
 }
 
-slp_image_t spng_read_png(const char *filepath) {
+slp_image_t spng_read_png(const char* filepath) {
     slp_image_t null = {};
 
     FILE* file = fopen(filepath, "rb");
@@ -273,21 +273,21 @@ slp_image_t spng_read_png(const char *filepath) {
     const int target_fmt = (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED) ? SPNG_FMT_RGBA8 : SPNG_FMT_RAW;
     const int flag = (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED) ? SPNG_DECODE_TRNS : 0;
 
-    size_t image_size;
-    if (spng_decoded_image_size(ctx, target_fmt, &image_size) != 0) {
+    size_t size;
+    if (spng_decoded_image_size(ctx, target_fmt, &size) != 0) {
         spng_ctx_free(ctx);
         fclose(file);
         return null;
     }
 
-    uint8_t* image_buf = (uint8_t*)malloc(image_size);
+    uint8_t* image_buf = (uint8_t*)malloc(size);
     if (!image_buf) {
         spng_ctx_free(ctx);
         fclose(file);
         return null;
     }
 
-    if (spng_decode_image(ctx, image_buf, image_size, target_fmt, flag) != 0) {
+    if (spng_decode_image(ctx, image_buf, size, target_fmt, flag) != 0) {
         free(image_buf);
         spng_ctx_free(ctx);
         fclose(file);
@@ -303,13 +303,13 @@ slp_image_t spng_read_png(const char *filepath) {
         .width = ihdr.width,
         .channels = get_channels(ihdr.color_type, ihdr.bit_depth),
         .bit_depth = ihdr.bit_depth,
-        .image_size = image_size,
+        .size = size,
     };
 
     return image;
 }
 
-int spng_write_png(const char *filepath, const slp_image_t image) {
+int spng_write_png(const char* filepath, const slp_image_t image) {
     if (image.pixels == NULL) {
         panic("image.pixels == NULL");
     }
@@ -345,7 +345,7 @@ int spng_write_png(const char *filepath, const slp_image_t image) {
         return -1;
     }
 
-    if (spng_encode_image(ctx, image.pixels, image.image_size, SPNG_FMT_RAW, SPNG_ENCODE_FINALIZE) != 0) {
+    if (spng_encode_image(ctx, image.pixels, image.size, SPNG_FMT_RAW, SPNG_ENCODE_FINALIZE) != 0) {
         spng_ctx_free(ctx);
         fclose(file);
         return -1;

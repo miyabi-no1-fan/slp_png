@@ -28,7 +28,7 @@ typedef struct slp_image_t {
     uint32_t width;
     uint8_t channels;
     uint8_t bit_depth;
-    size_t image_size;
+    size_t size;
 } slp_image_t;
 
 enum SLP_ERROR {
@@ -44,10 +44,9 @@ enum SLP_ERROR {
     NULL_ARGS = 4,
 };
 
-/* This would set a hard limit for `slp_png_read` to reject any PNG that has width and height exceed this limit.
-- Thread-safe: The limit is applied per thread and complete independent each thread (via _Thread_local) */
+/* This would set a hard limit for `slp_png_read` to reject any PNG that has width or height exceed this limit.
+The limit is applied to all threads and thread-safe (via atomics) */
 void slp_png_set_limit(uint32_t width, uint32_t height);
-
 
 typedef struct {
     /* read `n` bytes from `src` to `dst`.
@@ -81,15 +80,12 @@ return status either 0 on success or SLP_ERROR on failure.
 
 By default, `read` is `fread` and `seek` is `fseek`.
 
-`slp_png_read` have width/height limit:
-```C
-_Thread_local uint32_t with_limit = 12288;
-_Thread_local uint32_t height_limit = 6480;
-```
+`slp_png_read` have width/height limit.
+By default, the limit is 12288x6480.
 
 return `INVALID_PNG` error if any PNG exceed this limit.
 
-you can change the limit via `slp_png_set_limit`. */
+You can change the limit via `slp_png_set_limit`. */
 int slp_png_read(slp_image_t* image, const slp_png_io* png);
 
 /* Write a PNG image.
@@ -98,7 +94,7 @@ return status either 0 on success or SLP_ERROR on failure.
 `slp_png_read` only use `write`, `buf` from `png`. The rest is ignored. */
 int slp_png_write(const slp_image_t* image, const slp_png_io* png);
 
-/* destroy the image, free up resources.
+/* destroy the image's pixels.
 if image == NULL or image->pixels == NULL, this does nothing */
 void slp_image_destroy(slp_image_t* image);
 
@@ -110,27 +106,31 @@ you'll have to change the definition **before compile** `slp_png`'s source code.
     #include <string.h>
 
     #ifndef SLP_MALLOC
-        #define SLP_MALLOC(size) malloc(size)
+    #define SLP_MALLOC(size) malloc(size)
     #endif
 
     #ifndef SLP_CALLOC
-        #define SLP_CALLOC(size) calloc(size, 1)
+    #define SLP_CALLOC(size) calloc(size, 1)
     #endif
 
     #ifndef SLP_FREE
-        #define SLP_FREE(ptr, size) do { (void)(size); free(ptr); } while(0)
+    #define SLP_FREE(ptr, size) \
+    do {                        \
+        (void)(size);           \
+        free(ptr);              \
+    } while (0)
     #endif
 
     #ifndef SLP_MEMCPY
-        #define SLP_MEMCPY(dest, source, size) memcpy(dest, source, size)
+    #define SLP_MEMCPY(dest, source, size) memcpy(dest, source, size)
     #endif
 
     #ifndef SLP_MEMMOVE
-        #define SLP_MEMMOVE(dest, source, size) memmove(dest, source, size)
+    #define SLP_MEMMOVE(dest, source, size) memmove(dest, source, size)
     #endif
 
     #ifndef SLP_MEMSET
-        #define SLP_MEMSET(s, c, n) memset(s, c, n)
+    #define SLP_MEMSET(s, c, n) memset(s, c, n)
     #endif
 
     #define bswap_u32(x) ((((x) & 0xFF000000u) >> 24) | (((x) & 0x00FF0000u) >> 8) | \

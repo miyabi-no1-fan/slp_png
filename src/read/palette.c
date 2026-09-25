@@ -29,7 +29,8 @@ void colortype3_unpack(slp_image_t* restrict image, uint8_t* restrict buffer, co
 
     #ifdef __SSE2__
     // convert each u8 into u32 and store
-    #define convert_store_u8_to_u32(indx, src) do {                                                           \
+    #define convert_store_u8_to_u32(indx, src)                                                      \
+    do {                                                                                            \
         const __m128i zeroes = _mm_setzero_si128();                                                 \
         const __m128i x0 = _mm_unpacklo_epi8(src, zeroes);                                          \
         const __m128i x1 = _mm_unpackhi_epi8(src, zeroes);                                          \
@@ -191,7 +192,7 @@ void index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restrict pale
     if (image->channels != 4)
         abort();  // invalid parameter = abort
 
-    for (size_t i = 0; i + image->channels <= image->image_size; i += image->channels) {
+    for (size_t i = 0; i + image->channels <= image->size; i += image->channels) {
         int index = image->pixels[i] * image->channels;
         for (size_t k = 0; k < image->channels; k++) image->pixels[i + k] = palette[index + k];
     }

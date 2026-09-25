@@ -17,9 +17,8 @@ limitations under the License.
 #include "slp_png.h"
 
 void slp_image_destroy(slp_image_t* image) {
-    if (image != NULL) {
-        if (image->pixels != NULL)
-            SLP_FREE(image->pixels, image->image_size);
+    if (image != NULL && image->pixels != NULL) {
+        SLP_FREE(image->pixels, image->size);
         image->pixels = NULL;
     }
 }

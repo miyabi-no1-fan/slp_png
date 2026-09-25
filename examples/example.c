@@ -1,3 +1,4 @@
+#include <slp_image_transform.h>
 #include <slp_png.h>
 #include <stdio.h>
 #include <string.h>
@@ -30,7 +31,7 @@ int main(int argc, char* argv[]) {
     slp_image_t image;
     {
         FILE* file = fopen(path, "rb");
-        int ret = slp_png_read(&image, &(slp_png_io) {.buf = file});
+        int ret = slp_png_read(&image, &(slp_png_io){ .buf = file });
         fclose(file);
         if (ret != 0) {
             printf("read failed, return code: %d\n", ret);
@@ -39,8 +40,22 @@ int main(int argc, char* argv[]) {
     }
 
     {
+        slp_image_unpack(&image);
+        slp_image_t new_image = slp_image_linear_transform(
+            &image,
+            (const double[2][2]){
+                { 1, 0 },
+                { 0, 1 },
+            }  //
+        );
+        slp_image_destroy(&image);
+        image = new_image;
+        slp_image_pack(&image);
+    }
+
+    {
         FILE* file = fopen(path_out, "wb");
-        int ret = slp_png_write(&image, &(slp_png_io) {.buf = file});
+        int ret = slp_png_write(&image, &(slp_png_io){ .buf = file });
         fclose(file);
         if (ret != 0) {
             printf("write failed, return code: %d\n", ret);

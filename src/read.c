@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <zlib.h>
@@ -23,21 +24,29 @@ limitations under the License.
 #define PNG_SIGNATURE 0x89504E470D0A1A0Aull
 #define IHDR 0x49484452u
 
-#define Err(err) do { return err; } while(0)
+#define Err(err)    \
+    do {            \
+        return err; \
+    } while (0)
 
 extern int decode(slp_png_io png, slp_image_t* restrict image, const int color_type);
 static uint8_t get_channels(const int color_type, const int bit_depth);
 static int read_ihdr(slp_image_t* image, const slp_png_io png, int* color_type);
 
 // default limit as 12k resolution
-_Thread_local uint32_t with_limit = 12288;
-_Thread_local uint32_t height_limit = 6480;
+atomic_uint_fast32_t with_limit = 12288;
+atomic_uint_fast32_t height_limit = 6480;
 
-bool default_read(void* dst, void* src, size_t n) {
+void slp_png_set_limit(uint32_t width, uint32_t height) {
+    atomic_store_explicit(&with_limit, width, memory_order_seq_cst);
+    atomic_store_explicit(&height_limit, height, memory_order_seq_cst);
+}
+
+static bool default_read(void* dst, void* src, size_t n) {
     return fread(dst, 1, n, src) == n;
 }
 
-bool default_seek(void* src, uint32_t n) {
+static bool default_seek(void* src, uint32_t n) {
     return fseek(src, n, SEEK_CUR) == 0;
 }
 
@@ -55,12 +64,12 @@ int slp_png_read(slp_image_t* image, const slp_png_io* png_) {
     int ret = read_ihdr(image, png, &color_type);
     if (ret != 0) Err(ret);
 
-    image->pixels = (uint8_t*)SLP_CALLOC(image->image_size);
+    image->pixels = (uint8_t*)SLP_CALLOC(image->size);
     if (image->pixels == NULL) Err(ALLOC_ERR);
 
     ret = decode(png, image, color_type);
     if (ret != 0) {
-        SLP_FREE(image->pixels, image->image_size);
+        SLP_FREE(image->pixels, image->size);
         image->pixels = NULL;
         Err(ret);
     }
@@ -132,8 +141,7 @@ static int read_ihdr(slp_image_t* image, const slp_png_io png, int* color_type) 
     if (big_edian_u64(ihdr) != PNG_SIGNATURE ||
         big_edian_u32(ihdr + 8) != 13 ||
         big_edian_u32(ihdr + 12) != IHDR ||
-        big_edian_u32(ihdr + 29) != crc_)
-    {
+        big_edian_u32(ihdr + 29) != crc_) {
         Err(INVALID_PNG);
     }
 
@@ -147,13 +155,14 @@ static int read_ihdr(slp_image_t* image, const slp_png_io png, int* color_type) 
     const int filter_method = ihdr[27];
     const int interlace_method = ihdr[28];
 
-    if (image->width > with_limit || image->height > height_limit)
+    if (image->width > atomic_load_explicit(&with_limit, memory_order_seq_cst) ||
+        image->height > atomic_load_explicit(&height_limit, memory_order_seq_cst))
         Err(INVALID_PNG);
 
     if (compression_method != 0 || filter_method != 0 || interlace_method != 0 || image->channels == 0)
         Err(INVALID_PNG);
 
-    image->image_size = image->height * div_ceil((size_t)image->width * image->channels * ((*color_type == 3) ? 8 : image->bit_depth), 8);
+    image->size = image->height * div_ceil((size_t)image->width * image->channels * ((*color_type == 3) ? 8 : image->bit_depth), 8);
 
     return 0;
 }

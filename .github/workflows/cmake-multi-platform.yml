@@ -153,7 +153,7 @@ jobs:
       - name: Build and Test with generic x86-64
         shell: msys2 {0}
         run: |
-          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-march=x86-64 -fsanitize=address,undefined -fno-omit-frame-pointer" -S .
+          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-march=x86-64 -fsanitize=address,undefined" -S .
           cmake --build build --config Release
           for file in tests/test_images/pngsuite/*.png; do
             echo $file
@@ -173,7 +173,7 @@ jobs:
       - name: Build and Test with SSE2
         shell: msys2 {0}
         run: |
-          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-msse2 -fsanitize=address,undefined -fno-omit-frame-pointer" -S .
+          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-msse2 -fsanitize=address,undefined" -S .
           cmake --build build --config Release
           for file in tests/test_images/pngsuite/*.png; do
             echo $file
@@ -193,7 +193,7 @@ jobs:
       - name: Build and Test with SSSE3
         shell: msys2 {0}
         run: |
-          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-mssse3 -fsanitize=address,undefined -fno-omit-frame-pointer" -S .
+          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-mssse3 -fsanitize=address,undefined" -S .
           cmake --build build --config Release
           for file in tests/test_images/pngsuite/*.png; do
             echo $file
@@ -213,7 +213,7 @@ jobs:
       - name: Build and Test with SSE3
         shell: msys2 {0}
         run: |
-          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-msse3 -fsanitize=address,undefined -fno-omit-frame-pointer" -S .
+          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-msse3 -fsanitize=address,undefined" -S .
           cmake --build build --config Release
           for file in tests/test_images/pngsuite/*.png; do
             echo $file
@@ -233,7 +233,7 @@ jobs:
       - name: Build and Test with SSE4.1
         shell: msys2 {0}
         run: |
-          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-msse4.1 -fsanitize=address,undefined -fno-omit-frame-pointer" -S .
+          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-msse4.1 -fsanitize=address,undefined" -S .
           cmake --build build --config Release
           for file in tests/test_images/pngsuite/*.png; do
             echo $file
@@ -253,7 +253,7 @@ jobs:
       - name: Build and Test with SSE4.2
         shell: msys2 {0}
         run: |
-          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-msse4.2 -fsanitize=address,undefined -fno-omit-frame-pointer" -S .
+          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-msse4.2 -fsanitize=address,undefined" -S .
           cmake --build build --config Release
           for file in tests/test_images/pngsuite/*.png; do
             echo $file
@@ -273,7 +273,7 @@ jobs:
       - name: Build and Test with AVX2
         shell: msys2 {0}
         run: |
-          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-mavx2 -fsanitize=address,undefined -fno-omit-frame-pointer" -S .
+          cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXAMPLE=ON -DCMAKE_C_FLAGS="-mavx2 -fsanitize=address,undefined" -S .
           cmake --build build --config Release
           for file in tests/test_images/pngsuite/*.png; do
             echo $file

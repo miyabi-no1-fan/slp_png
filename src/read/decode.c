@@ -26,7 +26,11 @@ limitations under the License.
 #define IEND _CHUNK_TYPE('I', 'E', 'N', 'D')
 #define PLTE _CHUNK_TYPE('P', 'L', 'T', 'E')
 #define tRNS _CHUNK_TYPE('t', 'R', 'N', 'S')
-#define Err(error) do { return_code = error; goto cleanup; } while(0)
+#define Err(error)           \
+    do {                     \
+        return_code = error; \
+        goto cleanup;        \
+    } while (0)
 
 extern int defilter(uint8_t* restrict buffer, uint8_t* restrict cur, uint8_t* restrict prev, const size_t bpp, const size_t bpr);
 extern void colortype3_unpack(slp_image_t* restrict image, uint8_t* restrict buffer, const size_t bpr, const size_t imtrker);
@@ -217,7 +221,7 @@ typedef struct {
 } idat_decoder_t;
 
 static inline int idat_decoder_init(idat_decoder_t* restrict decoder, slp_image_t* restrict image, const size_t bpp, const size_t bpr, const int color_type) {
-    memset(decoder, 0, sizeof(*decoder));
+    SLP_MEMSET(decoder, 0, sizeof(*decoder));
 
     int ret = inflateInit2(&decoder->strm, MAX_WBITS);
     if (ret != Z_OK)
@@ -226,8 +230,7 @@ static inline int idat_decoder_init(idat_decoder_t* restrict decoder, slp_image_
     decoder->out_len = (PREFERED_IO_BUF_SIZE < bpr + 1) ? bpr + 1 : PREFERED_IO_BUF_SIZE;
     decoder->out = (uint8_t*)SLP_MALLOC(decoder->out_len);
 
-    // commit 87d0911712e0e8632ffcc1903ddf64e59043fd4b
-    decoder->prev = (color_type == 3) ? ((uint8_t*)SLP_CALLOC(bpr)) : (image->pixels + image->image_size - bpr);
+    decoder->prev = (color_type == 3) ? ((uint8_t*)SLP_CALLOC(bpr)) : (image->pixels + image->size - bpr);
     decoder->cur = (color_type == 3) ? ((uint8_t*)SLP_CALLOC(bpr)) : image->pixels;
 
     if (decoder->out == NULL || decoder->prev == NULL || decoder->cur == NULL) {
@@ -282,8 +285,7 @@ static inline int idat_decoder_flush(idat_decoder_t* decoder, size_t avail_in, u
                 uint8_t* temp = decoder->prev;
                 decoder->prev = decoder->cur;
                 decoder->cur = temp;
-            }
-            else {
+            } else {
                 // move scanline forward for the next process
                 decoder->prev = decoder->cur;
                 decoder->cur += decoder->bpr;
@@ -312,7 +314,6 @@ static inline int idat_decoder_flush(idat_decoder_t* decoder, size_t avail_in, u
 
 static inline void idat_decoder_destroy(idat_decoder_t* decoder) {
     if (decoder == NULL) return;
-
     inflateEnd(&decoder->strm);
     SLP_FREE(decoder->out, decoder->out_len);
     if (decoder->color_type == 3) {
@@ -329,7 +330,7 @@ static inline int parse_idats(slp_png_io png, slp_image_t* restrict image, const
     const size_t bpr = div_ceil((size_t)image->width * _c * image->bit_depth, 8);
 
     uint8_t* in = NULL;
-    idat_decoder_t decoder = {0};
+    idat_decoder_t decoder = { 0 };
 
     int ret = idat_decoder_init(&decoder, image, bpp, bpr, color_type);
     if (ret != 0)
