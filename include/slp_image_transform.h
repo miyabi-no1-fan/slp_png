@@ -45,6 +45,15 @@ int slp_image_pack(slp_image_t* image);
 // return 1 if allocation failed or unknown bit depth
 int slp_image_unpack(slp_image_t* image);
 
+// return with image.pixels = NULL if allocation failed
+slp_image_t slp_image_convert_G8_to_RGBA8(slp_image_t* image);
+
+// return with image.pixels = NULL if allocation failed
+slp_image_t slp_image_convert_GA8_to_RGBA8(slp_image_t* image);
+
+// return with image.pixels = NULL if allocation failed
+slp_image_t slp_image_convert_RGB8_to_RGBA8(slp_image_t* image);
+
 #ifdef __cplusplus
 }
 #endif
