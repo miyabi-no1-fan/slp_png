@@ -92,6 +92,7 @@ int slp_image_convert_to_8bit(slp_image_t* image) {
             for (; i < size; i++) dest[i] = src[i] | src[i] << 4;
             break;
         }
+        case 8: break;
         case 16: {
             #ifdef __AVX2__
             for (; i + 16 <= size; i += 16) {
