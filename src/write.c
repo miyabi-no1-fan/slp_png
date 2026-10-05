@@ -17,8 +17,8 @@ limitations under the License.
 #include <stdio.h>
 #include <zlib.h>
 
-#define SLP_PNG_MACROS
 #include "slp_png.h"
+#include "slp_utils.h"
 
 // helpers
 static uint8_t get_color_type(const uint8_t channels);
@@ -34,7 +34,7 @@ int slp_png_write(const slp_image_t* image, const slp_png_io* png_) {
         image->height == 0 ||
         image->width == 0 ||
         image->channels == 0 ||
-        image->size != image->height * div_ceil((size_t)image->width * image->channels * image->bit_depth, 8)) {
+        image->size != image->height * div_ceil((size_t)image->width * (size_t)image->channels * (size_t)image->bit_depth, 8)) {
         return INVALID_PNG;
     }
     switch (image->bit_depth) {
@@ -50,9 +50,7 @@ int slp_png_write(const slp_image_t* image, const slp_png_io* png_) {
     slp_png_io png = *png_;
     if (png_->write == NULL) png.write = &default_write;
 
-    const uint16_t random_value_for_endian_test = 1;
-    const bool is_little_endian = *(uint8_t*)(&random_value_for_endian_test);
-    const uint64_t PNG_SIGNATURE = big_endian_u64_in_mem(0x89504E470D0A1A0Aull, is_little_endian);
+    const uint64_t PNG_SIGNATURE = to_be_u64(0x89504E470D0A1A0Aull);
 
     // use to write IHDR
     #pragma pack(push, 1)
@@ -68,8 +66,8 @@ int slp_png_write(const slp_image_t* image, const slp_png_io* png_) {
     #pragma pack(pop)
 
     ihdr_t ihdr = {
-        .width = big_endian_u32_in_mem(image->width, is_little_endian),
-        .height = big_endian_u32_in_mem(image->height, is_little_endian),
+        .width = to_be_u32(image->width),
+        .height = to_be_u32(image->height),
         .bit_depth = image->bit_depth,
         .color_type = get_color_type(image->channels),
         .compression_method = 0,
@@ -80,8 +78,8 @@ int slp_png_write(const slp_image_t* image, const slp_png_io* png_) {
     if (ihdr.color_type == 0xFF) return INVALID_PNG;
 
     uint32_t crc = crc32(0xA8A1AE0A, (unsigned char*)(&ihdr), 13);
-    crc = big_endian_u32_in_mem(crc, is_little_endian);
-    const uint32_t data_len = big_endian_u32_in_mem(13, is_little_endian);
+    crc = to_be_u32(crc);
+    const uint32_t data_len = to_be_u32(13);
 
     if (!png.write((void*)&PNG_SIGNATURE, png.buf, 8) ||
         !png.write((void*)&data_len, png.buf, 4) ||

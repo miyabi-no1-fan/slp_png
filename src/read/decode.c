@@ -17,6 +17,7 @@ limitations under the License.
 #include <zconf.h>
 #include <zlib.h>
 
+#include "slp_utils.h"
 #define SLP_PNG_MACROS
 #include "slp_png.h"
 
@@ -60,8 +61,8 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
         }
         should_update_chunk_type_and_len = true;
 
-        chunk_len = big_edian_u32(worker);
-        chunk_type = big_edian_u32(worker + 4);
+        chunk_len = from_be_u32(worker);
+        chunk_type = from_be_u32(worker + 4);
 
         switch (chunk_type) {
             case IDAT: {
@@ -103,7 +104,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                     Err(IO_ERR);
                 }
 
-                if (big_edian_u32(worker + 8) != crc_) {
+                if (from_be_u32(worker + 8) != crc_) {
                     SLP_FREE(plte, chunk_len);
                     Err(INVALID_PNG);
                 }
@@ -158,7 +159,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                     Err(IO_ERR);
                 }
 
-                if (big_edian_u32(worker + 8) != crc_) {
+                if (from_be_u32(worker + 8) != crc_) {
                     SLP_FREE(trns, chunk_len);
                     Err(INVALID_PNG);
                 }
@@ -182,7 +183,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
                 uint32_t crc_ = crc32(0, worker + 4, 4);
                 if (!png.read(worker + 8, png.buf, 4))
                     Err(IO_ERR);
-                if (big_edian_u32(worker + 8) != crc_)
+                if (from_be_u32(worker + 8) != crc_)
                     Err(INVALID_PNG);
 
                 iend_check = true;
@@ -344,7 +345,7 @@ static inline int parse_idats(slp_png_io png, slp_image_t* restrict image, const
     size_t remaining_in_cap = IN_LEN;  // remaining in capacity
 
     uint32_t chunk_type = IDAT;
-    uint32_t chunk_len = big_edian_u32(worker);
+    uint32_t chunk_len = from_be_u32(worker);
 
     // for each IDAT chunk
     do {
@@ -382,14 +383,14 @@ static inline int parse_idats(slp_png_io png, slp_image_t* restrict image, const
             Err(IO_ERR);
 
         // validate chunk's crc
-        if (big_edian_u32(worker + 8) != crc)
+        if (from_be_u32(worker + 8) != crc)
             Err(INVALID_PNG);
 
         // read the next chunk's header
         if (!png.read(worker, png.buf, 8))
             Err(IO_ERR);
-        chunk_len = big_edian_u32(worker);
-        chunk_type = big_edian_u32(worker + 4);
+        chunk_len = from_be_u32(worker);
+        chunk_type = from_be_u32(worker + 4);
 
         // break if chunk_type is not IDAT
     } while (chunk_type == IDAT);
