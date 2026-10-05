@@ -16,6 +16,9 @@ limitations under the License.
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
+#if defined(__i386__) || defined(__x86_64__)
+    #include <immintrin.h>
+#endif
 
 #define SLP_PNG_MACROS
 #include "slp_image_transform.h"
@@ -28,7 +31,65 @@ slp_image_t slp_image_convert_G8_to_RGBA8(slp_image_t* image) {
     new_image.size = new_image.width * new_image.height * new_image.channels;
     new_image.pixels = (uint8_t*)SLP_MALLOC(new_image.size);
     if (new_image.pixels == NULL) return new_image;
-    for (size_t i = 0; i < new_image.width * new_image.height; i++) {
+    size_t i = 0;
+    #ifdef __AVX2__
+    {
+        __m256i mask0 = _mm256_setr_epi8(0, 0, 0, -1, 1, 1, 1, -1, 2, 2, 2, -1, 3, 3, 3, -1, 4, 4, 4, -1, 5, 5, 5, -1, 6, 6, 6, -1, 7, 7, 7, -1);
+        __m256i mask1 = _mm256_setr_epi8(8, 8, 8, -1, 9, 9, 9, -1, 10, 10, 10, -1, 11, 11, 11, -1, 12, 12, 12, -1, 13, 13, 13, -1, 14, 14, 14, -1, 15, 15, 15, -1);
+        __m256i mask2 = _mm256_setr_epi8(16, 16, 16, -1, 17, 17, 17, -1, 18, 18, 18, -1, 19, 19, 19, -1, 20, 20, 20, -1, 21, 21, 21, -1, 22, 22, 22, -1, 23, 23, 23, -1);
+        __m256i mask3 = _mm256_setr_epi8(24, 24, 24, -1, 25, 25, 25, -1, 26, 26, 26, -1, 27, 27, 27, -1, 28, 28, 28, -1, 29, 29, 29, -1, 30, 30, 30, -1, 31, 31, 31, -1);
+        __m256i alpha = _mm256_set1_epi32(0xFF000000);
+        for (; i + 32 <= (size_t)new_image.width * (size_t)new_image.height; i += 32) {
+            __m256i G = _mm256_loadu_si256((const __m256i*)(image->pixels + i * image->channels));
+            __m256i x0 = _mm256_or_si256(_mm256_shuffle_epi8(G, mask0), alpha);
+            __m256i x1 = _mm256_or_si256(_mm256_shuffle_epi8(G, mask1), alpha);
+            __m256i x2 = _mm256_or_si256(_mm256_shuffle_epi8(G, mask2), alpha);
+            __m256i x3 = _mm256_or_si256(_mm256_shuffle_epi8(G, mask3), alpha);
+            _mm256_storeu_si256((__m256i*)(new_image.pixels + i * new_image.channels + 0 * 32), x0);
+            _mm256_storeu_si256((__m256i*)(new_image.pixels + i * new_image.channels + 1 * 32), x1);
+            _mm256_storeu_si256((__m256i*)(new_image.pixels + i * new_image.channels + 2 * 32), x2);
+            _mm256_storeu_si256((__m256i*)(new_image.pixels + i * new_image.channels + 3 * 32), x3);
+        }
+    }
+    #endif
+    #ifdef __SSSE3__
+    {
+        __m128i mask0 = _mm_setr_epi8(0, 0, 0, -1, 1, 1, 1, -1, 2, 2, 2, -1, 3, 3, 3, -1);
+        __m128i mask1 = _mm_setr_epi8(4, 4, 4, -1, 5, 5, 5, -1, 6, 6, 6, -1, 7, 7, 7, -1);
+        __m128i mask2 = _mm_setr_epi8(8, 8, 8, -1, 9, 9, 9, -1, 10, 10, 10, -1, 11, 11, 11, -1);
+        __m128i mask3 = _mm_setr_epi8(12, 12, 12, -1, 13, 13, 13, -1, 14, 14, 14, -1, 15, 15, 15, -1);
+        __m128i alpha = _mm_set1_epi32(0xFF000000);
+        for (; i + 16 <= (size_t)new_image.width * (size_t)new_image.height; i += 16) {
+            __m128i G = _mm_loadu_si128((const __m128i*)(image->pixels + i * image->channels));
+            __m128i x0 = _mm_or_si128(_mm_shuffle_epi8(G, mask0), alpha);
+            __m128i x1 = _mm_or_si128(_mm_shuffle_epi8(G, mask1), alpha);
+            __m128i x2 = _mm_or_si128(_mm_shuffle_epi8(G, mask2), alpha);
+            __m128i x3 = _mm_or_si128(_mm_shuffle_epi8(G, mask3), alpha);
+            _mm_storeu_si128((__m128i*)(new_image.pixels + i * new_image.channels + 0 * 16), x0);
+            _mm_storeu_si128((__m128i*)(new_image.pixels + i * new_image.channels + 1 * 16), x1);
+            _mm_storeu_si128((__m128i*)(new_image.pixels + i * new_image.channels + 2 * 16), x2);
+            _mm_storeu_si128((__m128i*)(new_image.pixels + i * new_image.channels + 3 * 16), x3);
+        }
+    }
+    #endif
+    #ifdef __SSE2__
+    for (; i + 16 <= (size_t)new_image.width * (size_t)new_image.height; i += 16) {
+        __m128i G = _mm_loadu_si128((const __m128i*)(image->pixels + i * image->channels));
+        __m128i GG_lo = _mm_unpacklo_epi8(G, G);
+        __m128i GG_hi = _mm_unpackhi_epi8(G, G);
+        __m128i GA_hi = _mm_unpacklo_epi8(G, _mm_set1_epi8(-1));
+        __m128i GA_lo = _mm_unpacklo_epi8(G, _mm_set1_epi8(-1));
+        __m128i GGGA_0 = _mm_unpacklo_epi16(GG_lo, GA_lo);
+        __m128i GGGA_1 = _mm_unpackhi_epi16(GG_lo, GA_lo);
+        __m128i GGGA_2 = _mm_unpacklo_epi16(GG_hi, GA_hi);
+        __m128i GGGA_3 = _mm_unpackhi_epi16(GG_hi, GA_hi);
+        _mm_storeu_si128((__m128i*)(new_image.pixels + i * new_image.channels + 0 * 16), GGGA_0);
+        _mm_storeu_si128((__m128i*)(new_image.pixels + i * new_image.channels + 1 * 16), GGGA_1);
+        _mm_storeu_si128((__m128i*)(new_image.pixels + i * new_image.channels + 2 * 16), GGGA_2);
+        _mm_storeu_si128((__m128i*)(new_image.pixels + i * new_image.channels + 3 * 16), GGGA_3);
+    }
+    #endif
+    for (; i < (size_t)new_image.width * (size_t)new_image.height; i++) {
         uint8_t* src = &image->pixels[i * image->channels];
         uint8_t* dst = &new_image.pixels[i * new_image.channels];
         dst[i + 0] = src[i];
@@ -47,7 +108,45 @@ slp_image_t slp_image_convert_GA8_to_RGBA8(slp_image_t* image) {
     new_image.size = new_image.width * new_image.height * new_image.channels;
     new_image.pixels = (uint8_t*)SLP_MALLOC(new_image.size);
     if (new_image.pixels == NULL) return new_image;
-    for (size_t i = 0; i < new_image.width * new_image.height; i++) {
+    size_t i = 0;
+    #ifdef __AVX2__
+    {
+        __m256i mask0 = _mm256_setr_epi8(0, 0, 0, 1, 2, 2, 2, 3, 4, 4, 4, 5, 6, 6, 6, 7, 8, 8, 8, 9, 10, 10, 10, 11, 12, 12, 12, 13, 14, 14, 14, 15);
+        __m256i mask1 = _mm256_setr_epi8(16, 16, 16, 17, 18, 18, 18, 19, 20, 20, 20, 21, 22, 22, 22, 23, 24, 24, 24, 25, 26, 26, 26, 27, 28, 28, 28, 29, 30, 30, 30, 31);
+        for (; i + 16 <= (size_t)new_image.width * (size_t)new_image.height; i += 16) {
+            __m256i GA = _mm256_loadu_si256((const __m256i*)(image->pixels + i * image->channels));
+            __m256i x0 = _mm256_shuffle_epi8(GA, mask0);
+            __m256i x1 = _mm256_shuffle_epi8(GA, mask1);
+            _mm256_storeu_si256((__m256i*)(new_image.pixels + i * new_image.channels + 0 * 32), x0);
+            _mm256_storeu_si256((__m256i*)(new_image.pixels + i * new_image.channels + 1 * 32), x1);
+        }
+    }
+    #endif
+    #ifdef __SSSE3__
+    {
+        __m128i mask0 = _mm_setr_epi8(0, 0, 0, 1, 2, 2, 2, 3, 4, 4, 4, 5, 6, 6, 6, 7);
+        __m128i mask1 = _mm_setr_epi8(8, 8, 8, 9, 10, 10, 10, 11, 12, 12, 12, 13, 14, 14, 14, 15);
+        for (; i + 8 <= (size_t)new_image.width * (size_t)new_image.height; i += 8) {
+            __m128i GA = _mm_loadu_si128((const __m128i*)(image->pixels + i * image->channels));
+            __m128i x0 = _mm_shuffle_epi8(GA, mask0);
+            __m128i x1 = _mm_shuffle_epi8(GA, mask1);
+            _mm_storeu_si128((__m128i*)(new_image.pixels + i * new_image.channels + 0 * 16), x0);
+            _mm_storeu_si128((__m128i*)(new_image.pixels + i * new_image.channels + 1 * 16), x1);
+        }
+    }
+    #endif
+    #ifdef __SSE2__
+    for (; i + 8 <= (size_t)new_image.width * (size_t)new_image.height; i += 8) {
+        __m128i GA = _mm_loadu_si128((const __m128i*)(image->pixels + i * image->channels));
+        __m128i G = _mm_packus_epi16(GA, _mm_setzero_si128());
+        __m128i GG = _mm_unpacklo_epi8(G, G);
+        __m128i GGGA_lo = _mm_unpacklo_epi16(GG, GA);
+        __m128i GGGA_hi = _mm_unpackhi_epi16(GG, GA);
+        _mm_storeu_si128((__m128i*)(new_image.pixels + i * new_image.channels + 0 * 16), GGGA_lo);
+        _mm_storeu_si128((__m128i*)(new_image.pixels + i * new_image.channels + 1 * 16), GGGA_hi);
+    }
+    #endif
+    for (; i < (size_t)new_image.width * (size_t)new_image.height; i++) {
         uint8_t* src = &image->pixels[i * image->channels];
         uint8_t* dst = &new_image.pixels[i * new_image.channels];
         dst[i + 0] = src[i + 0];
@@ -66,7 +165,32 @@ slp_image_t slp_image_convert_RGB8_to_RGBA8(slp_image_t* image) {
     new_image.size = new_image.width * new_image.height * new_image.channels;
     new_image.pixels = (uint8_t*)SLP_MALLOC(new_image.size);
     if (new_image.pixels == NULL) return new_image;
-    for (size_t i = 0; i < new_image.width * new_image.height; i++) {
+    size_t i = 0;
+    #ifdef __AVX2__
+    {
+        __m256i mask = _mm256_setr_epi8(0, 1, 2, -1, 3, 4, 5, -1, 6, 7, 8, -1, 9, 10, 11, -1, 12, 13, 14, -1, 15, 16, 17, -1, 18, 19, 20, -1, 21, 22, 23, -1);
+        __m256i alpha = _mm256_set1_epi32(0xFF000000);
+        for (; i + 8 <= (size_t)new_image.width * (size_t)new_image.height; i += 8) {
+            __m256i RGB = _mm256_loadu_si256((const __m256i*)(image->pixels + i * image->channels));
+            __m256i RGBZ = _mm256_shuffle_epi8(RGB, mask);
+            __m256i RGBA = _mm256_or_si256(RGBZ, alpha);
+            _mm256_storeu_si256((__m256i*)(new_image.pixels + i * new_image.channels), RGBA);
+        }
+    }
+    #endif
+    #ifdef __SSSE3__
+    {
+        __m128i mask = _mm_setr_epi8(0, 1, 2, -1, 3, 4, 5, -1, 6, 7, 8, -1, 9, 10, 11, -1);
+        __m128i alpha = _mm_set1_epi32(0xFF000000);
+        for (; i + 4 <= (size_t)new_image.width * (size_t)new_image.height; i += 4) {
+            __m128i RGB = _mm_loadu_si128((const __m128i*)(image->pixels + i * image->channels));
+            __m128i RGBZ = _mm_shuffle_epi8(RGB, mask);
+            __m128i RGBA = _mm_or_si128(RGBZ, alpha);
+            _mm_storeu_si128((__m128i*)(new_image.pixels + i * new_image.channels), RGBA);
+        }
+    }
+    #endif
+    for (; i < (size_t)new_image.width * (size_t)new_image.height; i++) {
         uint8_t* src = &image->pixels[i * image->channels];
         uint8_t* dst = &new_image.pixels[i * new_image.channels];
         dst[i + 0] = src[i + 0];
