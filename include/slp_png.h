@@ -100,8 +100,6 @@ void slp_image_destroy(slp_image_t* image);
 
 // define some macro for easier replacement
 #ifdef SLP_PNG_MACROS
-/* If you wanna change for example `SLP_MEMCPY` to `memmove`,
-you'll have to change the definition **before compile** `slp_png`'s source code. */
     #include <stdlib.h>
     #include <string.h>
 
@@ -131,41 +129,6 @@ you'll have to change the definition **before compile** `slp_png`'s source code.
 
     #ifndef SLP_MEMSET
     #define SLP_MEMSET(s, c, n) memset(s, c, n)
-    #endif
-
-    #ifndef bswap_u32
-    #define bswap_u32(x) ((((x) & 0xFF000000u) >> 24) | (((x) & 0x00FF0000u) >> 8) | \
-                          (((x) & 0x0000FF00u) << 8) | (((x) & 0x000000FFu) << 24))
-    #endif
-    #ifndef bswap_u64
-    #define bswap_u64(x) ((((x) & 0xFF00000000000000ull) >> 56) | (((x) & 0x00FF000000000000ull) >> 40) | \
-                          (((x) & 0x0000FF0000000000ull) >> 24) | (((x) & 0x000000FF00000000ull) >> 8) |  \
-                          (((x) & 0x00000000FF000000ull) << 8) | (((x) & 0x0000000000FF0000ull) << 24) |  \
-                          (((x) & 0x000000000000FF00ull) << 40) | (((x) & 0x00000000000000FFull) << 56))
-    #endif
-
-    #ifndef big_endian_u32_in_mem
-    // return big endian in memory order
-    #define big_endian_u32_in_mem(x, is_little_endian) ((is_little_endian) ? (bswap_u32(x)) : (x))
-    #endif
-    #ifndef big_endian_u64_in_mem
-    // return big endian in memory order
-    #define big_endian_u64_in_mem(x, is_little_endian) ((is_little_endian) ? (bswap_u64(x)) : (x))
-    #endif
-
-    #ifndef big_edian_u32
-    // read x as big endian
-    #define big_edian_u32(x) (((uint32_t)((x)[0]) << 24) | ((uint32_t)((x)[1]) << 16) | ((uint32_t)((x)[2]) << 8) | ((uint32_t)((x)[3]) << 0))
-    #endif
-    #ifndef big_edian_u64
-    // read x as big endian
-    #define big_edian_u64(x) (((uint64_t)((x)[0]) << 56) | ((uint64_t)((x)[1]) << 48) | ((uint64_t)((x)[2]) << 40) | ((uint64_t)((x)[3]) << 32) | \
-                              ((uint64_t)((x)[4]) << 24) | ((uint64_t)((x)[5]) << 16) | ((uint64_t)((x)[6]) << 8) | ((uint64_t)((x)[7]) << 0))
-    #endif
-
-    #ifndef div_ceil
-    // a and b are integer
-    #define div_ceil(a, b) ((a) / (b) + ((a) % (b) != 0))
     #endif
 #endif /* SLP_PNG_MACROS */
 

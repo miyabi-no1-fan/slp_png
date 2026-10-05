@@ -108,6 +108,9 @@ class Image : private slp_image_t {
     std::size_t get_size() const { return size; }
     // div_ceil(width * channels * bit_depth, 8)
     std::size_t row_stride() const {
+        auto div_ceil = [](std::size_t a, std::size_t b) -> std::size_t {
+            return (a / b) + (a % b != 0);
+        };
         return div_ceil((std::size_t)width * (std::size_t)channels * (std::size_t)bit_depth, 8);
     }
 

@@ -17,6 +17,7 @@ limitations under the License.
 #include <zconf.h>
 #include <zlib.h>
 
+#include "slp_utils.h"
 #define SLP_PNG_MACROS
 #include "slp_png.h"
 
@@ -33,9 +34,6 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
         return_code = v; \
         goto cleanup;    \
     } while (0)
-
-    const uint16_t random_value_for_endian_test = 1;
-    const bool is_little_endian = *(uint8_t*)(&random_value_for_endian_test);
 
     const size_t width = image->width;
     const size_t height = image->height;
@@ -108,11 +106,11 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
 
             // flush if out of output capacity
             if (strm.avail_out == 0) {
-                uint32_t chunk_len = big_endian_u32_in_mem(out_len, is_little_endian);
+                uint32_t chunk_len = to_be_u32(out_len);
                 SLP_MEMCPY(out, &chunk_len, 4);
                 uint32_t crc_ = crc32(0, out + 4, 4);
                 crc_ = crc32(crc_, out + 8, out_len);
-                crc_ = big_endian_u32_in_mem(crc_, is_little_endian);
+                crc_ = to_be_u32(crc_);
                 SLP_MEMCPY(out + 8 + out_len, &crc_, 4);
 
                 if (!png.write(out, png.buf, 8 + out_len + 4)) {
@@ -136,10 +134,10 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
         }
         out_len = CHUNK - strm.avail_out;
         if (strm.avail_out == 0) {
-            uint32_t chunk_len = big_endian_u32_in_mem(out_len, is_little_endian);
+            uint32_t chunk_len = to_be_u32(out_len);
             SLP_MEMCPY(out, &chunk_len, 4);
             uint32_t crc_ = crc32(0, out + 4, 4 + out_len);
-            crc_ = big_endian_u32_in_mem(crc_, is_little_endian);
+            crc_ = to_be_u32(crc_);
             SLP_MEMCPY(out + 8 + out_len, &crc_, 4);
             if (!png.write(out, png.buf, 8 + out_len + 4)) {
                 deflateEnd(&strm);
@@ -152,10 +150,10 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
     deflateEnd(&strm);
 
     // flush
-    uint32_t chunk_len = big_endian_u32_in_mem(out_len, is_little_endian);
+    uint32_t chunk_len = to_be_u32(out_len);
     SLP_MEMCPY(out, &chunk_len, 4);
     uint32_t crc_ = crc32(0, out + 4, 4 + out_len);
-    crc_ = big_endian_u32_in_mem(crc_, is_little_endian);
+    crc_ = to_be_u32(crc_);
     SLP_MEMCPY(out + 8 + out_len, &crc_, 4);
     if (!png.write(out, png.buf, 8 + out_len + 4))
         Err(IO_ERR);

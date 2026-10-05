@@ -18,6 +18,7 @@ limitations under the License.
 #include <stdio.h>
 #include <zlib.h>
 
+#include "slp_utils.h"
 #define SLP_PNG_MACROS
 #include "slp_png.h"
 
@@ -138,15 +139,15 @@ static int read_ihdr(slp_image_t* image, const slp_png_io png, int* color_type) 
     uint32_t crc_ = crc32(0, ihdr + 12, 4);
     crc_ = crc32(crc_, ihdr + 16, 13);
 
-    if (big_edian_u64(ihdr) != PNG_SIGNATURE ||
-        big_edian_u32(ihdr + 8) != 13 ||
-        big_edian_u32(ihdr + 12) != IHDR ||
-        big_edian_u32(ihdr + 29) != crc_) {
+    if (from_be_u64(ihdr) != PNG_SIGNATURE ||
+        from_be_u32(ihdr + 8) != 13 ||
+        from_be_u32(ihdr + 12) != IHDR ||
+        from_be_u32(ihdr + 29) != crc_) {
         Err(INVALID_PNG);
     }
 
-    image->width = big_edian_u32(ihdr + 16);
-    image->height = big_edian_u32(ihdr + 20);
+    image->width = from_be_u32(ihdr + 16);
+    image->height = from_be_u32(ihdr + 20);
     image->bit_depth = ihdr[24];
     *color_type = ihdr[25];
     image->channels = get_channels(*color_type, image->bit_depth);
