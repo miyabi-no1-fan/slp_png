@@ -33,10 +33,14 @@ slp_image_t slp_image_convert_to_16bit(const slp_image_t* image);
 // return with image.pixels = NULL if allocation failed, no bound checks provided here, you should do it urself
 slp_image_t slp_image_crop(const slp_image_t* image, const uint32_t new_width, const uint32_t new_height, const uint32_t offset_width, const uint32_t offset_height);
 
-// return with image.pixels = NULL if allocation failed
+/**
+@return with image.pixels = NULL on errors
+- this function does not require unpack */
 slp_image_t slp_image_copy(const slp_image_t image);
 
-// return with image.pixels = NULL if allocation failed or new image size is 0
+/**
+@return with image.pixels = NULL if allocation failed or new image size is 0
+- this function require unpack */
 slp_image_t slp_image_linear_transform(const slp_image_t* image, const double A[2][2]);
 
 // return 1 if allocation failed or unknown bit depth
@@ -45,14 +49,25 @@ int slp_image_pack(slp_image_t* image);
 // return 1 if allocation failed or unknown bit depth
 int slp_image_unpack(slp_image_t* image);
 
-// return with image.pixels = NULL if allocation failed
+/**
+@return with image.pixels = NULL on errors
+- this function require pack */
 slp_image_t slp_image_convert_G8_to_RGBA8(slp_image_t* image);
 
-// return with image.pixels = NULL if allocation failed
+/**
+@return with image.pixels = NULL on errors
+- this function require pack */
 slp_image_t slp_image_convert_GA8_to_RGBA8(slp_image_t* image);
 
-// return with image.pixels = NULL if allocation failed
+/**
+@return with image.pixels = NULL on errors
+- this function require pack */
 slp_image_t slp_image_convert_RGB8_to_RGBA8(slp_image_t* image);
+
+/**
+@return 1 on errors, 0 on success
+- this function require pack */
+int slp_image_convert_to_RGBA8(slp_image_t* image);
 
 #ifdef __cplusplus
 }
