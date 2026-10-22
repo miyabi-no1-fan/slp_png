@@ -11,7 +11,7 @@
 
 ## Install
 ```bash
-git clone https://github.com/slp-c/slp_png.git
+git clone https://github.com/miyabi-no1-fan/slp_png.git
 cd slp_png
 cmake -B build
 cmake --build build
