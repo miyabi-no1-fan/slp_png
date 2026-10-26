@@ -33,7 +33,7 @@ limitations under the License.
         goto cleanup;        \
     } while (0)
 
-extern int defilter(uint8_t* restrict buffer, uint8_t* restrict cur, uint8_t* restrict prev, const size_t bpp, const size_t bpr);
+extern slp_result_t defilter(uint8_t* restrict buffer, uint8_t* restrict cur, uint8_t* restrict prev, const size_t bpp, const size_t bpr);
 extern void colortype3_unpack(slp_image_t* restrict image, uint8_t* restrict buffer, const size_t bpr, const size_t imtrker);
 extern void index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restrict palette);
 
@@ -231,10 +231,15 @@ static inline int idat_decoder_init(idat_decoder_t* restrict decoder, slp_image_
     decoder->out_len = (PREFERED_IO_BUF_SIZE < bpr + 1) ? bpr + 1 : PREFERED_IO_BUF_SIZE;
     decoder->out = (uint8_t*)SLP_MALLOC(decoder->out_len);
 
-    decoder->prev = (color_type == 3) ? ((uint8_t*)SLP_CALLOC(bpr)) : (image->pixels + image->size - bpr);
+    decoder->prev = (color_type == 3) ? ((uint8_t*)SLP_CALLOC(bpr)) : NULL;
     decoder->cur = (color_type == 3) ? ((uint8_t*)SLP_CALLOC(bpr)) : image->pixels;
 
-    if (decoder->out == NULL || decoder->prev == NULL || decoder->cur == NULL) {
+    // the image was allocated with calloc
+    // so pointing `prev` to the last row can help skipping an extra calloc in `defilter`
+    // it doesn't work if image-height == 1, because then it'd be pointing to the same row as `cur` does
+    if (color_type != 3 && image->height > 1) decoder->prev = image->pixels + (image->height - 1) * bpr;
+
+    if (decoder->out == NULL || (color_type == 3 && decoder->prev == NULL) || decoder->cur == NULL) {
         inflateEnd(&decoder->strm);
         SLP_FREE(decoder->out, decoder->out_len);
         if (color_type == 3) {
@@ -275,8 +280,8 @@ static inline int idat_decoder_decode(idat_decoder_t* decoder, size_t avail_in, 
         // for each new row produced
         for (size_t i = 0; i < row_produced; i++) {
             // defilter to cur from buffer as raw and prev as up
-            if (defilter(decoder->out + i * (decoder->bpr + 1), decoder->cur, decoder->prev, decoder->bpp, decoder->bpr) != 0)
-                return SLP_ERROR_INVALID_PNG;
+            slp_result_t res = defilter(decoder->out + i * (decoder->bpr + 1), decoder->cur, decoder->prev, decoder->bpp, decoder->bpr);
+            if (res != SLP_SUCCESS) return res;
 
             if (decoder->color_type == 3) {
                 // unpack tightly packed idexes into u32 little-edian array
