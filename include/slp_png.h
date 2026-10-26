@@ -31,21 +31,19 @@ typedef struct slp_image_t {
     size_t size;
 } slp_image_t;
 
-enum SLP_ERROR {
-    // allocation failed
-    ALLOC_ERR = 1,
+enum SLP_RESULT {
+    SLP_SUCCESS,
+    SLP_ERROR_ALLOC,
     // error from read/write operations
-    IO_ERR = 2,
-    // PNG is invalid **or not supported**, used for both `read` and `write`
-    INVALID_PNG = 3,
-    // errors from zlib, usually same category as INVALID_PNG
-    ZLIB_ERR = 4,
-    // function arguments are NULL
-    NULL_ARGS = 5,
+    SLP_ERROR_IO,
+    // PNG is invalid **or not supported**
+    SLP_ERROR_INVALID_PNG,
+    SLP_ERROR_INVALID_ARGUMENT,
 };
+typedef enum SLP_RESULT slp_result_t;
 
 /* This would set a hard limit for `slp_png_read` to reject any PNG that has width or height exceed this limit.
-The limit is applied to all threads and thread-safe (via atomics) */
+The limit is applied to all threads. */
 void slp_png_set_limit(uint32_t width, uint32_t height);
 
 typedef struct {
@@ -57,15 +55,8 @@ typedef struct {
     Return true on success and false on error. */
     bool (*write)(void* src, void* dst, size_t n);
 
-    /* why `write` is (src, dst) but `read` is (dst, src) ?
-    Think of it like this:
-    "a read from b" is equivalent to "b write to a".
-    So plug in b = `src` and a = `dst` we have:
-    `dst` `read` `src` and `src` `write` `dst` */
-
     /* move the read/write `buf` by `n` bytes.
-
-    `n` can be negative. */
+    Return true on success and false on error. */
     bool (*seek)(void* buf, uint32_t n);
 
     /* used as `src` for `read`.
@@ -74,7 +65,6 @@ typedef struct {
 } slp_png_io;
 
 /* Read a PNG image,
-return status either 0 on success or SLP_ERROR on failure.
 
 `slp_png_read` only use `read`, `seek`, `buf` from `png`. The rest is ignored.
 
@@ -83,16 +73,15 @@ By default, `read` is `fread` and `seek` is `fseek`.
 `slp_png_read` have width/height limit.
 By default, the limit is 12288x6480.
 
-return `INVALID_PNG` error if any PNG exceed this limit.
+return `SLP_ERROR_INVALID_PNG` error if any PNG exceed this limit.
 
 You can change the limit via `slp_png_set_limit`. */
-int slp_png_read(slp_image_t* image, const slp_png_io* png);
+slp_result_t slp_png_read(slp_image_t* image, const slp_png_io* png);
 
 /* Write a PNG image.
-return status either 0 on success or SLP_ERROR on failure.
 
 `slp_png_read` only use `write`, `buf` from `png`. The rest is ignored. */
-int slp_png_write(const slp_image_t* image, const slp_png_io* png);
+slp_result_t slp_png_write(const slp_image_t* image, const slp_png_io* png);
 
 /* destroy the image's pixels.
 if image == NULL or image->pixels == NULL, this does nothing */

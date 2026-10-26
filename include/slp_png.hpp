@@ -15,8 +15,8 @@ namespace slp {
 #include "slp_png.h"
 
 enum class Error {
-    IO = IO_ERR,
-    INVALID_PNG = INVALID_PNG,
+    IO = SLP_ERROR_IO,
+    INVALID_PNG = SLP_ERROR_INVALID_PNG,
 };
 
 class Image : private slp_image_t {
@@ -257,11 +257,10 @@ class Image : private slp_image_t {
         if (res == 0)
             return image;
         switch (res) {
-            case ALLOC_ERR: throw std::runtime_error("Image::read_png: allocation error");
-            case IO_ERR: return std::unexpected(Error::IO);
-            case INVALID_PNG:
-            case ZLIB_ERR: return std::unexpected(Error::INVALID_PNG);
-            case NULL_ARGS:
+            case SLP_ERROR_ALLOC: throw std::runtime_error("Image::read_png: allocation error");
+            case SLP_ERROR_IO: return std::unexpected(Error::IO);
+            case SLP_ERROR_INVALID_PNG: return std::unexpected(Error::INVALID_PNG);
+            case SLP_ERROR_INVALID_ARGUMENT:
             default: throw std::logic_error("Image::read_png: internal error, pls create an issue");
         }
     }
@@ -280,11 +279,10 @@ class Image : private slp_image_t {
         if (res == 0)
             return {};
         switch (res) {
-            case ALLOC_ERR: throw std::runtime_error("Image::write_png: allocation error");
-            case IO_ERR: return std::unexpected(Error::IO);
-            case INVALID_PNG:
-            case ZLIB_ERR: return std::unexpected(Error::INVALID_PNG);
-            case NULL_ARGS:
+            case SLP_ERROR_ALLOC: throw std::runtime_error("Image::write_png: allocation error");
+            case SLP_ERROR_IO: return std::unexpected(Error::IO);
+            case SLP_ERROR_INVALID_PNG: return std::unexpected(Error::INVALID_PNG);
+            case SLP_ERROR_INVALID_ARGUMENT:
             default: throw std::logic_error("Image::write_png: internal error, pls create an issue");
         }
     }

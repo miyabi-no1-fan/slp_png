@@ -22,20 +22,20 @@ limitations under the License.
 
 // helpers
 static uint8_t get_color_type(const uint8_t channels);
-extern int encode(const slp_image_t* restrict image, slp_png_io png);
+extern slp_result_t encode(const slp_image_t* restrict image, slp_png_io png);
 
 static bool default_write(void* src, void* dst, size_t n) {
     return fwrite(src, 1, n, dst) == n;
 }
 
-int slp_png_write(const slp_image_t* image, const slp_png_io* png_) {
-    if (image == NULL || png_ == NULL) return NULL_ARGS;
+slp_result_t slp_png_write(const slp_image_t* image, const slp_png_io* png_) {
+    if (image == NULL || png_ == NULL) return SLP_ERROR_INVALID_ARGUMENT;
     if (image->pixels == NULL ||
         image->height == 0 ||
         image->width == 0 ||
         image->channels == 0 ||
         image->size != image->height * div_ceil((size_t)image->width * (size_t)image->channels * (size_t)image->bit_depth, 8)) {
-        return INVALID_PNG;
+        return SLP_ERROR_INVALID_PNG;
     }
     switch (image->bit_depth) {
         case 1: break;
@@ -43,9 +43,9 @@ int slp_png_write(const slp_image_t* image, const slp_png_io* png_) {
         case 4: break;
         case 8: break;
         case 16: break;
-        default: return INVALID_PNG;
+        default: return SLP_ERROR_INVALID_PNG;
     }
-    if (png_->buf == NULL) return IO_ERR;
+    if (png_->buf == NULL) return SLP_ERROR_IO;
 
     slp_png_io png = *png_;
     if (png_->write == NULL) png.write = &default_write;
@@ -75,7 +75,7 @@ int slp_png_write(const slp_image_t* image, const slp_png_io* png_) {
         .interlace_method = 0
     };
 
-    if (ihdr.color_type == 0xFF) return INVALID_PNG;
+    if (ihdr.color_type == 0xFF) return SLP_ERROR_INVALID_PNG;
 
     uint32_t crc = crc32(0xA8A1AE0A, (unsigned char*)(&ihdr), 13);
     crc = to_be_u32(crc);
@@ -86,13 +86,13 @@ int slp_png_write(const slp_image_t* image, const slp_png_io* png_) {
         !png.write("IHDR", png.buf, 4) ||
         !png.write(&ihdr, png.buf, 13) ||
         !png.write(&crc, png.buf, 4)) {
-        return IO_ERR;
+        return SLP_ERROR_IO;
     }
 
-    int ret = encode(image, png);
-    if (ret != 0) return ret;
+    slp_result_t ret = encode(image, png);
+    if (ret != SLP_SUCCESS) return ret;
 
-    return 0;
+    return SLP_SUCCESS;
 }
 
 static inline uint8_t get_color_type(const uint8_t channels) {

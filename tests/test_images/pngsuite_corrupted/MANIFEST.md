@@ -15,12 +15,12 @@ file's bytes directly (not by running slp_png):
 | `xlfn0g04.png` | Signature byte 4 altered **and** IHDR chunk length field wrong (10 instead of 13) | signature check, or `big_edian_u32(ihdr+8) != 13` |
 | `xhdn0g08.png` | IHDR chunk CRC is wrong (IDAT's CRC is fine) | `read_ihdr`: CRC mismatch |
 | `xcsn0g01.png` | IDAT chunk CRC is wrong (IHDR's CRC is fine) | CRC check inside `idat_decode` |
-| `xc1n0g08.png` | color type = 1 (not a valid PNG color type) | `get_channels()` returns -1 → `INVALID_PNG` |
+| `xc1n0g08.png` | color type = 1 (not a valid PNG color type) | `get_channels()` returns -1 → `SLP_ERROR_INVALID_PNG` |
 | `xc9n2c08.png` | color type = 9 (not a valid PNG color type) | same |
 | `xd0n2c08.png` | bit depth = 0 (invalid for color type 2) | same |
 | `xd3n2c08.png` | bit depth = 3 (invalid for color type 2) | same |
 | `xd9n2c08.png` | bit depth = 99 (invalid for color type 2) | same |
-| `xdtn0g01.png` | IDAT chunk is missing entirely | `IEND` handler: `!idat_check` → `INVALID_PNG` |
+| `xdtn0g01.png` | IDAT chunk is missing entirely | `IEND` handler: `!idat_check` → `SLP_ERROR_INVALID_PNG` |
 
 All 14 have well-formed IEND chunks and otherwise-plausible structure, so they
 specifically exercise validation logic rather than just crashing on truncated input.
