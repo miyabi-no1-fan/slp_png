@@ -24,9 +24,16 @@ limitations under the License.
 static inline uint8_t paeth(uint8_t a, uint8_t b, uint8_t c);
 
 // prev is up, cur is output
-int defilter(uint8_t* restrict buffer, uint8_t* restrict cur, uint8_t* restrict prev, const size_t bpp, const size_t bpr) {
+slp_result_t defilter(uint8_t* restrict buffer, uint8_t* restrict cur, uint8_t* restrict prev, const size_t bpp, const size_t bpr) {
     if (!(0 < bpp && bpp <= 8)) abort();
     if (!(bpp <= bpr)) abort();
+
+    bool should_free_prev = false;
+    if (prev == NULL) {
+        prev = SLP_CALLOC(bpr);
+        if (prev == NULL) return SLP_ERROR_ALLOC;
+        should_free_prev = true;
+    }
 
     uint8_t filter = *buffer++;
     switch (filter) {
@@ -88,8 +95,13 @@ int defilter(uint8_t* restrict buffer, uint8_t* restrict cur, uint8_t* restrict 
 
             break;
         }
-        default: return 1;
+        default: {
+            if (should_free_prev) SLP_FREE(prev, bpr);
+            return SLP_ERROR_INVALID_PNG;
+        }
     }
+
+    if (should_free_prev) SLP_FREE(prev, bpr);
     return 0;
 }
 
