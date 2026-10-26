@@ -156,6 +156,9 @@ static slp_result_t read_ihdr(slp_image_t* image, const slp_png_io png, int* col
     const int filter_method = ihdr[27];
     const int interlace_method = ihdr[28];
 
+    if (image->width == 0 || image->height == 0)
+        Err(SLP_ERROR_INVALID_PNG);
+
     if (image->width > atomic_load_explicit(&with_limit, memory_order_seq_cst) ||
         image->height > atomic_load_explicit(&height_limit, memory_order_seq_cst))
         Err(SLP_ERROR_INVALID_PNG);
