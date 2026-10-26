@@ -251,14 +251,14 @@ static inline int idat_decoder_init(idat_decoder_t* restrict decoder, slp_image_
     return 0;
 }
 
-static inline int idat_decoder_flush(idat_decoder_t* decoder, size_t avail_in, uint8_t* next_in, slp_image_t* restrict image) {
+static inline int idat_decoder_decode(idat_decoder_t* decoder, size_t avail_in, uint8_t* next_in, bool is_stream_end, slp_image_t* restrict image) {
     int ret = 0;
 
     decoder->strm.avail_in = avail_in;
     decoder->strm.next_in = next_in;
 
     // loop until all input consumed or stream end
-    while (decoder->strm.avail_in > 0 && ret != Z_STREAM_END) {
+    while ((!is_stream_end && decoder->strm.avail_in > 0) || (is_stream_end && ret != Z_STREAM_END)) {
         decoder->strm.avail_out = decoder->out_len - decoder->offset;
         decoder->strm.next_out = decoder->out + decoder->offset;
 
@@ -364,7 +364,7 @@ static inline int parse_idats(slp_png_io png, slp_image_t* restrict image, const
             remaining_in_cap = 0;
 
             // flush the input buffer
-            int ret = idat_decoder_flush(&decoder, IN_LEN - remaining_in_cap, in, image);
+            int ret = idat_decoder_decode(&decoder, IN_LEN - remaining_in_cap, in, false, image);
             if (ret != 0)
                 Err(ret);
 
@@ -396,7 +396,7 @@ static inline int parse_idats(slp_png_io png, slp_image_t* restrict image, const
     } while (chunk_type == IDAT);
 
     // finish + flush
-    ret = idat_decoder_flush(&decoder, IN_LEN - remaining_in_cap, in, image);
+    ret = idat_decoder_decode(&decoder, IN_LEN - remaining_in_cap, in, true, image);
     if (ret != 0)
         Err(ret);
 
