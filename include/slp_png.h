@@ -33,15 +33,15 @@ typedef struct slp_image_t {
 
 enum SLP_ERROR {
     // allocation failed
-    ALLOC_ERR,
+    ALLOC_ERR = 1,
     // error from read/write operations
-    IO_ERR,
+    IO_ERR = 2,
     // PNG is invalid **or not supported**, used for both `read` and `write`
-    INVALID_PNG,
+    INVALID_PNG = 3,
     // errors from zlib, usually same category as INVALID_PNG
-    ZLIB_ERR,
+    ZLIB_ERR = 4,
     // function arguments are NULL
-    NULL_ARGS,
+    NULL_ARGS = 5,
 };
 
 /* This would set a hard limit for `slp_png_read` to reject any PNG that has width or height exceed this limit.
