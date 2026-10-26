@@ -39,8 +39,8 @@ extern void index_u32_to_RGBA(slp_image_t* restrict image, const uint8_t* restri
 
 static inline int parse_idats(slp_png_io png, slp_image_t* restrict image, const int color_type, uint8_t worker[12]);
 
-int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
-    int return_code = 0;
+slp_result_t decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
+    int return_code = SLP_SUCCESS;
 
     uint8_t worker[12];       // buffer for parsing chunk's metadata
     uint8_t* palette = NULL;  // color type 3 palette
@@ -57,7 +57,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
     while (!iend_check) {
         if (should_update_chunk_type_and_len) {
             if (!png.read(worker, png.buf, 8))
-                Err(IO_ERR);
+                Err(SLP_ERROR_IO);
         }
         should_update_chunk_type_and_len = true;
 
@@ -67,7 +67,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
         switch (chunk_type) {
             case IDAT: {
                 if (idat_check)
-                    Err(INVALID_PNG);
+                    Err(SLP_ERROR_INVALID_PNG);
                 idat_check = true;
 
                 // idat decode is too long so we have to seperate it into another function
@@ -80,20 +80,20 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
             }
             case PLTE: {
                 if (plte_check)
-                    Err(INVALID_PNG);
+                    Err(SLP_ERROR_INVALID_PNG);
                 plte_check = true;
 
                 // max chunk length for a PLTE is for color type 3 with 256 entries of RGB
                 if (chunk_len > 256 * 3)
-                    Err(INVALID_PNG);
+                    Err(SLP_ERROR_INVALID_PNG);
 
                 uint8_t* plte = (uint8_t*)SLP_MALLOC(chunk_len);
                 if (plte == NULL)
-                    Err(ALLOC_ERR);
+                    Err(SLP_ERROR_ALLOC);
 
                 if (!png.read(plte, png.buf, chunk_len)) {
                     SLP_FREE(plte, chunk_len);
-                    Err(IO_ERR);
+                    Err(SLP_ERROR_IO);
                 }
 
                 uint32_t crc_ = crc32(0, worker + 4, 4);
@@ -101,24 +101,24 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
 
                 if (!png.read(worker + 8, png.buf, 4)) {
                     SLP_FREE(plte, chunk_len);
-                    Err(IO_ERR);
+                    Err(SLP_ERROR_IO);
                 }
 
                 if (from_be_u32(worker + 8) != crc_) {
                     SLP_FREE(plte, chunk_len);
-                    Err(INVALID_PNG);
+                    Err(SLP_ERROR_INVALID_PNG);
                 }
 
                 if (color_type == 3) {
                     if (chunk_len % 3 != 0 || chunk_len / 3 > 256) {
                         SLP_FREE(plte, chunk_len);
-                        Err(INVALID_PNG);
+                        Err(SLP_ERROR_INVALID_PNG);
                     }
 
                     palette = (uint8_t*)SLP_CALLOC(256 * 4);  // default to always use 256 entries
                     if (palette == NULL) {
                         SLP_FREE(plte, chunk_len);
-                        Err(ALLOC_ERR);
+                        Err(SLP_ERROR_ALLOC);
                     }
 
                     for (size_t i = 0, k = 0; k + 3 <= chunk_len; i += 4, k += 3) {
@@ -135,20 +135,20 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
             }
             case tRNS: {
                 if (tRNS_check)
-                    Err(INVALID_PNG);
+                    Err(SLP_ERROR_INVALID_PNG);
                 tRNS_check = true;
 
                 // max chunk length for a tRNS is for color type 3 with 256 entries of alpha channel
                 if (chunk_len > 256)
-                    Err(INVALID_PNG);
+                    Err(SLP_ERROR_INVALID_PNG);
 
                 uint8_t* trns = (uint8_t*)SLP_MALLOC(chunk_len);
                 if (trns == NULL)
-                    Err(ALLOC_ERR);
+                    Err(SLP_ERROR_ALLOC);
 
                 if (!png.read(trns, png.buf, chunk_len)) {
                     SLP_FREE(trns, chunk_len);
-                    Err(IO_ERR);
+                    Err(SLP_ERROR_IO);
                 }
 
                 uint32_t crc_ = crc32(0, worker + 4, 4);
@@ -156,18 +156,18 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
 
                 if (!png.read(worker + 8, png.buf, 4)) {
                     SLP_FREE(trns, chunk_len);
-                    Err(IO_ERR);
+                    Err(SLP_ERROR_IO);
                 }
 
                 if (from_be_u32(worker + 8) != crc_) {
                     SLP_FREE(trns, chunk_len);
-                    Err(INVALID_PNG);
+                    Err(SLP_ERROR_INVALID_PNG);
                 }
 
                 if (color_type == 3) {
                     if (plte_check == 0 || chunk_len > 256) {
                         SLP_FREE(trns, chunk_len);
-                        Err(INVALID_PNG);
+                        Err(SLP_ERROR_INVALID_PNG);
                     }
                     for (size_t i = 0; i < chunk_len; i++) palette[i * 4 + 3] = trns[i];
                 }
@@ -178,13 +178,13 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
             }
             case IEND: {
                 if (!idat_check || (color_type == 3 && !plte_check) || chunk_len != 0)
-                    Err(INVALID_PNG);
+                    Err(SLP_ERROR_INVALID_PNG);
 
                 uint32_t crc_ = crc32(0, worker + 4, 4);
                 if (!png.read(worker + 8, png.buf, 4))
-                    Err(IO_ERR);
+                    Err(SLP_ERROR_IO);
                 if (from_be_u32(worker + 8) != crc_)
-                    Err(INVALID_PNG);
+                    Err(SLP_ERROR_INVALID_PNG);
 
                 iend_check = true;
                 break;
@@ -192,7 +192,7 @@ int decode(slp_png_io png, slp_image_t* restrict image, const int color_type) {
             default: {
                 // else = skip
                 if (!png.seek(png.buf, chunk_len + 4))
-                    Err(IO_ERR);
+                    Err(SLP_ERROR_IO);
                 break;
             }
         }
@@ -226,7 +226,7 @@ static inline int idat_decoder_init(idat_decoder_t* restrict decoder, slp_image_
 
     int ret = inflateInit2(&decoder->strm, MAX_WBITS);
     if (ret != Z_OK)
-        return ZLIB_ERR;
+        return SLP_ERROR_INVALID_PNG;
 
     decoder->out_len = (PREFERED_IO_BUF_SIZE < bpr + 1) ? bpr + 1 : PREFERED_IO_BUF_SIZE;
     decoder->out = (uint8_t*)SLP_MALLOC(decoder->out_len);
@@ -241,7 +241,7 @@ static inline int idat_decoder_init(idat_decoder_t* restrict decoder, slp_image_
             SLP_FREE(decoder->prev, bpr);
             SLP_FREE(decoder->cur, bpr);
         }
-        return ALLOC_ERR;
+        return SLP_ERROR_ALLOC;
     }
 
     decoder->bpp = bpp;
@@ -264,19 +264,19 @@ static inline int idat_decoder_decode(idat_decoder_t* decoder, size_t avail_in, 
 
         ret = inflate(&decoder->strm, Z_NO_FLUSH);
         if (!(ret == Z_OK || ret == Z_STREAM_END))
-            return ZLIB_ERR;
+            return SLP_ERROR_INVALID_PNG;
 
         size_t have = decoder->out_len - decoder->strm.avail_out;
 
         size_t row_produced = have / (decoder->bpr + 1);
         if (decoder->current_row + row_produced > image->height)
-            return INVALID_PNG;
+            return SLP_ERROR_INVALID_PNG;
 
         // for each new row produced
         for (size_t i = 0; i < row_produced; i++) {
             // defilter to cur from buffer as raw and prev as up
             if (defilter(decoder->out + i * (decoder->bpr + 1), decoder->cur, decoder->prev, decoder->bpp, decoder->bpr) != 0)
-                return INVALID_PNG;
+                return SLP_ERROR_INVALID_PNG;
 
             if (decoder->color_type == 3) {
                 // unpack tightly packed idexes into u32 little-edian array
@@ -302,12 +302,12 @@ static inline int idat_decoder_decode(idat_decoder_t* decoder, size_t avail_in, 
 
     if (ret == Z_STREAM_END) {
         if (decoder->strm.avail_in > 0)
-            return ZLIB_ERR;
+            return SLP_ERROR_INVALID_PNG;
 
         // all data are consumed
         // there shouldn't be any residues left
         if (decoder->offset != 0 || decoder->current_row != image->height)
-            return INVALID_PNG;
+            return SLP_ERROR_INVALID_PNG;
     }
 
     return 0;
@@ -340,7 +340,7 @@ static inline int parse_idats(slp_png_io png, slp_image_t* restrict image, const
     const size_t IN_LEN = PREFERED_IO_BUF_SIZE;
     in = (uint8_t*)SLP_MALLOC(IN_LEN);
     if (in == NULL)
-        Err(ALLOC_ERR);
+        Err(SLP_ERROR_ALLOC);
 
     size_t remaining_in_cap = IN_LEN;  // remaining in capacity
 
@@ -357,7 +357,7 @@ static inline int parse_idats(slp_png_io png, slp_image_t* restrict image, const
         while (chunk_len > remaining_in_cap) {
             // read as much as remaining input capacity has
             if (!png.read(in + IN_LEN - remaining_in_cap, png.buf, remaining_in_cap))
-                Err(IO_ERR);
+                Err(SLP_ERROR_IO);
 
             crc = crc32(crc, in + IN_LEN - remaining_in_cap, remaining_in_cap);
             chunk_len -= remaining_in_cap;
@@ -374,21 +374,21 @@ static inline int parse_idats(slp_png_io png, slp_image_t* restrict image, const
 
         // read as much as chunk_len remains
         if (!png.read(in + IN_LEN - remaining_in_cap, png.buf, chunk_len))
-            Err(IO_ERR);
+            Err(SLP_ERROR_IO);
         crc = crc32(crc, in + IN_LEN - remaining_in_cap, chunk_len);
         remaining_in_cap -= chunk_len;
 
         // read chunk's crc
         if (!png.read(worker + 8, png.buf, 4))
-            Err(IO_ERR);
+            Err(SLP_ERROR_IO);
 
         // validate chunk's crc
         if (from_be_u32(worker + 8) != crc)
-            Err(INVALID_PNG);
+            Err(SLP_ERROR_INVALID_PNG);
 
         // read the next chunk's header
         if (!png.read(worker, png.buf, 8))
-            Err(IO_ERR);
+            Err(SLP_ERROR_IO);
         chunk_len = from_be_u32(worker);
         chunk_type = from_be_u32(worker + 4);
 

@@ -30,9 +30,9 @@ limitations under the License.
         return err; \
     } while (0)
 
-extern int decode(slp_png_io png, slp_image_t* restrict image, const int color_type);
+extern slp_result_t decode(slp_png_io png, slp_image_t* restrict image, const int color_type);
 static uint8_t get_channels(const int color_type, const int bit_depth);
-static int read_ihdr(slp_image_t* image, const slp_png_io png, int* color_type);
+static slp_result_t read_ihdr(slp_image_t* image, const slp_png_io png, int* color_type);
 
 // default limit as 12k resolution
 atomic_uint_fast32_t with_limit = 12288;
@@ -52,9 +52,9 @@ static bool default_seek(void* src, uint32_t n) {
 }
 
 // read png from a file
-int slp_png_read(slp_image_t* image, const slp_png_io* png_) {
-    if (image == NULL || png_ == NULL) return NULL_ARGS;
-    if (png_->buf == NULL) return IO_ERR;
+slp_result_t slp_png_read(slp_image_t* image, const slp_png_io* png_) {
+    if (image == NULL || png_ == NULL) return SLP_ERROR_INVALID_ARGUMENT;
+    if (png_->buf == NULL) return SLP_ERROR_IO;
 
     slp_png_io png = *png_;
     if (png_->read == NULL) png.read = &default_read;
@@ -62,21 +62,21 @@ int slp_png_read(slp_image_t* image, const slp_png_io* png_) {
     png.write = NULL;  // unused so we set it to NULL
 
     int color_type;
-    int ret = read_ihdr(image, png, &color_type);
-    if (ret != 0) Err(ret);
+    slp_result_t ret = read_ihdr(image, png, &color_type);
+    if (ret != SLP_SUCCESS) Err(ret);
 
     image->pixels = (uint8_t*)SLP_CALLOC(image->size);
-    if (image->pixels == NULL) Err(ALLOC_ERR);
+    if (image->pixels == NULL) Err(SLP_ERROR_ALLOC);
 
     ret = decode(png, image, color_type);
-    if (ret != 0) {
+    if (ret != SLP_SUCCESS) {
         SLP_FREE(image->pixels, image->size);
         image->pixels = NULL;
         Err(ret);
     }
     image->bit_depth = (color_type == 3) ? 8 : image->bit_depth;
 
-    return 0;
+    return SLP_SUCCESS;
 }
 
 static inline uint8_t get_channels(const int color_type, const int bit_depth) {
@@ -130,11 +130,11 @@ static inline uint8_t get_channels(const int color_type, const int bit_depth) {
     return 0;
 }
 
-static int read_ihdr(slp_image_t* image, const slp_png_io png, int* color_type) {
+static slp_result_t read_ihdr(slp_image_t* image, const slp_png_io png, int* color_type) {
     uint8_t ihdr[33];
 
     if (!png.read(ihdr, png.buf, 33))
-        Err(IO_ERR);
+        Err(SLP_ERROR_IO);
 
     uint32_t crc_ = crc32(0, ihdr + 12, 4);
     crc_ = crc32(crc_, ihdr + 16, 13);
@@ -143,7 +143,7 @@ static int read_ihdr(slp_image_t* image, const slp_png_io png, int* color_type) 
         from_be_u32(ihdr + 8) != 13 ||
         from_be_u32(ihdr + 12) != IHDR ||
         from_be_u32(ihdr + 29) != crc_) {
-        Err(INVALID_PNG);
+        Err(SLP_ERROR_INVALID_PNG);
     }
 
     image->width = from_be_u32(ihdr + 16);
@@ -158,12 +158,12 @@ static int read_ihdr(slp_image_t* image, const slp_png_io png, int* color_type) 
 
     if (image->width > atomic_load_explicit(&with_limit, memory_order_seq_cst) ||
         image->height > atomic_load_explicit(&height_limit, memory_order_seq_cst))
-        Err(INVALID_PNG);
+        Err(SLP_ERROR_INVALID_PNG);
 
     if (compression_method != 0 || filter_method != 0 || interlace_method != 0 || image->channels == 0)
-        Err(INVALID_PNG);
+        Err(SLP_ERROR_INVALID_PNG);
 
     image->size = image->height * div_ceil((size_t)image->width * image->channels * ((*color_type == 3) ? 8 : image->bit_depth), 8);
 
-    return 0;
+    return SLP_SUCCESS;
 }

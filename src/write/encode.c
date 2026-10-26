@@ -27,8 +27,8 @@ limitations under the License.
 
 extern void filter(uint8_t* restrict image_buffer, int8_t* restrict* restrict filter_buffers, uint64_t* restrict filter_scores, const size_t i, const size_t bpr, const size_t bpp);
 
-int encode(const slp_image_t* restrict image, slp_png_io png) {
-    int return_code = 0;
+slp_result_t encode(const slp_image_t* restrict image, slp_png_io png) {
+    int return_code = SLP_SUCCESS;
     #define Err(v)       \
     do {                 \
         return_code = v; \
@@ -58,7 +58,7 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
         filter_buffers[3] == NULL ||
         filter_buffers[4] == NULL ||
         out == NULL) {
-        Err(ALLOC_ERR);
+        Err(SLP_ERROR_ALLOC);
     }
 
     SLP_MEMCPY(out + 4, "IDAT", 4);
@@ -74,7 +74,7 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
     z_stream strm = {};
     int ret = deflateInit2(&strm, COMPRESSION_LEVEL, Z_DEFLATED, MAX_WBITS, MAX_MEM_LEVEL, Z_FILTERED);
     if (ret != Z_OK)
-        Err(ZLIB_ERR);
+        Err(SLP_ERROR_INVALID_PNG);
 
     // let zlib track our available output capacity
     strm.avail_out = CHUNK;
@@ -100,7 +100,7 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
             ret = deflate(&strm, Z_NO_FLUSH);
             if (ret != Z_OK) {
                 deflateEnd(&strm);
-                Err(ZLIB_ERR);
+                Err(SLP_ERROR_INVALID_PNG);
             }
             out_len = CHUNK - strm.avail_out;
 
@@ -115,7 +115,7 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
 
                 if (!png.write(out, png.buf, 8 + out_len + 4)) {
                     deflateEnd(&strm);
-                    Err(IO_ERR);
+                    Err(SLP_ERROR_IO);
                 }
 
                 strm.avail_out = CHUNK;
@@ -130,7 +130,7 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
         ret = deflate(&strm, Z_FINISH);
         if (ret != Z_OK && ret != Z_STREAM_END) {
             deflateEnd(&strm);
-            Err(ZLIB_ERR);
+            Err(SLP_ERROR_INVALID_PNG);
         }
         out_len = CHUNK - strm.avail_out;
         if (strm.avail_out == 0) {
@@ -141,7 +141,7 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
             SLP_MEMCPY(out + 8 + out_len, &crc_, 4);
             if (!png.write(out, png.buf, 8 + out_len + 4)) {
                 deflateEnd(&strm);
-                Err(IO_ERR);
+                Err(SLP_ERROR_IO);
             }
             strm.avail_out = CHUNK;
             out_len = 0;
@@ -156,12 +156,12 @@ int encode(const slp_image_t* restrict image, slp_png_io png) {
     crc_ = to_be_u32(crc_);
     SLP_MEMCPY(out + 8 + out_len, &crc_, 4);
     if (!png.write(out, png.buf, 8 + out_len + 4))
-        Err(IO_ERR);
+        Err(SLP_ERROR_IO);
 
     // writting IEND
     const uint8_t IENDsig[12] = { 0, 0, 0, 0, 'I', 'E', 'N', 'D', 0xAE, 0x42, 0x60, 0x82 };
     if (!png.write((void*)IENDsig, png.buf, 12))
-        Err(IO_ERR);
+        Err(SLP_ERROR_IO);
 cleanup:
     SLP_FREE(filter_buffers[0], bpr + 1);
     SLP_FREE(filter_buffers[1], bpr + 1);
