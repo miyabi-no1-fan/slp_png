@@ -25,7 +25,7 @@ cmake --build build
 #include <slp_png.h>
 #include <stdio.h>
 
-int main(void) {
+int main() {
     slp_image_t your_image;
     {
         FILE* file = fopen("/path/to/your/image", "rb");
@@ -81,7 +81,7 @@ For `slp_png_write`:
 - Interlace method: 0
 
 Format:
-- `slp_png_read` output format is `raw format` except for `color type 3` which will be converted to `RGBA32`.
+- `slp_png_read` output format is **raw format** except for `color type 3` which will be converted to `RGBA32`.
 
     If you're familiar with `libspng`, our output format is equivalent to this:
     ```C
@@ -117,17 +117,11 @@ build/test --spng-benchmark
 # You could also try with `hyperfine` and `perf` for more accurate comparison
 ```
 
-Test image: tests/test_images/10.4-MB.png
+Test image: `tests/test_images/10.4-MB.png`
 
 Results:
-- Read time:
-    - slp_png: 0.105s
-    - libspng: 0.105s
 
-- Write time:
-    - slp_png: 0.693s
-    - libspng: 1.056s
-
-- Output file size:
-    - slp_png: 10.63MB
-    - libspng: 10.66MB
+| Library | Read time | Write time | Output File Size |
+| --- | --- | --- | --- |
+| `spng` | 0.105s | 1.056s | 10.66 MB |
+| `slp_png` | 0.105s | 0.693s | 10.63 MB |
