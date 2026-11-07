@@ -119,9 +119,7 @@ build/test --spng-benchmark
 
 Test image: `tests/test_images/10.4-MB.png`
 
-Results:
-
 | Library | Read time | Write time | Output File Size |
 | --- | --- | --- | --- |
-| `spng` | 0.105s | 1.056s | 10.66 MB |
+| `libspng` | 0.105s | 1.056s | 10.66 MB |
 | `slp_png` | 0.105s | 0.693s | 10.63 MB |
