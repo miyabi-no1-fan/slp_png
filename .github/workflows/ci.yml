@@ -1,0 +1,106 @@
+name: ci
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+    paths-ignore: ['README.md', '.gitignore', 'LICENSE', '**/MANIFEST.md']
+
+jobs:
+  test_linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps
+        run: sudo apt-get update && sudo apt-get install -y zlib1g-dev cmake
+
+      - name: Build test
+        run: |
+          cmake --preset debug
+          cmake --build --preset debug
+
+      - name: Valid PNGs
+        shell: bash
+        run: |
+          set -e
+          for f in tests/test_images/pngsuite/*.png tests/test_images/benchmark/*.png; do
+            echo "$f"
+            build/debug/test "$f" -o out.png
+          done
+
+      - name: Corrupted PNGs
+        shell: bash
+        run: |
+          for f in tests/test_images/pngsuite_corrupted/*.png; do
+            echo "$f"
+            build/debug/test "$f" -o out.png
+          done
+
+  test_macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build test
+        run: |
+          cmake --preset debug
+          cmake --build --preset debug
+
+      - name: Valid PNGs
+        shell: bash
+        run: |
+          set -e
+          for f in tests/test_images/pngsuite/*.png tests/test_images/benchmark/*.png; do
+            echo "$f"
+            build/debug/test "$f" -o out.png
+          done
+
+      - name: Corrupted PNGs
+        shell: bash
+        run: |
+          for f in tests/test_images/pngsuite_corrupted/*.png; do
+            echo "$f"
+            build/debug/test "$f" -o out.png
+          done
+
+  test_windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MSYS2 and install deps
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          install: >-
+            git
+            mingw-w64-clang-x86_64-clang
+            mingw-w64-clang-x86_64-cmake
+            mingw-w64-clang-x86_64-ninja
+            mingw-w64-clang-x86_64-zlib
+            mingw-w64-clang-x86_64-compiler-rt
+
+      - name: Build test
+        shell: msys2 {0}
+        run: |
+          cmake --preset debug
+          cmake --build --preset debug
+
+      - name: Valid PNGs
+        shell: msys2 {0}
+        run: |
+          set -e
+          for f in tests/test_images/pngsuite/*.png tests/test_images/benchmark/*.png; do
+            echo "$f"
+            build/debug/test "$f" -o out.png
+          done
+
+      - name: Corrupted PNGs
+        shell: msys2 {0}
+        run: |
+          for f in tests/test_images/pngsuite_corrupted/*.png; do
+            echo "$f"
+            build/debug/test "$f" -o out.png
+          done
