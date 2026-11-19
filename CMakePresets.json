@@ -29,5 +29,15 @@
                 "SLP_PNG_BUILD_BENCH": "OFF"
             }
         }
+    ],
+    "buildPresets": [
+        {
+            "name": "release",
+            "configurePreset": "release"
+        },
+        {
+            "name": "debug",
+            "configurePreset": "debug"
+        }
     ]
 }
