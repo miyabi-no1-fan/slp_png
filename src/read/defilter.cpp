@@ -29,14 +29,14 @@ limitations under the License.
 
 namespace slp {
 
-static constexpr auto paeth(std::uint8_t a, std::uint8_t b, std::uint8_t c) -> std::uint8_t {
-    int p = a + b - c;
-    int pa = std::abs(p - a);
-    int pb = std::abs(p - b);
-    int pc = std::abs(p - c);
-    std::uint8_t d = (pb <= pc) ? b : c;
-    d = (pa <= pb && pa <= pc) ? a : d;
-    return d;
+static constexpr auto paeth(const int a, const int b, const int c) noexcept -> int {
+    const int da = b - c;  // p - a
+    const int db = a - c;  // p - b
+    const int pa = std::abs(da);
+    const int pb = std::abs(db);
+    const int pc = std::abs(da + db);
+    const int d = (pb <= pc) ? b : c;
+    return (pa <= pb && pa <= pc) ? a : d;
 }
 
 auto defilter(const std::uint8_t* __restrict buffer, std::uint8_t* __restrict cur,
