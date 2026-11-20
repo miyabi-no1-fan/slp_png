@@ -73,5 +73,5 @@ Test image: `tests/test_images/benchmark/10.4-MB.png`
 
 | Library | Read time | Write time | Output file size |
 | --- | --- | --- | --- |
-| `libspng` | 0.096s | 0.997s | 10.645 MiB |
-| `slp_png` | 0.091s | 0.708s | 10.658 MiB |
+| `libspng` | 0.096s | 0.997s | 10.658 MiB |
+| `slp_png` | 0.091s | 0.708s | 10.645 MiB |
