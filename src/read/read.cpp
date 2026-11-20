@@ -213,6 +213,8 @@ auto read_idat(ChunkInfo& info) -> std::expected<void, Error> {  // NOLINT
 
     std::size_t current_row = 0;
 
+    std::vector<std::uint8_t> dummy(bpr, 0);
+
     auto drain = [&]() -> std::expected<void, Error> {
         if (strm->avail_out == 0) {
             if (current_row > info.image.height()) {
@@ -220,7 +222,7 @@ auto read_idat(ChunkInfo& info) -> std::expected<void, Error> {  // NOLINT
             }
 
             auto* cur = info.image.pixels().data() + (current_row * bpr);
-            auto* prev = current_row > 0 ? cur - bpr : nullptr;
+            auto* prev = current_row > 0 ? cur - bpr : dummy.data();
 
             auto res = defilter(decoded.data(), cur, prev, bpp, bpr);
             if (!res) {

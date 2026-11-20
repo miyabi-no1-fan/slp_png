@@ -18,7 +18,6 @@ limitations under the License.
 #include <cstdlib>
 #include <cstring>
 #include <expected>
-#include <vector>
 
 #if defined(__i386__) || defined(__x86_64__)
 #include <immintrin.h>
@@ -42,13 +41,6 @@ static constexpr auto paeth(const int a, const int b, const int c) noexcept -> i
 auto defilter(const std::uint8_t* __restrict buffer, std::uint8_t* __restrict cur,
               const std::uint8_t* __restrict prev, std::size_t bpp, std::size_t bpr)
     -> std::expected<void, Error> {
-    std::vector<std::uint8_t> optional_zero_filled_scaline;
-
-    if (prev == nullptr) {
-        optional_zero_filled_scaline.resize(bpr, 0);
-        prev = optional_zero_filled_scaline.data();
-    }
-
     std::uint8_t filter = *buffer++;
     switch (filter) {
         case 0: {
