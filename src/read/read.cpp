@@ -17,9 +17,12 @@ limitations under the License.
 
 #include <zlib.h>
 
+#include <algorithm>
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <expected>
 #include <ios>
 #include <istream>
@@ -32,6 +35,7 @@ limitations under the License.
 #include "slp_png.hpp"
 
 static constexpr std::size_t IDAT_BUFFER_SIZE = 65536;
+static constexpr std::size_t PREFFERED_DECODED_BUFFER_SIZE = 65536;
 
 namespace slp {
 
@@ -205,8 +209,18 @@ auto read_idat(ChunkInfo& info) -> std::expected<void, Error> {  // NOLINT
                             div_ceil(static_cast<std::size_t>(info.image.format().bit_depth()), 8);
     const std::size_t bpr = info.image.bytes_per_row();
 
-    // decoded line
-    std::vector<std::uint8_t> decoded(bpr + 1);
+    // decoded
+    std::vector<std::uint8_t> decoded;
+    {
+        std::size_t alignment = bpr + 1;
+        std::size_t lower_bound = std::max(alignment, PREFFERED_DECODED_BUFFER_SIZE);
+        decoded.resize(alignment * div_ceil(lower_bound, alignment));
+
+        // it should give a `decoded.size()` such that:
+        assert(decoded.size() % (bpr + 1) == 0);                  // for performance
+        assert(decoded.size() >= PREFFERED_DECODED_BUFFER_SIZE);  // for performance
+        assert(decoded.size() >= bpr + 1);                        // required
+    }
 
     strm->avail_out = decoded.size();
     strm->next_out = decoded.data();
@@ -216,23 +230,32 @@ auto read_idat(ChunkInfo& info) -> std::expected<void, Error> {  // NOLINT
     std::vector<std::uint8_t> dummy(bpr, 0);
 
     auto drain = [&]() -> std::expected<void, Error> {
-        if (strm->avail_out == 0) {
-            if (current_row > info.image.height()) {
-                return std::unexpected(Error::INVALID_PNG);
-            }
+        std::size_t have = decoded.size() - strm->avail_out;
+        std::size_t rows_produced = have / (bpr + 1);
+        std::size_t leftover = have % (bpr + 1);
 
-            auto* cur = info.image.pixels().data() + (current_row * bpr);
-            auto* prev = current_row > 0 ? cur - bpr : dummy.data();
-
-            auto res = defilter(decoded.data(), cur, prev, bpp, bpr);
-            if (!res) {
-                return std::unexpected(res.error());
-            }
-
-            current_row++;
-            strm->avail_out = decoded.size();
-            strm->next_out = decoded.data();
+        if (current_row + rows_produced > info.image.height()) {
+            return std::unexpected(Error::INVALID_PNG);
         }
+
+        auto* decoded_row = decoded.data();
+        auto* cur = info.image.pixels().data() + (current_row * bpr);
+        auto* prev = current_row > 0 ? cur - bpr : dummy.data();
+
+        for (std::size_t i = 0; i < rows_produced; i++) {
+            auto res = defilter(decoded_row, cur, prev, bpp, bpr);
+            if (!res) return std::unexpected(res.error());
+            decoded_row += bpr + 1;
+            prev = cur;
+            cur += bpr;
+        }
+
+        if (rows_produced > 0) std::memcpy(decoded.data(), decoded_row, leftover);
+
+        current_row += rows_produced;
+        strm->avail_out = decoded.size() - leftover;
+        strm->next_out = decoded.data() + leftover;
+
         return {};
     };
 
@@ -264,8 +287,10 @@ auto read_idat(ChunkInfo& info) -> std::expected<void, Error> {  // NOLINT
                 if (ret != Z_OK) {
                     return std::unexpected(Error::INVALID_PNG);
                 }
-                auto res = drain();
-                if (!res) return std::unexpected(res.error());
+                if (strm->avail_out == 0) {
+                    auto res = drain();
+                    if (!res) return std::unexpected(res.error());
+                }
             }
 
             raw_it = raw.begin();
@@ -306,9 +331,14 @@ auto read_idat(ChunkInfo& info) -> std::expected<void, Error> {  // NOLINT
         if (ret != Z_OK && ret != Z_STREAM_END) {
             return std::unexpected(Error::INVALID_PNG);
         }
-        auto res = drain();
-        if (!res) return std::unexpected(res.error());
+        if (strm->avail_out == 0) {
+            auto res = drain();
+            if (!res) return std::unexpected(res.error());
+        }
     }
+
+    auto res = drain();
+    if (!res) return std::unexpected(res.error());
 
     // optional: check strm->avail_out
 
