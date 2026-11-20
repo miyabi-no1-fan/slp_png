@@ -146,7 +146,7 @@ jobs:
 
       - name: Build test
         run: |
-          cmake --preset debug
+          cmake --preset debug -DSLP_PNG_BUILD_FUZZER=OFF
           cmake --build --preset debug
 
       - name: Valid PNGs
@@ -188,7 +188,7 @@ jobs:
       - name: Build test
         shell: msys2 {0}
         run: |
-          cmake --preset debug
+          cmake --preset debug -DSLP_PNG_BUILD_FUZZER=OFF
           cmake --build --preset debug
 
       - name: Valid PNGs
