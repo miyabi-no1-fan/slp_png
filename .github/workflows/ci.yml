@@ -40,6 +40,105 @@ jobs:
           done
           exit 0
 
+      - name: Build and test with MMX
+        shell: bash
+        run: |
+          cmake --preset debug -DCMAKE_CXX_FLAGS="-mmmx"
+          cmake --build --preset debug
+          set -e
+          for f in tests/test_images/pngsuite/*.png tests/test_images/benchmark/*.png; do
+            echo "$f"
+            build/debug/test "$f" -o out.png
+          done
+
+      - name: Build and test with SSE
+        shell: bash
+        run: |
+          cmake --preset debug -DCMAKE_CXX_FLAGS="-msse"
+          cmake --build --preset debug
+          set -e
+          for f in tests/test_images/pngsuite/*.png tests/test_images/benchmark/*.png; do
+            echo "$f"
+            build/debug/test "$f" -o out.png
+          done
+
+      - name: Build and test with SSE2
+        shell: bash
+        run: |
+          cmake --preset debug -DCMAKE_CXX_FLAGS="-msse2"
+          cmake --build --preset debug
+          set -e
+          for f in tests/test_images/pngsuite/*.png tests/test_images/benchmark/*.png; do
+            echo "$f"
+            build/debug/test "$f" -o out.png
+          done
+
+      - name: Build and test with SSSE3
+        shell: bash
+        run: |
+          cmake --preset debug -DCMAKE_CXX_FLAGS="-mssse3"
+          cmake --build --preset debug
+          set -e
+          for f in tests/test_images/pngsuite/*.png tests/test_images/benchmark/*.png; do
+            echo "$f"
+            build/debug/test "$f" -o out.png
+          done
+
+      - name: Build and test with SSE3
+        shell: bash
+        run: |
+          cmake --preset debug -DCMAKE_CXX_FLAGS="-msse3"
+          cmake --build --preset debug
+          set -e
+          for f in tests/test_images/pngsuite/*.png tests/test_images/benchmark/*.png; do
+            echo "$f"
+            build/debug/test "$f" -o out.png
+          done
+
+      - name: Build and test with SSE4.1
+        shell: bash
+        run: |
+          cmake --preset debug -DCMAKE_CXX_FLAGS="-msse4.1"
+          cmake --build --preset debug
+          set -e
+          for f in tests/test_images/pngsuite/*.png tests/test_images/benchmark/*.png; do
+            echo "$f"
+            build/debug/test "$f" -o out.png
+          done
+
+      - name: Build and test with SSE4.2
+        shell: bash
+        run: |
+          cmake --preset debug -DCMAKE_CXX_FLAGS="-msse4.2"
+          cmake --build --preset debug
+          set -e
+          for f in tests/test_images/pngsuite/*.png tests/test_images/benchmark/*.png; do
+            echo "$f"
+            build/debug/test "$f" -o out.png
+          done
+
+      - name: Build and test with AVX
+        shell: bash
+        run: |
+          cmake --preset debug -DCMAKE_CXX_FLAGS="-mavx"
+          cmake --build --preset debug
+          set -e
+          for f in tests/test_images/pngsuite/*.png tests/test_images/benchmark/*.png; do
+            echo "$f"
+            build/debug/test "$f" -o out.png
+          done
+
+      - name: Build and test with AVX2
+        shell: bash
+        run: |
+          cmake --preset debug -DCMAKE_CXX_FLAGS="-mavx2"
+          cmake --build --preset debug
+          set -e
+          for f in tests/test_images/pngsuite/*.png tests/test_images/benchmark/*.png; do
+            echo "$f"
+            build/debug/test "$f" -o out.png
+          done
+
   test_macos:
     runs-on: macos-latest
     steps:
