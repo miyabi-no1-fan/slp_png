@@ -340,9 +340,8 @@ auto read_idat(ChunkInfo& info) -> std::expected<void, Error> {  // NOLINT
     auto res = drain();
     if (!res) return std::unexpected(res.error());
 
-    // optional: check strm->avail_out
-
-    if (current_row != info.image.height()) {
+    if (strm->avail_in != 0 || strm->avail_out != decoded.size() ||
+        current_row != info.image.height()) {
         return std::unexpected(Error::INVALID_PNG);
     }
 
