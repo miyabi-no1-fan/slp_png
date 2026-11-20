@@ -35,7 +35,7 @@ limitations under the License.
 #include "slp_png.hpp"
 
 static constexpr std::size_t IDAT_BUFFER_SIZE = 65536;
-static constexpr std::size_t PREFFERED_DECODED_BUFFER_SIZE = 65536;
+static constexpr std::size_t PREFERED_DECODED_BUFFER_SIZE = 65536;
 
 namespace slp {
 
@@ -213,13 +213,13 @@ auto read_idat(ChunkInfo& info) -> std::expected<void, Error> {  // NOLINT
     std::vector<std::uint8_t> decoded;
     {
         std::size_t alignment = bpr + 1;
-        std::size_t lower_bound = std::max(alignment, PREFFERED_DECODED_BUFFER_SIZE);
+        std::size_t lower_bound = std::max(alignment, PREFERED_DECODED_BUFFER_SIZE);
         decoded.resize(alignment * div_ceil(lower_bound, alignment));
 
         // it should give a `decoded.size()` such that:
-        assert(decoded.size() % (bpr + 1) == 0);                  // for performance
-        assert(decoded.size() >= PREFFERED_DECODED_BUFFER_SIZE);  // for performance
-        assert(decoded.size() >= bpr + 1);                        // required
+        assert(decoded.size() % (bpr + 1) == 0);                 // for performance
+        assert(decoded.size() >= PREFERED_DECODED_BUFFER_SIZE);  // for performance
+        assert(decoded.size() >= bpr + 1);                       // required
     }
 
     strm->avail_out = decoded.size();
