@@ -29,7 +29,7 @@ limitations under the License.
 
 namespace slp {
 
-static auto paeth(std::uint8_t a, std::uint8_t b, std::uint8_t c) -> std::uint8_t {
+static constexpr auto paeth(std::uint8_t a, std::uint8_t b, std::uint8_t c) -> std::uint8_t {
     int p = a + b - c;
     int pa = std::abs(p - a);
     int pb = std::abs(p - b);
