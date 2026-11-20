@@ -26,7 +26,8 @@
                 "SLP_PNG_DEBUG_FLAGS": "ON",
                 "SLP_PNG_LTO": "OFF",
                 "SLP_PNG_BUILD_TEST": "ON",
-                "SLP_PNG_BUILD_BENCH": "OFF"
+                "SLP_PNG_BUILD_BENCH": "ON",
+                "SLP_PNG_BUILD_FUZZER": "ON"
             }
         }
     ],
