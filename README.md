@@ -63,7 +63,6 @@ python tests/test_images/generate_some_images.py
 mv *.png -t tests/test_images/benchmark
 echo "---------------------------------------"
 for file in tests/test_images/benchmark/*.png; do
-    echo "Test image: $file"
     # See `tests/benchmark.cpp`
     build/release/benchmark $file
     echo ""
