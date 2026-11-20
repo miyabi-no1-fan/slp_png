@@ -11,10 +11,9 @@
 ```bash
 git clone https://github.com/miyabi-no1-fan/slp_png.git
 cd slp_png
-cmake --preset release
-cmake --build --preset release
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 ```
-- If you want to run test, see `CMakeLists.txt` option
 
 ## Basic usage
 ```CXX
@@ -32,14 +31,16 @@ int main() {
         std::cerr << "write error: " << res.error() << "\n";
         return 1;
     }
+
+    return 0;
 }
 ```
 
-## Features
+## Support
 
-- Chunk type support: `IHDR`, `IDAT`, `IEND`, `PLTE` (color type 3 only), `tRNS` (color type 3 only)
-- Color type support: 0/2/3/4/6
-- Bit depth support: 1/2/4/8/16
+- Chunk type: `IHDR`, `IDAT`, `IEND`, `PLTE` (color type 3 only), `tRNS` (color type 3 only)
+- Color type: 0/2/3/4/6
+- Bit depth: 1/2/4/8/16
 - Compression method: 0
 - Filter method: 0
 - Interlace method: 0
