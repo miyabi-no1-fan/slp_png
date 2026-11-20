@@ -58,14 +58,20 @@ int main() {
 git clone https://github.com/slp-c/slp_png.git
 cd slp_png
 cmake --preset release -DSLP_PNG_BUILD_BENCH=ON
-cmake --build --preset release
-build/release/benchmark
-# See `tests/benchmark.cpp`
+cmake --build --preset release -j$(nproc)
+python tests/test_images/generate_some_images.py
+mv *.png -t tests/test_images/benchmark
+echo "---------------------------------------"
+for file in tests/test_images/benchmark/*.png; do
+    # See `tests/benchmark.cpp`
+    build/release/benchmark $file
+    echo ""
+done
 ```
 
 Test image: `tests/test_images/benchmark/10.4-MB.png`
 
 | Library | Read time | Write time | Output file size |
 | --- | --- | --- | --- |
-| `libspng` | 0.095s | 0.983s | 10.66 MiB |
-| `slp_png` | 0.091s | 0.690s | 10.64 MiB |
+| `libspng` | 0.096s | 0.997s | 10.645 MiB |
+| `slp_png` | 0.091s | 0.708s | 10.658 MiB |

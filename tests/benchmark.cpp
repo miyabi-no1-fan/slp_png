@@ -5,7 +5,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
+#include <ios>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
@@ -73,12 +76,23 @@ auto main(int argc, char* argv[]) -> int try {
     spng_read_time /= N;
     spng_write_time /= N;
 
+    std::ifstream slp_file(slp_out, std::ios::ate | std::ios::binary);
+    std::ifstream spng_file(spng_out, std::ios::ate | std::ios::binary);
+
+    double slp_size = static_cast<double>(slp_file.tellg()) / (1 << 20);
+    double spng_size = static_cast<double>(spng_file.tellg()) / (1 << 20);
+
     std::cout << std::fixed << std::setprecision(3);
     std::cout << "Test image: `" << input << "`\n\n";
-    std::cout << "| Library | Read time | Write time |\n";
-    std::cout << "| --- | --- | --- |\n";
-    std::cout << "| `libspng` | " << spng_read_time << " | " << spng_write_time << " |\n";
-    std::cout << "| `slp_png` | " << slp_read_time << " | " << slp_write_time << " |\n";
+    std::cout << "| Library | Read time | Write time | Output file size |\n";
+    std::cout << "| --- | --- | --- | --- |\n";
+    std::cout << "| `libspng` | " << spng_read_time << " | " << spng_write_time << " | "
+              << spng_size << " MiB |\n";
+    std::cout << "| `slp_png` | " << slp_read_time << " | " << slp_write_time << " | " << slp_size
+              << " MiB |\n";
+
+    std::filesystem::remove(slp_out);
+    std::filesystem::remove(spng_out);
 
     return 0;
 } catch (std::exception& e) {
