@@ -28,8 +28,8 @@ namespace slp {
 
 #ifdef __SSE2__
 static auto _mm_abs_epi8_compat(__m128i v) -> __m128i;
-static auto _mm_blendv_epi8_compat(__m128i V1, __m128i V2, __m128i M)
-    -> __m128i;  // assume mask is -1 for true and 0 for false
+// only work when mask = -1 for true and = 0 for false
+static auto _mm_blendv_epi8_compat(__m128i V1, __m128i V2, __m128i M) -> __m128i;
 static auto _mm_cmple_epu8(__m128i a, __m128i b) -> __m128i;
 static auto _mm_srli_epi8(__m128i v, int count) -> __m128i;
 static auto _mm_not_si128(__m128i v) -> __m128i;
@@ -68,7 +68,7 @@ void filter(const Image& image, std::array<std::vector<std::uint8_t>, 5>& filter
         filter_buffers[0][j + 1] = cur[j];
         filter_buffers[1][j + 1] = cur[j];
         filter_buffers[2][j + 1] = cur[j] - prev[j];
-        filter_buffers[3][j + 1] = cur[j] - (prev[j] >> 1);
+        filter_buffers[3][j + 1] = cur[j] - (prev[j] / 2);
         filter_buffers[4][j + 1] = cur[j] - prev[j];
 
         filter_scores[0] += std::abs(static_cast<std::int8_t>(filter_buffers[0][j + 1]));
@@ -77,7 +77,6 @@ void filter(const Image& image, std::array<std::vector<std::uint8_t>, 5>& filter
         filter_scores[3] += std::abs(static_cast<std::int8_t>(filter_buffers[3][j + 1]));
         filter_scores[4] += std::abs(static_cast<std::int8_t>(filter_buffers[4][j + 1]));
     }
-
 #ifdef __AVX2__
     if (__builtin_cpu_supports("avx2")) {
         __m256i noneSum = _mm256_setzero_si256();
@@ -133,7 +132,6 @@ void filter(const Image& image, std::array<std::vector<std::uint8_t>, 5>& filter
         }
     }
 #endif
-
 #ifdef __SSE2__
     if (__builtin_cpu_supports("sse2")) {
         __m128i noneSum = _mm_setzero_si128();
@@ -188,7 +186,6 @@ void filter(const Image& image, std::array<std::vector<std::uint8_t>, 5>& filter
         }
     }
 #endif
-
     for (; j < bpr; j++) {
         const int p = cur[j - bpp] + prev[j] - prev[j - bpp];
         const int pa = std::abs(p - cur[j - bpp]);
@@ -283,8 +280,7 @@ static auto _mm_paeth(__m128i a, __m128i b, __m128i c) -> __m128i {
     const __m128i pb = _mm_sub_epi8(_mm_max_epu8(a, c), _mm_min_epu8(a, c));
     const __m128i pc =
         _mm_or_si128(_mm_sub_epi8(_mm_max_epu8(pa, pb), _mm_min_epu8(pa, pb)),
-                     _mm_not_si128(_mm_cmpeq_epi8(_mm_cmple_epu8(c, a), _mm_cmple_epu8(b, c)))  //
-        );
+                     _mm_not_si128(_mm_cmpeq_epi8(_mm_cmple_epu8(c, a), _mm_cmple_epu8(b, c))));
     const __m128i pa_le_pb = _mm_cmple_epu8(pa, pb);
     const __m128i pa_le_pc = _mm_cmple_epu8(pa, pc);
     const __m128i cond1 = _mm_and_si128(pa_le_pb, pa_le_pc);
@@ -309,7 +305,6 @@ static auto _mm_abs_epi8_compat(__m128i v) -> __m128i {
         return _mm_abs_epi8(v);
     }
 #endif
-
     __m128i mask = _mm_cmpgt_epi8(_mm_setzero_si128(), v);  // if (v < 0) mask = -1 else mask = 0
     v = _mm_xor_si128(v, mask);                             // if (mask != 0) v = ~v
     return _mm_sub_epi8(v, mask);                           // if (mask != 0) v += 1
@@ -321,7 +316,6 @@ static auto _mm_blendv_epi8_compat(__m128i V1, __m128i V2, __m128i M) -> __m128i
         return _mm_blendv_epi8(V1, V2, M);
     }
 #endif
-
     return _mm_or_si128(_mm_andnot_si128(M, V1), _mm_and_si128(M, V2));
 }
 

@@ -58,9 +58,7 @@ auto defilter(const std::uint8_t* __restrict buffer, std::uint8_t* __restrict cu
 
         case 1: {
             std::memcpy(cur, buffer, bpp);
-            for (std::size_t i = bpp; i < bpr; i++) {
-                cur[i] = buffer[i] + cur[i - bpp];
-            }
+            for (std::size_t i = bpp; i < bpr; i++) cur[i] = buffer[i] + cur[i - bpp];
             break;
         }
 
@@ -85,31 +83,21 @@ auto defilter(const std::uint8_t* __restrict buffer, std::uint8_t* __restrict cu
                 }
             }
 #endif
-            for (; i < bpr; i++) {
-                cur[i] = buffer[i] + prev[i];
-            }
+            for (; i < bpr; i++) cur[i] = buffer[i] + prev[i];
             break;
         }
 
         case 3: {
             std::size_t i = 0;
-            for (; i < bpp; i++) {
-                cur[i] = buffer[i] + (prev[i] / 2);
-            }
-            for (; i < bpr; i++) {
-                cur[i] = buffer[i] + ((prev[i] + cur[i - bpp]) / 2);
-            }
+            for (; i < bpp; i++) cur[i] = buffer[i] + (prev[i] / 2);
+            for (; i < bpr; i++) cur[i] = buffer[i] + ((prev[i] + cur[i - bpp]) / 2);
             break;
         }
 
         case 4: {
             std::size_t i = 0;
-            for (; i < bpp; i++) {
-                cur[i] = buffer[i] + prev[i];
-            }
-            for (; i < bpr; i++) {
-                cur[i] = buffer[i] + paeth(cur[i - bpp], prev[i], prev[i - bpp]);
-            }
+            for (; i < bpp; i++) cur[i] = buffer[i] + prev[i];
+            for (; i < bpr; i++) cur[i] = buffer[i] + paeth(cur[i - bpp], prev[i], prev[i - bpp]);
             break;
         }
 
