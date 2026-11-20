@@ -63,7 +63,7 @@ build/release/benchmark
 
 Test image: `tests/test_images/benchmark/10.4-MB.png`
 
-| Library | Read time | Write time |
-| --- | --- | --- |
-| `libspng` | 0.095s | 0.976s |
-| `slp_png` | 0.101s | 0.691s |
+| Library | Read time | Write time | Output file size |
+| --- | --- | --- | --- |
+| `libspng` | 0.095s | 0.976s | 10.66 MiB |
+| `slp_png` | 0.101s | 0.691s | 10.64 MiB |
