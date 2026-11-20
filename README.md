@@ -2,7 +2,9 @@
 
 ## Support platforms
 - OS: Linux, MacOS, Windows
-- Architecture: x86_64, ARM64
+- Architecture: x86-64, arm64
+
+Note: for now, we have only optimized for x86-64 architecture
 
 ## Dependencies
 - zlib
