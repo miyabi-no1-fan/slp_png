@@ -86,9 +86,9 @@ auto main(int argc, char* argv[]) -> int try {
     std::cout << "Test image: `" << input << "`\n\n";
     std::cout << "| Library | Read time | Write time | Output file size |\n";
     std::cout << "| --- | --- | --- | --- |\n";
-    std::cout << "| `libspng` | " << spng_read_time << " | " << spng_write_time << " | " << slp_size
-              << " MiB |\n";
-    std::cout << "| `slp_png` | " << slp_read_time << " | " << slp_write_time << " | " << spng_size
+    std::cout << "| `libspng` | " << spng_read_time << " | " << spng_write_time << " | "
+              << spng_size << " MiB |\n";
+    std::cout << "| `slp_png` | " << slp_read_time << " | " << slp_write_time << " | " << slp_size
               << " MiB |\n";
 
     std::filesystem::remove(slp_out);
