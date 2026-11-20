@@ -46,4 +46,23 @@ int main() {
 
 ## Performance
 
-todo...
+- Platform: Linux
+- CPU: intel i5 12450H
+- RAM: 16GB DDR5
+- Compare with https://github.com/randy408/libspng
+
+```bash
+git clone https://github.com/slp-c/slp_png.git
+cd slp_png
+cmake --preset release -DSLP_PNG_BUILD_BENCH=ON
+cmake --build --preset release
+build/release/benchmark
+# See `tests/benchmark.cpp`
+```
+
+Test image: `tests/test_images/benchmark/10.4-MB.png`
+
+| Library | Read time | Write time |
+| --- | --- | --- |
+| `libspng` | 0.096s | 0.981s |
+| `slp_png` | 0.106s | 0.709s |
