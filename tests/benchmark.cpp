@@ -23,36 +23,62 @@ struct SpngImage {
 static auto spng_read(const char* path) -> SpngImage;
 static void spng_write(SpngImage& img, const char* path);
 
-auto main() -> int try {
-    const char* input = "tests/test_images/benchmark/10.4-MB.png";
+auto main(int argc, char* argv[]) -> int try {
+    if (argc != 2) throw std::invalid_argument("what?");
+    const char* input = argv[1];
 
     const char* slp_out = "a.png";
     const char* spng_out = "b.png";
+    constexpr int N = 10;
+    constexpr int W = 3;
+
+    // warmup
+    for (int i = 0; i < W; i++) {
+        auto slp_img = slp::Image::read_png(input).value();
+        slp_img.write_png(slp_out).value();
+        auto spng_img = spng_read(input);
+        spng_write(spng_img, spng_out);
+    }
 
     using namespace std::chrono;
 
-    auto t = steady_clock::now();
-    auto slp_img = slp::Image::read_png(input).value();
-    std::chrono::duration<double> slp_read_time = steady_clock::now() - t;
+    duration<double> slp_read_time(0);
+    duration<double> slp_write_time(0);
+    duration<double> spng_read_time(0);
+    duration<double> spng_write_time(0);
 
-    t = steady_clock::now();
-    slp_img.write_png(slp_out).value();
-    std::chrono::duration<double> slp_write_time = steady_clock::now() - t;
+    for (int i = 0; i < N; i++) {
+        std::cout << "\r" << i * 100 / N << "%" << std::flush;
 
-    t = steady_clock::now();
-    auto spng_img = spng_read(input);
-    std::chrono::duration<double> spng_read_time = steady_clock::now() - t;
+        auto t = steady_clock::now();
+        auto slp_img = slp::Image::read_png(input).value();
+        slp_read_time += steady_clock::now() - t;
 
-    t = steady_clock::now();
-    spng_write(spng_img, spng_out);
-    std::chrono::duration<double> spng_write_time = steady_clock::now() - t;
+        t = steady_clock::now();
+        slp_img.write_png(slp_out).value();
+        slp_write_time += steady_clock::now() - t;
+
+        t = steady_clock::now();
+        auto spng_img = spng_read(input);
+        spng_read_time += steady_clock::now() - t;
+
+        t = steady_clock::now();
+        spng_write(spng_img, spng_out);
+        spng_write_time += steady_clock::now() - t;
+    }
+    std::cout << "\r" << 100 << "%" << "\n";
+
+    slp_read_time /= N;
+    slp_write_time /= N;
+    spng_read_time /= N;
+    spng_write_time /= N;
 
     std::cout << std::fixed << std::setprecision(3);
     std::cout << "Test image: `" << input << "`\n\n";
     std::cout << "| Library | Read time | Write time |\n";
     std::cout << "| --- | --- | --- |\n";
-    std::cout << "| `libspng` | " << spng_read_time << " | " << spng_write_time << "\n";
-    std::cout << "| `slp_png` | " << slp_read_time << " | " << slp_write_time << "\n";
+    std::cout << "| `libspng` | " << spng_read_time << " | " << spng_write_time << " |\n";
+    std::cout << "| `slp_png` | " << slp_read_time << " | " << slp_write_time << " |\n";
 
     return 0;
 } catch (std::exception& e) {
