@@ -1,309 +1,254 @@
+/*
+Copyright 2026 miyabi-no1-fan
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 #pragma once
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
-#include <cstring>
 #include <expected>
-#include <span>
-#include <stdexcept>
-#include <string>
+#include <filesystem>
+#include <istream>
+#include <optional>
+#include <ostream>
+#include <utility>
+#include <vector>
 
 namespace slp {
-#define SLP_PNG_MACROS
-#include "slp_image_transform.h"
-#include "slp_png.h"
 
-enum class Error {
-    IO = SLP_ERROR_IO,
-    INVALID_PNG = SLP_ERROR_INVALID_PNG,
+enum class Error : std::int8_t {
+    IO = -1,
+    INVALID_PNG = -2,
+    INTERNAL_ERROR = -3,
 };
 
-class Image : private slp_image_t {
+inline auto operator<<(std::ostream& os, Error self) -> std::ostream& {
+    switch (self) {
+        case Error::IO: return os << "Error::IO";
+        case Error::INVALID_PNG: return os << "Error::INVALID_PNG";
+        case Error::INTERNAL_ERROR: return os << "Error::INTERNAL_ERROR";
+    }
+    std::unreachable();
+}
+
+class Format {
    public:
-    Image() : slp_image_t{} {}
-    ~Image() { clear(); }
-
-    /**
-     * @brief free the image's pixels
-     */
-    void clear() {
-        SLP_FREE(pixels, size);
-        pixels = nullptr;
-    }
-
-    /**
-     * @brief allocate the image's pixels based on size,
-     * assert(pixels == nullptr)
-     */
-    void allocate() {
-        assert(pixels == nullptr);
-        pixels = static_cast<std::uint8_t*>(SLP_MALLOC(size));
-        if (pixels == nullptr)
-            throw std::runtime_error("Image: allocation failed");
-    }
-
-    Image(const Image& o) : Image() { copy(o); }
-    Image(const slp_image_t& o) : Image() { copy(o); }
-    Image(Image&& o) noexcept : Image() { move(o); }
-    Image(slp_image_t&& o) noexcept : Image() { move(o); }
-
-    Image& operator=(const Image& o) {
-        if (this != &o) {
-            clear();
-            copy(o);
-        }
-        return *this;
-    }
-    Image& operator=(const slp_image_t& o) {
-        if (static_cast<const slp_image_t*>(this) != &o) {
-            clear();
-            copy(o);
-        }
-        return *this;
-    }
-    Image& operator=(Image&& o) noexcept {
-        move(o);
-        return *this;
-    }
-    Image& operator=(slp_image_t&& o) noexcept {
-        move(o);
-        return *this;
-    }
-
-   private:
-    // assert(pixels == nullptr)
-    void copy(const slp_image_t& o) {
-        height = o.height;
-        width = o.width;
-        channels = o.channels;
-        bit_depth = o.bit_depth;
-        size = o.size;
-        if (o.pixels != nullptr && size != 0) {
-            allocate();
-            if (pixels == nullptr)
-                throw std::runtime_error("Image: allocation failed");
-            std::memcpy(pixels, o.pixels, size);
-        }
-    }
-
-    void move(slp_image_t& o) noexcept {
-        if (static_cast<slp_image_t*>(this) == &o) return;
-        clear();
-        pixels = o.pixels;
-        height = o.height;
-        width = o.width;
-        channels = o.channels;
-        bit_depth = o.bit_depth;
-        size = o.size;
-        o.pixels = nullptr;
-        o.size = 0;
-    }
-
-   public:
-    std::uint8_t* data() const { return pixels; }
-    std::uint32_t get_width() const { return width; }
-    std::uint32_t get_height() const { return height; }
-    // row_stride * height
-    std::size_t get_size() const { return size; }
-    // div_ceil(width * channels * bit_depth, 8)
-    std::size_t row_stride() const {
-        auto div_ceil = [](std::size_t a, std::size_t b) -> std::size_t {
-            return (a / b) + (a % b != 0);
-        };
-        return div_ceil((std::size_t)width * (std::size_t)channels * (std::size_t)bit_depth, 8);
-    }
-
-    std::span<const std::uint8_t> row(std::size_t i) const {
-        return std::span(pixels + i * row_stride(), row_stride());
-    }
-    std::span<std::uint8_t> row(std::size_t i) {
-        return std::span(pixels + i * row_stride(), row_stride());
-    }
-
-    enum class Format {
-        G1,
-        G2,
-        G4,
-        G8,
-        G16,
-
-        GA8,
-        GA16,
-
-        RGB8,
-        RGB16,
-
-        RGBA8,
-        RGBA16,
+    // clang-format off
+    enum Type : std::uint8_t {
+        G1, G2, G4, G8, G16,
+        Index1, Index2, Index4, Index8,
+        GA8, GA16,
+        RGB8, RGB16,
+        RGBA8, RGBA16,
     };
+    // clang-format on
 
-    Format get_format() const {
-        switch (channels) {
-            case 1:
+    constexpr Format(Type format) : format(format) {}
+
+    [[nodiscard]] constexpr auto value() const -> Type { return format; }
+
+    [[nodiscard]] constexpr auto bit_depth() const -> std::uint8_t {
+        // clang-format off
+        switch (format) {
+            case G1: case Index1: return 1;
+            case G2: case Index2: return 2;
+            case G4: case Index4: return 4;
+            case G8: case Index8: case GA8: case RGB8: case RGBA8: return 8;
+            case G16: case GA16: case RGB16: case RGBA16: return 16;
+        }
+        // clang-format on
+        std::unreachable();
+    }
+
+    [[nodiscard]] constexpr auto channels() const -> std::uint8_t {
+        // clang-format off
+        switch (format) {
+            case G1: case G2: case G4: case G8: case G16:
+            case Index1: case Index2: case Index4: case Index8: return 1;
+            case GA8: case GA16: return 2;
+            case RGB8: case RGB16: return 3;
+            case RGBA8: case RGBA16: return 4;
+        }
+        // clang-format on
+        std::unreachable();
+    }
+
+    [[nodiscard]] constexpr auto color_type() const -> std::uint8_t {
+        // clang-format off
+        switch (format) {
+            case Format::G1: case Format::G2: case Format::G4: case Format::G8: case Format::G16: return 0;
+            case Format::RGB8: case Format::RGB16: return 2;
+            case Format::Index1: case Format::Index2: case Format::Index4: case Format::Index8: return 3;
+            case Format::GA8: case Format::GA16: return 4;
+            case Format::RGBA8: case Format::RGBA16: return 6;
+        }
+        // clang-format on
+        std::unreachable();
+    }
+
+    static constexpr auto guess_format(std::uint8_t bit_depth, std::uint8_t color_type)
+        -> std::optional<Format> {
+        switch (color_type) {
+            case 0:
                 switch (bit_depth) {
                     case 1: return Format::G1;
                     case 2: return Format::G2;
                     case 4: return Format::G4;
                     case 8: return Format::G8;
                     case 16: return Format::G16;
-                    default: throw std::invalid_argument("Image::format: image has unknown format");
+                    default: return std::nullopt;
                 }
+
             case 2:
-                switch (bit_depth) {
-                    case 8: return Format::GA8;
-                    case 16: return Format::GA16;
-                    default: throw std::invalid_argument("Image::format: image has unknown format");
-                }
-            case 3:
                 switch (bit_depth) {
                     case 8: return Format::RGB8;
                     case 16: return Format::RGB16;
-                    default: throw std::invalid_argument("Image::format: image has unknown format");
+                    default: return std::nullopt;
                 }
+
+            case 3:
+                switch (bit_depth) {
+                    case 1: return Format::Index1;
+                    case 2: return Format::Index2;
+                    case 4: return Format::Index4;
+                    case 8: return Format::Index8;
+                    default: return std::nullopt;
+                }
+
             case 4:
+                switch (bit_depth) {
+                    case 8: return Format::GA8;
+                    case 16: return Format::GA16;
+                    default: return std::nullopt;
+                }
+
+            case 6:
                 switch (bit_depth) {
                     case 8: return Format::RGBA8;
                     case 16: return Format::RGBA16;
-                    default: throw std::invalid_argument("Image::format: image has unknown format");
+                    default: return std::nullopt;
                 }
-            default: throw std::invalid_argument("Image::format: image has unknown format");
+
+            default: return std::nullopt;
         }
     }
 
-    struct Extent {
-        std::uint32_t width;
-        std::uint32_t height;
-        Extent(std::uint32_t width, std::uint32_t height)
-            : width(width), height(height) {}
-    };
-
-    Extent get_extent() const {
-        return { width, height };
-    }
-
-    static Image uninitialized(Extent extent, Format format) {
-        Image res;
-        res.width = extent.width;
-        res.height = extent.height;
+    [[nodiscard]] constexpr auto is_indexed_color() const -> bool {
+        // clang-format off
         switch (format) {
-            case Format::G1:
-                res.channels = 1;
-                res.bit_depth = 1;
-                break;
-            case Format::G2:
-                res.channels = 1;
-                res.bit_depth = 2;
-                break;
-            case Format::G4:
-                res.channels = 1;
-                res.bit_depth = 4;
-                break;
-            case Format::G8:
-                res.channels = 1;
-                res.bit_depth = 8;
-                break;
-            case Format::G16:
-                res.channels = 1;
-                res.bit_depth = 16;
-                break;
-
-            case Format::GA8:
-                res.channels = 2;
-                res.bit_depth = 8;
-                break;
-            case Format::GA16:
-                res.channels = 2;
-                res.bit_depth = 16;
-                break;
-
-            case Format::RGB8:
-                res.channels = 3;
-                res.bit_depth = 8;
-                break;
-            case Format::RGB16:
-                res.channels = 3;
-                res.bit_depth = 16;
-                break;
-
-            case Format::RGBA8:
-                res.channels = 4;
-                res.bit_depth = 8;
-                break;
-            case Format::RGBA16:
-                res.channels = 4;
-                res.bit_depth = 16;
-                break;
-
-            default: throw std::logic_error("Image::zeros: unimplemented format");
+            case Index1: case Index2: case Index4: case Index8: return true;
+            default: return false;
         }
-        res.size = res.row_stride() * res.height;
-        res.allocate();
-        return res;
+        // clang-format on
     }
 
-    static std::expected<Image, Error> read_png(const std::string& path) {
-        std::FILE* file = std::fopen(path.c_str(), "rb");
-        if (file == nullptr)
-            return std::unexpected(Error::IO);
+    friend auto operator<<(std::ostream& os, Format self) -> std::ostream& {
+        switch (self.format) {
+            case G1: return os << "Format::G1";
+            case G2: return os << "Format::G2";
+            case G4: return os << "Format::G4";
+            case G8: return os << "Format::G8";
+            case G16: return os << "Format::G16";
+            case Index1: return os << "Format::Index1";
+            case Index2: return os << "Format::Index2";
+            case Index4: return os << "Format::Index4";
+            case Index8: return os << "Format::Index8";
+            case GA8: return os << "Format::GA8";
+            case GA16: return os << "Format::GA16";
+            case RGB8: return os << "Format::RGB8";
+            case RGB16: return os << "Format::RGB16";
+            case RGBA8: return os << "Format::RGBA8";
+            case RGBA16: return os << "Format::RGBA16";
+        }
+        std::unreachable();
+    }
 
-        slp_png_io io{};
-        io.buf = file;
+   private:
+    Type format;
+};
 
+class Image {
+    std::vector<std::uint8_t> pixels_;
+    std::vector<std::uint8_t> palette_;
+    std::uint32_t height_ = 0;
+    std::uint32_t width_ = 0;
+    Format format_ = Format::RGBA8;
+
+   public:
+    Image() = default;
+
+    static consteval auto zeros(std::uint32_t width, std::uint32_t height, Format format) -> Image {
         Image image;
-        int res = slp_png_read(static_cast<slp_image_t*>(&image), &io);
-        fclose(file);
-
-        if (res == 0)
-            return image;
-        switch (res) {
-            case SLP_ERROR_ALLOC: throw std::runtime_error("Image::read_png: allocation error");
-            case SLP_ERROR_IO: return std::unexpected(Error::IO);
-            case SLP_ERROR_INVALID_PNG: return std::unexpected(Error::INVALID_PNG);
-            case SLP_ERROR_INVALID_ARGUMENT:
-            default: throw std::logic_error("Image::read_png: internal error, pls create an issue");
-        }
+        image.width_ = width;
+        image.height_ = height;
+        image.format_ = format;
+        image.pixels_ = std::vector<std::uint8_t>(image.bytes_per_row() * height, 0);
+        return image;
     }
 
-    std::expected<void, Error> write_png(const std::string& path) {
-        std::FILE* file = std::fopen(path.c_str(), "wb");
-        if (file == nullptr)
-            return std::unexpected(Error::IO);
+    Image(const Image& o) = default;
+    auto operator=(const Image& o) -> Image& = default;
+    Image(Image&&) noexcept = default;
+    auto operator=(Image&&) noexcept -> Image& = default;
 
-        slp_png_io io{};
-        io.buf = file;
-
-        int res = slp_png_write(static_cast<slp_image_t*>(this), &io);
-        fclose(file);
-
-        if (res == 0)
-            return {};
-        switch (res) {
-            case SLP_ERROR_ALLOC: throw std::runtime_error("Image::write_png: allocation error");
-            case SLP_ERROR_IO: return std::unexpected(Error::IO);
-            case SLP_ERROR_INVALID_PNG: return std::unexpected(Error::INVALID_PNG);
-            case SLP_ERROR_INVALID_ARGUMENT:
-            default: throw std::logic_error("Image::write_png: internal error, pls create an issue");
-        }
+    [[nodiscard]] constexpr auto width() const -> std::size_t {
+        return static_cast<std::size_t>(width_);
+    }
+    [[nodiscard]] constexpr auto height() const -> std::size_t {
+        return static_cast<std::size_t>(height_);
+    }
+    [[nodiscard]] constexpr auto format() const -> Format { return format_; }
+    [[nodiscard]] constexpr auto bytes_per_row() const -> std::size_t {
+        return div_ceil(width() * format().channels() * format().bit_depth(), 8);
     }
 
-    void to_rgba8() {
-        if (slp_image_convert_to_RGBA8(static_cast<slp_image_t*>(this)) != 0)
-            throw std::runtime_error("Image::to_rgba8: allocation failed or unknown image format");
+    [[nodiscard]] constexpr auto pixels() const -> const std::vector<std::uint8_t>& {
+        return pixels_;
+    }
+    [[nodiscard]] constexpr auto pixels() -> std::vector<std::uint8_t>& { return pixels_; }
+
+    [[nodiscard]] constexpr auto palette() const -> const std::vector<std::uint8_t>& {
+        return palette_;
+    }
+    [[nodiscard]] constexpr auto palette() -> std::vector<std::uint8_t>& { return palette_; }
+
+    [[nodiscard]] static auto read_png(std::istream& io, std::uint32_t width_limit = 12288,
+                                       std::uint32_t height_limit = 6480)
+        -> std::expected<Image, Error>;
+
+    [[nodiscard]] auto write_png(std::ostream& io) const -> std::expected<void, Error>;
+
+    [[nodiscard]] static auto read_png(const std::filesystem::path& path,
+                                       std::uint32_t width_limit = 12288,
+                                       std::uint32_t height_limit = 6480)
+        -> std::expected<Image, Error>;
+
+    [[nodiscard]] auto write_png(const std::filesystem::path& path) const
+        -> std::expected<void, Error>;
+
+    constexpr void overwrite_width(std::uint32_t width) { width_ = width; }
+    constexpr void overwrite_height(std::uint32_t height) { height_ = height; }
+    constexpr void overwrite_format(Format foramt) { format_ = foramt; }
+    constexpr void overwrite_pixels(const std::vector<std::uint8_t>& pixels) { pixels_ = pixels; }
+    constexpr void overwrite_palette(const std::vector<std::uint8_t>& palette) {
+        palette_ = palette;
     }
 
-    void linear_transform(const double matrix[2][2]) {
-        if (slp_image_unpack(static_cast<slp_image_t*>(this)) != 0) throw std::runtime_error("Image::linear_transform: allocation failed or unknown image format");
-        *this = static_cast<Image>(slp_image_linear_transform(static_cast<slp_image_t*>(this), matrix));
-        if (this->pixels == nullptr && this->size != 0) throw std::runtime_error("Image::linear_transform: allocation failed");
-        if (slp_image_pack(static_cast<slp_image_t*>(this)) != 0) throw std::runtime_error("Image::linear_transform: allocation failed");
-    }
-
-    void crop(Extent offset, Extent extent) {
-        if (slp_image_unpack(static_cast<slp_image_t*>(this)) != 0) throw std::runtime_error("Image::crop: allocation failed or unknown image format");
-        *this = static_cast<Image>(slp_image_crop(static_cast<slp_image_t*>(this), extent.width, extent.height, offset.width, offset.height));
-        if (this->pixels == nullptr && this->size != 0) throw std::runtime_error("Image::crop: allocation failed");
-        if (slp_image_pack(static_cast<slp_image_t*>(this)) != 0) throw std::runtime_error("Image::crop: allocation failed");
+   private:
+    template <typename A, typename B = A, typename C = A>
+    static constexpr auto div_ceil(A dividend, B divisor) -> C {
+        return static_cast<C>(dividend / divisor) + static_cast<C>(dividend % divisor != 0);
     }
 };
-};  // namespace slp
+
+}  // namespace slp

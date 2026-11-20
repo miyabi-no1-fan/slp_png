@@ -1,4 +1,4 @@
-build/
-build_old/
-.cache/
-tests/corpus/
+.cache
+build
+compile_commands.json
+tests/corpus

@@ -1,0 +1,325 @@
+/*
+Copyright 2026 miyabi-no1-fan
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+#include <array>
+#include <cstdint>
+#include <cstdlib>
+
+#if defined(__i386__) || defined(__x86_64__)
+#include <immintrin.h>
+#endif
+
+#include "extras.hpp"
+#include "write.hpp"
+
+namespace slp {
+
+#ifdef __SSE2__
+static auto _mm_abs_epi8_compat(__m128i v) -> __m128i;
+// only work when mask = -1 for true and = 0 for false
+static auto _mm_blendv_epi8_compat(__m128i V1, __m128i V2, __m128i M) -> __m128i;
+static auto _mm_cmple_epu8(__m128i a, __m128i b) -> __m128i;
+static auto _mm_srli_epi8(__m128i v, int count) -> __m128i;
+static auto _mm_not_si128(__m128i v) -> __m128i;
+static auto _mm_avg(__m128i a, __m128i b) -> __m128i;
+static auto _mm_paeth(__m128i a, __m128i b, __m128i c) -> __m128i;
+#endif
+
+#ifdef __AVX2__
+static auto _mm256_cmple_epu8(__m256i a, __m256i b) -> __m256i;
+static auto _mm256_srli_epi8(__m256i v, int count) -> __m256i;
+static auto _mm256_not_si256(__m256i v) -> __m256i;
+static auto _mm256_avg(__m256i a, __m256i b) -> __m256i;
+static auto _mm256_paeth(__m256i a, __m256i b, __m256i c) -> __m256i;
+#endif
+
+void filter(const Image& image, std::array<std::vector<std::uint8_t>, 5>& filter_buffers,
+            std::array<std::uint64_t, 5>& filter_scores, std::size_t i) {
+    const std::size_t bpp = image.format().channels() *
+                            div_ceil(static_cast<std::size_t>(image.format().bit_depth()), 8);
+    const std::size_t bpr = image.bytes_per_row();
+
+    if (i == 0) {
+        const std::uint8_t* cur = image.pixels().data() + (i * bpr);
+        for (std::size_t j = 0; j < bpp; j++) filter_buffers[1][j + 1] = cur[j];
+        for (std::size_t j = bpp; j < bpr; j++) filter_buffers[1][j + 1] = cur[j] - cur[j - bpp];
+        for (int j = 0; j < 5; j++) filter_scores[j] = 1;
+        filter_scores[1] = 0;
+        return;
+    }
+
+    const std::uint8_t* cur = image.pixels().data() + (i * bpr);
+    const std::uint8_t* prev = image.pixels().data() + ((i - 1) * bpr);
+
+    std::size_t j = 0;
+    for (; j < bpp; j++) {
+        filter_buffers[0][j + 1] = cur[j];
+        filter_buffers[1][j + 1] = cur[j];
+        filter_buffers[2][j + 1] = cur[j] - prev[j];
+        filter_buffers[3][j + 1] = cur[j] - (prev[j] / 2);
+        filter_buffers[4][j + 1] = cur[j] - prev[j];
+
+        filter_scores[0] += std::abs(static_cast<std::int8_t>(filter_buffers[0][j + 1]));
+        filter_scores[1] += std::abs(static_cast<std::int8_t>(filter_buffers[1][j + 1]));
+        filter_scores[2] += std::abs(static_cast<std::int8_t>(filter_buffers[2][j + 1]));
+        filter_scores[3] += std::abs(static_cast<std::int8_t>(filter_buffers[3][j + 1]));
+        filter_scores[4] += std::abs(static_cast<std::int8_t>(filter_buffers[4][j + 1]));
+    }
+#ifdef __AVX2__
+    if (__builtin_cpu_supports("avx2")) {
+        __m256i noneSum = _mm256_setzero_si256();
+        __m256i subSum = _mm256_setzero_si256();
+        __m256i upSum = _mm256_setzero_si256();
+        __m256i avgSum = _mm256_setzero_si256();
+        __m256i paethSum = _mm256_setzero_si256();
+        __m256i zero = _mm256_setzero_si256();
+
+        for (; j + 32 <= bpr; j += 32) {
+            const __m256i raw = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(cur + j));
+            const __m256i a = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(cur + j - bpp));
+            const __m256i b = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(prev + j));
+            const __m256i c = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(prev + j - bpp));
+
+            const __m256i sub = _mm256_sub_epi8(raw, a);
+            const __m256i up = _mm256_sub_epi8(raw, b);
+            const __m256i avg = _mm256_sub_epi8(raw, _mm256_avg(a, b));
+            const __m256i paeth = _mm256_sub_epi8(raw, _mm256_paeth(a, b, c));
+
+            noneSum = _mm256_add_epi64(noneSum, _mm256_sad_epu8(_mm256_abs_epi8(raw), zero));
+            subSum = _mm256_add_epi64(subSum, _mm256_sad_epu8(_mm256_abs_epi8(sub), zero));
+            upSum = _mm256_add_epi64(upSum, _mm256_sad_epu8(_mm256_abs_epi8(up), zero));
+            avgSum = _mm256_add_epi64(avgSum, _mm256_sad_epu8(_mm256_abs_epi8(avg), zero));
+            paethSum = _mm256_add_epi64(paethSum, _mm256_sad_epu8(_mm256_abs_epi8(paeth), zero));
+
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(filter_buffers[0].data() + j + 1), raw);
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(filter_buffers[1].data() + j + 1), sub);
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(filter_buffers[2].data() + j + 1), up);
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(filter_buffers[3].data() + j + 1), avg);
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(filter_buffers[4].data() + j + 1),
+                                paeth);
+        }
+
+        alignas(32) std::array<std::uint64_t, 4> tmp0;
+        alignas(32) std::array<std::uint64_t, 4> tmp1;
+        alignas(32) std::array<std::uint64_t, 4> tmp2;
+        alignas(32) std::array<std::uint64_t, 4> tmp3;
+        alignas(32) std::array<std::uint64_t, 4> tmp4;
+
+        _mm256_store_si256(reinterpret_cast<__m256i*>(tmp0.data()), noneSum);
+        _mm256_store_si256(reinterpret_cast<__m256i*>(tmp1.data()), subSum);
+        _mm256_store_si256(reinterpret_cast<__m256i*>(tmp2.data()), upSum);
+        _mm256_store_si256(reinterpret_cast<__m256i*>(tmp3.data()), avgSum);
+        _mm256_store_si256(reinterpret_cast<__m256i*>(tmp4.data()), paethSum);
+
+        for (unsigned int u = 0; u < 4; u++) {
+            filter_scores[0] += tmp0[u];
+            filter_scores[1] += tmp1[u];
+            filter_scores[2] += tmp2[u];
+            filter_scores[3] += tmp3[u];
+            filter_scores[4] += tmp4[u];
+        }
+    }
+#endif
+#ifdef __SSE2__
+    if (__builtin_cpu_supports("sse2")) {
+        __m128i noneSum = _mm_setzero_si128();
+        __m128i subSum = _mm_setzero_si128();
+        __m128i upSum = _mm_setzero_si128();
+        __m128i avgSum = _mm_setzero_si128();
+        __m128i paethSum = _mm_setzero_si128();
+        __m128i zero = _mm_setzero_si128();
+
+        for (; j + 16 <= bpr; j += 16) {
+            const __m128i raw = _mm_loadu_si128(reinterpret_cast<const __m128i*>(cur + j));
+            const __m128i a = _mm_loadu_si128(reinterpret_cast<const __m128i*>(cur + j - bpp));
+            const __m128i b = _mm_loadu_si128(reinterpret_cast<const __m128i*>(prev + j));
+            const __m128i c = _mm_loadu_si128(reinterpret_cast<const __m128i*>(prev + j - bpp));
+
+            const __m128i sub = _mm_sub_epi8(raw, a);
+            const __m128i up = _mm_sub_epi8(raw, b);
+            const __m128i avg = _mm_sub_epi8(raw, _mm_avg(a, b));
+            const __m128i paeth = _mm_sub_epi8(raw, _mm_paeth(a, b, c));
+
+            noneSum = _mm_add_epi64(noneSum, _mm_sad_epu8(_mm_abs_epi8_compat(raw), zero));
+            subSum = _mm_add_epi64(subSum, _mm_sad_epu8(_mm_abs_epi8_compat(sub), zero));
+            upSum = _mm_add_epi64(upSum, _mm_sad_epu8(_mm_abs_epi8_compat(up), zero));
+            avgSum = _mm_add_epi64(avgSum, _mm_sad_epu8(_mm_abs_epi8_compat(avg), zero));
+            paethSum = _mm_add_epi64(paethSum, _mm_sad_epu8(_mm_abs_epi8_compat(paeth), zero));
+
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(filter_buffers[0].data() + j + 1), raw);
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(filter_buffers[1].data() + j + 1), sub);
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(filter_buffers[2].data() + j + 1), up);
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(filter_buffers[3].data() + j + 1), avg);
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(filter_buffers[4].data() + j + 1), paeth);
+        }
+
+        alignas(16) std::array<std::uint64_t, 2> tmp0;
+        alignas(16) std::array<std::uint64_t, 2> tmp1;
+        alignas(16) std::array<std::uint64_t, 2> tmp2;
+        alignas(16) std::array<std::uint64_t, 2> tmp3;
+        alignas(16) std::array<std::uint64_t, 2> tmp4;
+
+        _mm_store_si128(reinterpret_cast<__m128i*>(tmp0.data()), noneSum);
+        _mm_store_si128(reinterpret_cast<__m128i*>(tmp1.data()), subSum);
+        _mm_store_si128(reinterpret_cast<__m128i*>(tmp2.data()), upSum);
+        _mm_store_si128(reinterpret_cast<__m128i*>(tmp3.data()), avgSum);
+        _mm_store_si128(reinterpret_cast<__m128i*>(tmp4.data()), paethSum);
+
+        for (unsigned int u = 0; u < 2; u++) {
+            filter_scores[0] += tmp0[u];
+            filter_scores[1] += tmp1[u];
+            filter_scores[2] += tmp2[u];
+            filter_scores[3] += tmp3[u];
+            filter_scores[4] += tmp4[u];
+        }
+    }
+#endif
+    for (; j < bpr; j++) {
+        const int p = cur[j - bpp] + prev[j] - prev[j - bpp];
+        const int pa = std::abs(p - cur[j - bpp]);
+        const int pb = std::abs(p - prev[j]);
+        const int pc = std::abs(p - prev[j - bpp]);
+
+        std::uint8_t d = (pb <= pc) ? prev[j] : prev[j - bpp];
+        d = (pa <= pb && pa <= pc) ? cur[j - bpp] : d;
+
+        filter_buffers[0][j + 1] = cur[j];
+        filter_buffers[1][j + 1] = cur[j] - cur[j - bpp];
+        filter_buffers[2][j + 1] = cur[j] - prev[j];
+        filter_buffers[3][j + 1] = cur[j] - ((cur[j - bpp] + prev[j]) / 2);
+        filter_buffers[4][j + 1] = cur[j] - d;
+
+        filter_scores[0] += std::abs(static_cast<std::int8_t>(filter_buffers[0][j + 1]));
+        filter_scores[1] += std::abs(static_cast<std::int8_t>(filter_buffers[1][j + 1]));
+        filter_scores[2] += std::abs(static_cast<std::int8_t>(filter_buffers[2][j + 1]));
+        filter_scores[3] += std::abs(static_cast<std::int8_t>(filter_buffers[3][j + 1]));
+        filter_scores[4] += std::abs(static_cast<std::int8_t>(filter_buffers[4][j + 1]));
+
+        /* Overflow Risk:
+        In order to overflow, bpr must be at least UINT64_MAX / UINT8_MAX
+        The biggest image format support is RGBA64, which has 4 channels and bit_depth of 16
+        bpr = width * 4 * 2
+        So, width must be at least UINT64_MAX / (INT8_MAX * 4 * 2) in order to overflow
+        filter_scores But width is uint32_t. So there's no overflow as long as `UINT32_MAX <
+        UINT64_MAX / (INT8_MAX * 4 * 2))` */
+    }
+}
+
+#ifdef __AVX2__
+static auto _mm256_avg(__m256i a, __m256i b) -> __m256i {
+    // average of two integers without converting to a wider bit-width
+    return _mm256_add_epi8(_mm256_and_si256(a, b), _mm256_srli_epi8(_mm256_xor_si256(a, b), 1));
+}
+
+static auto _mm256_paeth(__m256i a, __m256i b, __m256i c) -> __m256i {
+    // fpnge
+    // https://www.lucaversari.it/FJXL_and_FPNGE.pdf
+    const __m256i max_bc = _mm256_max_epu8(b, c);
+    const __m256i min_bc = _mm256_min_epu8(b, c);
+
+    const __m256i max_ac = _mm256_max_epu8(a, c);
+    const __m256i min_ac = _mm256_min_epu8(a, c);
+
+    const __m256i pa = _mm256_sub_epi8(max_bc, min_bc);
+    const __m256i pb = _mm256_sub_epi8(max_ac, min_ac);
+
+    const __m256i c_le_a = _mm256_cmpeq_epi8(min_ac, c);
+    const __m256i b_le_c = _mm256_cmpeq_epi8(min_bc, b);
+
+    const __m256i mask = _mm256_not_si256(_mm256_cmpeq_epi8(c_le_a, b_le_c));
+    const __m256i pc =
+        _mm256_or_si256(_mm256_sub_epi8(_mm256_max_epu8(pa, pb), _mm256_min_epu8(pa, pb)), mask);
+
+    const __m256i pa_le_pb = _mm256_cmple_epu8(pa, pb);
+    const __m256i pa_le_pc = _mm256_cmple_epu8(pa, pc);
+
+    const __m256i cond1 = _mm256_and_si256(pa_le_pb, pa_le_pc);
+    const __m256i cond2 = _mm256_cmple_epu8(pb, pc);
+
+    __m256i d = _mm256_blendv_epi8(c, b, cond2);
+    return _mm256_blendv_epi8(d, a, cond1);
+}
+
+static auto _mm256_srli_epi8(__m256i v, int count) -> __m256i {
+    const __m256i mask = _mm256_not_si256(_mm256_set1_epi8(static_cast<char>((1UL << count) - 1)));
+    v = _mm256_and_si256(v, mask);
+    return _mm256_srli_epi64(v, count);
+}
+
+static auto _mm256_cmple_epu8(__m256i a, __m256i b) -> __m256i {
+    return _mm256_cmpeq_epi8(_mm256_min_epu8(a, b), a);
+}
+
+static auto _mm256_not_si256(__m256i v) -> __m256i {
+    return _mm256_xor_si256(v, _mm256_set1_epi8(-1));
+}
+#endif
+
+#ifdef __SSE2__
+static auto _mm_avg(__m128i a, __m128i b) -> __m128i {
+    // average of two integers without converting to a wider bit-width
+    return _mm_add_epi8(_mm_and_si128(a, b), _mm_srli_epi8(_mm_xor_si128(a, b), 1));
+}
+
+static auto _mm_paeth(__m128i a, __m128i b, __m128i c) -> __m128i {
+    // fpnge
+    // https://www.lucaversari.it/FJXL_and_FPNGE.pdf
+    const __m128i pa = _mm_sub_epi8(_mm_max_epu8(b, c), _mm_min_epu8(b, c));
+    const __m128i pb = _mm_sub_epi8(_mm_max_epu8(a, c), _mm_min_epu8(a, c));
+    const __m128i pc =
+        _mm_or_si128(_mm_sub_epi8(_mm_max_epu8(pa, pb), _mm_min_epu8(pa, pb)),
+                     _mm_not_si128(_mm_cmpeq_epi8(_mm_cmple_epu8(c, a), _mm_cmple_epu8(b, c))));
+    const __m128i pa_le_pb = _mm_cmple_epu8(pa, pb);
+    const __m128i pa_le_pc = _mm_cmple_epu8(pa, pc);
+    const __m128i cond1 = _mm_and_si128(pa_le_pb, pa_le_pc);
+    const __m128i cond2 = _mm_cmple_epu8(pb, pc);
+    __m128i d = _mm_blendv_epi8_compat(c, b, cond2);
+    return _mm_blendv_epi8_compat(d, a, cond1);
+}
+
+static auto _mm_srli_epi8(__m128i v, int count) -> __m128i {
+    const __m128i mask = _mm_not_si128(_mm_set1_epi8(static_cast<char>((1UL << count) - 1)));
+    v = _mm_and_si128(v, mask);
+    return _mm_srli_epi64(v, count);
+}
+
+static auto _mm_cmple_epu8(__m128i a, __m128i b) -> __m128i {
+    return _mm_cmpeq_epi8(_mm_min_epu8(a, b), a);
+}
+
+static auto _mm_abs_epi8_compat(__m128i v) -> __m128i {
+#ifdef __SSSE3__
+    if (__builtin_cpu_supports("ssse3")) {
+        return _mm_abs_epi8(v);
+    }
+#endif
+    __m128i mask = _mm_cmpgt_epi8(_mm_setzero_si128(), v);  // if (v < 0) mask = -1 else mask = 0
+    v = _mm_xor_si128(v, mask);                             // if (mask != 0) v = ~v
+    return _mm_sub_epi8(v, mask);                           // if (mask != 0) v += 1
+}
+
+static auto _mm_blendv_epi8_compat(__m128i V1, __m128i V2, __m128i M) -> __m128i {
+#ifdef __SSE4_1__
+    if (__builtin_cpu_supports("sse4.1")) {
+        return _mm_blendv_epi8(V1, V2, M);
+    }
+#endif
+    return _mm_or_si128(_mm_andnot_si128(M, V1), _mm_and_si128(M, V2));
+}
+
+static auto _mm_not_si128(__m128i v) -> __m128i { return _mm_xor_si128(v, _mm_set1_epi8(-1)); }
+#endif
+
+}  // namespace slp

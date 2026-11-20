@@ -1,102 +1,52 @@
-# Simple PNG codec library written in C
+# Simple PNG codec library written in C++
 
 ## Support platforms
-- OS: Linux, MacOS, Windows.
-- Architecture: x86_64, ARM64.
-
+- OS: Linux, MacOS, Windows
+- Architecture: x86_64, ARM64
 
 ## Dependencies
 - zlib
-
 
 ## Install
 ```bash
 git clone https://github.com/miyabi-no1-fan/slp_png.git
 cd slp_png
-cmake -B build
+cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
-- If you want to run test, see `CMakeLists.txt` option
-
 
 ## Basic usage
-```C
-#include <slp_image_transform.h>
-#include <slp_png.h>
-#include <stdio.h>
+```CXX
+#include <slp_png.hpp>
+#include <iostream>
 
 int main() {
-    slp_image_t your_image;
-    {
-        FILE* file = fopen("/path/to/your/image", "rb");
-        int ret = slp_png_read(&your_image, &(slp_png_io){ .buf = file });
-        fclose(file);
-        if (ret != 0)
-            return ret;
+    auto img = slp::Image::read_png("in.png");
+    if (!img) {
+        std::cerr << "read error: " << img.error() << "\n";
+        return 1;
     }
 
-    {
-        slp_image_unpack(&your_image);
-        slp_image_t new_image = slp_image_linear_transform(
-            &your_image,
-            (const double[2][2]){
-                { 1, 0 },
-                { 0, 1 },
-            }  //
-        );
-        slp_image_destroy(&your_image);
-        your_image = new_image;
-        slp_image_pack(&your_image);
+    if (auto res = img->write_png("out.png"); !res) {
+        std::cerr << "write error: " << res.error() << "\n";
+        return 1;
     }
 
-    {
-        FILE* file = fopen("/path/to/where/to/write", "wb");
-        int ret = slp_png_write(&your_image, &(slp_png_io){ .buf = file });
-        fclose(file);
-        if (ret != 0)
-            return ret;
-    }
-
-    slp_image_destroy(&your_image);
     return 0;
 }
 ```
 
+## Support
 
-## Features
-For `slp_png_read`:
-- Chunk type support: `IHDR`, `IDAT`, `IEND`, `PLTE` (color type 3 only), `tRNS` (color type 3 only)
-- Color type support: 0/2/3/4/6
-- Bit depth support: 1/2/4/8/16
-- Compression method: 0
-- Filter method: 0
-- Interlace method: 0
-
-For `slp_png_write`:
-- Chunk type support: `IHDR`, `IDAT`, `IEND`
-- Color type: 0/2/4/6
+- Chunk type: `IHDR`, `IDAT`, `IEND`, `PLTE` (color type 3 only), `tRNS` (color type 3 only)
+- Color type: 0/2/3/4/6
 - Bit depth: 1/2/4/8/16
 - Compression method: 0
 - Filter method: 0
 - Interlace method: 0
 
-Format:
-- `slp_png_read` output format is **raw format** except for `color type 3` which will be converted to `RGBA32`.
-
-    If you're familiar with `libspng`, our output format is equivalent to this:
-    ```C
-    (color_type == SPNG_COLOR_TYPE_INDEXED) ? SPNG_FMT_RGBA8 : SPNG_FMT_RAW
-    ```
-    also with this flag:
-    ```C
-    (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED) ? SPNG_DECODE_TRNS : 0
-    ```
-    We have our test to ensure `slp_png_read` output match every single byte of `libspng` output, using the same format.
-
-- `slp_png_write` expect the same format as `slp_png_read` output format.
-
-
 ## Performance
+
 - Platform: Linux
 - CPU: intel i5 12450H
 - RAM: 16GB DDR5
@@ -105,21 +55,15 @@ Format:
 ```bash
 git clone https://github.com/slp-c/slp_png.git
 cd slp_png
-cmake -S . -B build -DBUILD_TEST=ON
-cmake --build build
-
-# For slp_png
-build/slp-benchmark
-
-# For spng
-build/test --spng-benchmark
-
-# You could also try with `hyperfine` and `perf` for more accurate comparison
+cmake --preset release -DSLP_PNG_BUILD_BENCH=ON
+cmake --build --preset release
+build/release/benchmark
+# See `tests/benchmark.cpp`
 ```
 
-Test image: `tests/test_images/10.4-MB.png`
+Test image: `tests/test_images/benchmark/10.4-MB.png`
 
-| Library | Read time | Write time | Output File Size |
-| --- | --- | --- | --- |
-| `libspng` | 0.105s | 1.056s | 10.66 MB |
-| `slp_png` | 0.105s | 0.693s | 10.63 MB |
+| Library | Read time | Write time |
+| --- | --- | --- |
+| `libspng` | 0.095s | 0.976s |
+| `slp_png` | 0.101s | 0.691s |
