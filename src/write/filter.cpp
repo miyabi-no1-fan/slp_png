@@ -30,17 +30,13 @@ namespace slp {
 static auto _mm_abs_epi8_compat(__m128i v) -> __m128i;
 // only work when mask = -1 for true and = 0 for false
 static auto _mm_blendv_epi8_compat(__m128i V1, __m128i V2, __m128i M) -> __m128i;
-static auto _mm_cmple_epu8(__m128i a, __m128i b) -> __m128i;
 static auto _mm_srli_epi8(__m128i v, int count) -> __m128i;
-static auto _mm_not_si128(__m128i v) -> __m128i;
 static auto _mm_avg(__m128i a, __m128i b) -> __m128i;
 static auto _mm_paeth(__m128i a, __m128i b, __m128i c) -> __m128i;
 #endif
 
 #ifdef __AVX2__
-static auto _mm256_cmple_epu8(__m256i a, __m256i b) -> __m256i;
 static auto _mm256_srli_epi8(__m256i v, int count) -> __m256i;
-static auto _mm256_not_si256(__m256i v) -> __m256i;
 static auto _mm256_avg(__m256i a, __m256i b) -> __m256i;
 static auto _mm256_paeth(__m256i a, __m256i b, __m256i c) -> __m256i;
 #endif
@@ -237,33 +233,31 @@ static auto _mm256_paeth(__m256i a, __m256i b, __m256i c) -> __m256i {
 
     const __m256i c_le_a = _mm256_cmpeq_epi8(min_ac, c);
     const __m256i b_le_c = _mm256_cmpeq_epi8(min_bc, b);
+    const __m256i mask = _mm256_xor_si256(c_le_a, b_le_c);
 
-    const __m256i mask = _mm256_not_si256(_mm256_cmpeq_epi8(c_le_a, b_le_c));
-    const __m256i pc =
-        _mm256_or_si256(_mm256_sub_epi8(_mm256_max_epu8(pa, pb), _mm256_min_epu8(pa, pb)), mask);
+    const __m256i max_papb = _mm256_max_epu8(pa, pb);
+    const __m256i min_papb = _mm256_min_epu8(pa, pb);
+    const __m256i abs_diff_papb = _mm256_sub_epi8(max_papb, min_papb);
 
-    const __m256i pa_le_pb = _mm256_cmple_epu8(pa, pb);
-    const __m256i pa_le_pc = _mm256_cmple_epu8(pa, pc);
+    const __m256i pc = _mm256_or_si256(abs_diff_papb, mask);
+
+    const __m256i min_papc = _mm256_min_epu8(pa, pc);
+    const __m256i min_pbpc = _mm256_min_epu8(pb, pc);
+
+    const __m256i pa_le_pb = _mm256_cmpeq_epi8(min_papb, pa);
+    const __m256i pa_le_pc = _mm256_cmpeq_epi8(min_papc, pa);
 
     const __m256i cond1 = _mm256_and_si256(pa_le_pb, pa_le_pc);
-    const __m256i cond2 = _mm256_cmple_epu8(pb, pc);
+    const __m256i cond2 = _mm256_cmpeq_epi8(min_pbpc, pb);
 
-    __m256i d = _mm256_blendv_epi8(c, b, cond2);
+    const __m256i d = _mm256_blendv_epi8(c, b, cond2);
     return _mm256_blendv_epi8(d, a, cond1);
 }
 
 static auto _mm256_srli_epi8(__m256i v, int count) -> __m256i {
-    const __m256i mask = _mm256_not_si256(_mm256_set1_epi8(static_cast<char>((1UL << count) - 1)));
+    const __m256i mask = _mm256_set1_epi8(static_cast<char>(~((1UL << count) - 1)));
     v = _mm256_and_si256(v, mask);
     return _mm256_srli_epi64(v, count);
-}
-
-static auto _mm256_cmple_epu8(__m256i a, __m256i b) -> __m256i {
-    return _mm256_cmpeq_epi8(_mm256_min_epu8(a, b), a);
-}
-
-static auto _mm256_not_si256(__m256i v) -> __m256i {
-    return _mm256_xor_si256(v, _mm256_set1_epi8(-1));
 }
 #endif
 
@@ -276,27 +270,42 @@ static auto _mm_avg(__m128i a, __m128i b) -> __m128i {
 static auto _mm_paeth(__m128i a, __m128i b, __m128i c) -> __m128i {
     // fpnge
     // https://www.lucaversari.it/FJXL_and_FPNGE.pdf
-    const __m128i pa = _mm_sub_epi8(_mm_max_epu8(b, c), _mm_min_epu8(b, c));
-    const __m128i pb = _mm_sub_epi8(_mm_max_epu8(a, c), _mm_min_epu8(a, c));
-    const __m128i pc =
-        _mm_or_si128(_mm_sub_epi8(_mm_max_epu8(pa, pb), _mm_min_epu8(pa, pb)),
-                     _mm_not_si128(_mm_cmpeq_epi8(_mm_cmple_epu8(c, a), _mm_cmple_epu8(b, c))));
-    const __m128i pa_le_pb = _mm_cmple_epu8(pa, pb);
-    const __m128i pa_le_pc = _mm_cmple_epu8(pa, pc);
+    const __m128i max_bc = _mm_max_epu8(b, c);
+    const __m128i min_bc = _mm_min_epu8(b, c);
+
+    const __m128i max_ac = _mm_max_epu8(a, c);
+    const __m128i min_ac = _mm_min_epu8(a, c);
+
+    const __m128i pa = _mm_sub_epi8(max_bc, min_bc);
+    const __m128i pb = _mm_sub_epi8(max_ac, min_ac);
+
+    const __m128i c_le_a = _mm_cmpeq_epi8(min_ac, c);
+    const __m128i b_le_c = _mm_cmpeq_epi8(min_bc, b);
+    const __m128i mask = _mm_xor_si128(c_le_a, b_le_c);
+
+    const __m128i max_papb = _mm_max_epu8(pa, pb);
+    const __m128i min_papb = _mm_min_epu8(pa, pb);
+    const __m128i abs_diff_papb = _mm_sub_epi8(max_papb, min_papb);
+
+    const __m128i pc = _mm_or_si128(abs_diff_papb, mask);
+
+    const __m128i min_papc = _mm_min_epu8(pa, pc);
+    const __m128i min_pbpc = _mm_min_epu8(pb, pc);
+
+    const __m128i pa_le_pb = _mm_cmpeq_epi8(min_papb, pa);
+    const __m128i pa_le_pc = _mm_cmpeq_epi8(min_papc, pa);
+
     const __m128i cond1 = _mm_and_si128(pa_le_pb, pa_le_pc);
-    const __m128i cond2 = _mm_cmple_epu8(pb, pc);
-    __m128i d = _mm_blendv_epi8_compat(c, b, cond2);
+    const __m128i cond2 = _mm_cmpeq_epi8(min_pbpc, pb);
+
+    const __m128i d = _mm_blendv_epi8_compat(c, b, cond2);
     return _mm_blendv_epi8_compat(d, a, cond1);
 }
 
 static auto _mm_srli_epi8(__m128i v, int count) -> __m128i {
-    const __m128i mask = _mm_not_si128(_mm_set1_epi8(static_cast<char>((1UL << count) - 1)));
+    const __m128i mask = _mm_set1_epi8(static_cast<char>(~((1UL << count) - 1)));
     v = _mm_and_si128(v, mask);
     return _mm_srli_epi64(v, count);
-}
-
-static auto _mm_cmple_epu8(__m128i a, __m128i b) -> __m128i {
-    return _mm_cmpeq_epi8(_mm_min_epu8(a, b), a);
 }
 
 static auto _mm_abs_epi8_compat(__m128i v) -> __m128i {
@@ -318,8 +327,6 @@ static auto _mm_blendv_epi8_compat(__m128i V1, __m128i V2, __m128i M) -> __m128i
 #endif
     return _mm_or_si128(_mm_andnot_si128(M, V1), _mm_and_si128(M, V2));
 }
-
-static auto _mm_not_si128(__m128i v) -> __m128i { return _mm_xor_si128(v, _mm_set1_epi8(-1)); }
 #endif
 
 }  // namespace slp
