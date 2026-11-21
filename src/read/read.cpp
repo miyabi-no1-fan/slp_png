@@ -269,12 +269,12 @@ auto read_idat(ChunkInfo& info) -> std::expected<void, Error> {  // NOLINT
         // chunk_length > remaining raw capacity
         while (chunk_length > std::distance(raw_it, raw.end())) {
             // read as much as `raw_it` have left
-            if (!info.io.read(reinterpret_cast<char*>(raw_it.base()),
+            if (!info.io.read(reinterpret_cast<char*>(std::to_address(raw_it)),
                               std::distance(raw_it, raw.end()))) {
                 return std::unexpected(Error::IO);
             }
 
-            crc = crc32(crc, raw_it.base(), std::distance(raw_it, raw.end()));
+            crc = crc32(crc, std::to_address(raw_it), std::distance(raw_it, raw.end()));
             chunk_length -= std::distance(raw_it, raw.end());
             raw_it = raw.end();  // `raw` buffer is full now
 
@@ -296,10 +296,10 @@ auto read_idat(ChunkInfo& info) -> std::expected<void, Error> {  // NOLINT
             raw_it = raw.begin();
         }
 
-        if (!info.io.read(reinterpret_cast<char*>(raw_it.base()), chunk_length)) {
+        if (!info.io.read(reinterpret_cast<char*>(std::to_address(raw_it)), chunk_length)) {
             return std::unexpected(Error::IO);
         }
-        crc = crc32(crc, raw_it.base(), chunk_length);
+        crc = crc32(crc, std::to_address(raw_it), chunk_length);
         raw_it += chunk_length;
 
         if (!info.io.read(reinterpret_cast<char*>(info.worker.data() + 8), 4)) {
