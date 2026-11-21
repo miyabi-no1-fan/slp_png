@@ -160,7 +160,7 @@ auto write_idat(const Image& image, std::ostream& io) -> std::expected<void, Err
     strm->next_out = idat.data() + 8;
 
     for (std::size_t i = 0; i < image.height(); i++) {
-        std::array<std::uint64_t, 5> filter_scores;
+        std::array<std::uint64_t, 5> filter_scores = {};
         filter(image, filter_buffers, filter_scores, i);
 
         std::uint8_t filter =
