@@ -1,3 +1,6 @@
+#if defined(__i386__) || defined(__x86_64__)
+#include <immintrin.h>
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -5,17 +8,7 @@
 
 #include "filter_internal.hpp"
 
-#if defined(__i386__) || defined(__x86_64__)
-#include <immintrin.h>
-#endif
-
 namespace slp {
-
-#if !defined(__i386__) && !defined(__x86_64__)
-void filter_internal_sse2(std::size_t&, std::array<std::vector<std::uint8_t>, 5>&,  // NOLINT
-                          std::array<std::uint64_t, 5>&, const std::uint8_t* __restrict,
-                          std::uint8_t* __restrict, std::size_t, std::size_t) {}
-#else
 
 #define HELPER __attribute__((target("sse4.2"), always_inline)) static inline auto
 
@@ -142,6 +135,6 @@ HELPER sse2_blendv_epi8(__m128i V1, __m128i V2, __m128i M) -> __m128i {
     return _mm_or_si128(_mm_andnot_si128(M, V1), _mm_and_si128(M, V2));
 }
 
-#endif
-
 }  // namespace slp
+
+#endif

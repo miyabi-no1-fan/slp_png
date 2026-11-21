@@ -1,3 +1,6 @@
+#if defined(__i386__) || defined(__x86_64__)
+#include <immintrin.h>
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -5,17 +8,7 @@
 
 #include "filter_internal.hpp"
 
-#if defined(__i386__) || defined(__x86_64__)
-#include <immintrin.h>
-#endif
-
 namespace slp {
-
-#if !defined(__i386__) && !defined(__x86_64__)
-void filter_internal_avx2(std::size_t&, std::array<std::vector<std::uint8_t>, 5>&,  // NOLINT
-                          std::array<std::uint64_t, 5>&, const std::uint8_t* __restrict,
-                          std::uint8_t* __restrict, std::size_t, std::size_t) {}
-#else
 
 #define HELPER __attribute__((target("avx2"), always_inline)) static inline auto
 
@@ -127,6 +120,6 @@ HELPER avx2_srli_epi8(__m256i v, int count) -> __m256i {
     return _mm256_srli_epi64(v, count);
 }
 
-#endif
-
 }  // namespace slp
+
+#endif
