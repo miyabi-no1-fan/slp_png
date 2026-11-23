@@ -1,10 +1,10 @@
-# Simple PNG codec library written in C++
+# Small PNG codec library written in C++
 
 ## Support platforms
 - OS: Linux, MacOS, Windows
 - Architecture: x86-64, arm64
 
-Note: for now, we have only optimized for x86-64 architecture
+We only have optimized for x86-64 architecture so it might run slower on arm64 than on x86-64.
 
 ## Dependencies
 - zlib
@@ -16,6 +16,7 @@ cd slp_png
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
+We only support clang and gcc compiler.
 
 ## Basic usage
 ```CXX
@@ -46,6 +47,7 @@ int main() {
 - Compression method: 0
 - Filter method: 0
 - Interlace method: 0
+- APNG: no
 
 ## Performance
 
@@ -60,9 +62,8 @@ cd slp_png
 cmake --preset release -DSLP_PNG_BUILD_BENCH=ON
 cmake --build --preset release -j$(nproc)
 python tests/test_images/generate_some_images.py
-mv *.png -t tests/test_images/benchmark
 echo "---------------------------------------"
-for file in tests/test_images/benchmark/*.png; do
+for file in tests/test_images/benchmark/*.png *.png; do
     # See `tests/benchmark.cpp`
     build/release/benchmark $file
     echo ""
