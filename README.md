@@ -55,7 +55,7 @@ int main() {
 - Compare with https://github.com/randy408/libspng
 
 ```bash
-git clone https://github.com/slp-c/slp_png.git
+git clone https://github.com/miyabi-no1-fan/slp_png.git
 cd slp_png
 cmake --preset release -DSLP_PNG_BUILD_BENCH=ON
 cmake --build --preset release -j$(nproc)
