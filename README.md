@@ -55,6 +55,7 @@ int main() {
 - CPU: intel i5 12450H
 - RAM: 16GB DDR5
 - Compare with https://github.com/randy408/libspng
+- Both uses zlib-ng as backend
 
 ```bash
 git clone https://github.com/miyabi-no1-fan/slp_png.git
