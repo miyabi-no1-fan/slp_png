@@ -187,7 +187,7 @@ class Image {
    public:
     Image() = default;
 
-    static consteval auto zeros(std::uint32_t width, std::uint32_t height, Format format) -> Image {
+    static constexpr auto zeros(std::uint32_t width, std::uint32_t height, Format format) -> Image {
         Image image;
         image.width_ = width;
         image.height_ = height;
