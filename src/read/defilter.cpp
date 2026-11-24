@@ -19,10 +19,7 @@ limitations under the License.
 #include <cstring>
 #include <expected>
 
-#if defined(__i386__) || defined(__x86_64__)
-#include <immintrin.h>
-#endif
-
+#include "defilter/defilter_up.hpp"
 #include "read.hpp"
 #include "slp_png.hpp"
 
@@ -56,25 +53,7 @@ auto defilter(const std::uint8_t* __restrict buffer, std::uint8_t* __restrict cu
 
         case 2: {
             std::size_t i = 0;
-#ifdef __AVX2__
-            if (__builtin_cpu_supports("avx2")) {
-                for (; i + 32 <= bpr; i += 32) {
-                    __m256i raw = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(buffer + i));
-                    __m256i up = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(prev + i));
-                    _mm256_storeu_si256(reinterpret_cast<__m256i*>(cur + i),
-                                        _mm256_add_epi8(raw, up));
-                }
-            }
-#endif
-#ifdef __SSE2__
-            if (__builtin_cpu_supports("sse2")) {
-                for (; i + 16 <= bpr; i += 16) {
-                    __m128i raw = _mm_loadu_si128(reinterpret_cast<const __m128i*>(buffer + i));
-                    __m128i up = _mm_loadu_si128(reinterpret_cast<const __m128i*>(prev + i));
-                    _mm_storeu_si128(reinterpret_cast<__m128i*>(cur + i), _mm_add_epi8(raw, up));
-                }
-            }
-#endif
+            defilter_up_simd(i, buffer, cur, prev, bpr);
             for (; i < bpr; i++) cur[i] = buffer[i] + prev[i];
             break;
         }
