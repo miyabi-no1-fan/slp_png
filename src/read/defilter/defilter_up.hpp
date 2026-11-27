@@ -3,14 +3,18 @@
 
 namespace slp {
 
+#define DEFILTER_UP(ext)                                                                           \
+    void defilter_up_##ext(std::size_t&, const std::uint8_t* __restrict, std::uint8_t* __restrict, \
+                           const std::uint8_t* __restrict, std::size_t)
+
 #if defined(__i386__) || defined(__x86_64__)
-void defilter_up_simd(std::size_t& i, const std::uint8_t* __restrict buffer,
-                      std::uint8_t* __restrict cur, const std::uint8_t* __restrict prev,
-                      std::size_t bpr);
+DEFILTER_UP(avx2);
+DEFILTER_UP(sse2);
 #else
-static inline void defilter_up_simd(std::size_t&, const std::uint8_t* __restrict,
-                                    std::uint8_t* __restrict, const std::uint8_t* __restrict,
-                                    std::size_t) {}
+static inline DEFILTER_UP(avx2) {}
+static inline DEFILTER_UP(sse2) {}
 #endif
+
+#undef DEFILTER_UP
 
 }  // namespace slp
