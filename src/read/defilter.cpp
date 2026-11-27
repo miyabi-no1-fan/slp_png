@@ -53,7 +53,8 @@ auto defilter(const std::uint8_t* __restrict buffer, std::uint8_t* __restrict cu
 
         case 2: {
             std::size_t i = 0;
-            defilter_up_simd(i, buffer, cur, prev, bpr);
+            defilter_up_avx2(i, buffer, cur, prev, bpr);
+            defilter_up_sse2(i, buffer, cur, prev, bpr);
             for (; i < bpr; i++) cur[i] = buffer[i] + prev[i];
             break;
         }
