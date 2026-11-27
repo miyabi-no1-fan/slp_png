@@ -113,7 +113,7 @@ namespace slp {
 
             default: {
                 std::uint32_t chunk_length = from_be_u32(chunk_info.worker.data());
-                if (!io.seekg(chunk_length + 4, std::ios::cur)) {
+                if (!io.seekg(static_cast<std::int64_t>(chunk_length) + 4, std::ios::cur)) {
                     return std::unexpected(Error::IO);
                 }
             }
